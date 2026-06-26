@@ -5,7 +5,19 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Visitas Sfera</title>
   <link rel="stylesheet" href="css/style.css">
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
   <style>
+    .prio-card { border-radius:14px; padding:14px; margin-bottom:12px; box-shadow:var(--shadow); background:white; border-left:5px solid var(--border); }
+    .prio-rank { font-size:22px; font-weight:900; color:var(--text-light); min-width:34px; }
+    .sev-badge { display:inline-block; padding:4px 12px; border-radius:20px; font-size:11px; font-weight:800; text-transform:uppercase; letter-spacing:0.5px; }
+    .sev-critica { background:#f8d7da; color:#842029; } .border-critica { border-left-color:#dc3545 !important; }
+    .sev-alta { background:#ffe0cc; color:#7d3c00; } .border-alta { border-left-color:#fd7e14 !important; }
+    .sev-media { background:#fff3cd; color:#856404; } .border-media { border-left-color:#ffc107 !important; }
+    .sev-saudavel { background:#d1e7dd; color:#0f5132; } .border-saudavel { border-left-color:#28a745 !important; }
+    .alerta-linha { font-size:13px; padding:6px 0; display:flex; gap:8px; align-items:flex-start; border-bottom:1px solid #f0f0f0; }
+    .upload-zone { border:2px dashed var(--sfera); border-radius:14px; padding:24px 16px; text-align:center; background:var(--sfera-light); cursor:pointer; transition:all .15s; }
+    .upload-zone:active { background:#d0efff; }
+    .file-chip { display:flex; align-items:center; gap:8px; background:white; border:1.5px solid var(--border); border-radius:10px; padding:10px 12px; margin-top:8px; font-size:13px; }
     .tipo-dia-grid { display:grid; grid-template-columns:1fr 1fr 1fr; gap:10px; margin:14px 0; }
     .tipo-dia-btn { padding:16px 8px; border-radius:12px; border:2px solid var(--border); background:white; cursor:pointer; text-align:center; transition:all 0.2s; }
     .tipo-dia-btn .td-icon { font-size:28px; display:block; margin-bottom:6px; }
@@ -96,6 +108,18 @@
       </div>
     </div>
 
+    <!-- Prioridade de rota -->
+    <div class="card" style="background:linear-gradient(135deg,#00BFFF 0%,#0080CC 100%);color:white;cursor:pointer;" onclick="irPrioridade()">
+      <div style="display:flex;align-items:center;gap:14px;">
+        <div style="font-size:34px;">📊</div>
+        <div style="flex:1;">
+          <div style="font-size:15px;font-weight:800;">Prioridade de Rota</div>
+          <div style="font-size:12px;opacity:0.9;margin-top:2px;">Anexe o resumo de performance e descubra quais lojas visitar primeiro</div>
+        </div>
+        <div style="font-size:22px;">→</div>
+      </div>
+    </div>
+
     <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;">
       <div style="font-size:16px;font-weight:800;">Visitas de Hoje</div>
       <button class="btn btn-primary btn-sm" onclick="abrirNovaVisita()" id="btn-nova-visita">+ Nova Visita</button>
@@ -132,6 +156,49 @@
       <div class="step">4. Visita</div>
     </div>
     <div id="lista-lojas"></div>
+  </div>
+
+  <!-- TELA: PRIORIDADE DE ROTA -->
+  <div id="tela-prioridade" style="display:none">
+    <div style="display:flex;align-items:center;gap:12px;margin-bottom:16px;">
+      <button onclick="irHome()" style="background:none;border:none;font-size:22px;cursor:pointer;">←</button>
+      <div>
+        <div style="font-size:18px;font-weight:800;">📊 Prioridade de Rota</div>
+        <div style="font-size:12px;color:var(--text-light);">Análise de performance das suas lojas</div>
+      </div>
+    </div>
+
+    <!-- Upload -->
+    <div class="card" id="card-upload-prio">
+      <div class="card-title">📎 Anexar resumo de performance</div>
+      <p style="font-size:13px;color:var(--text-light);margin-bottom:12px;">
+        Anexe o relatório <strong>Resumo de Performance / Indicadores de Loja</strong> (.xlsx).
+        Pode anexar 1 arquivo, ou 2 (períodos diferentes) para uma análise mais precisa.
+      </p>
+      <div class="upload-zone" onclick="document.getElementById('prio-file-input').click()">
+        <div style="font-size:32px;">📂</div>
+        <div style="font-size:14px;font-weight:700;color:var(--sfera-dark);margin-top:6px;">Toque para anexar</div>
+        <div style="font-size:12px;color:var(--text-light);">arquivos .xlsx</div>
+      </div>
+      <input type="file" id="prio-file-input" accept=".xlsx" multiple style="display:none" onchange="onPrioFiles(event)">
+      <div id="prio-files-list"></div>
+      <button class="btn btn-primary btn-full" id="btn-analisar" style="margin-top:14px;display:none;" onclick="analisarPerformance()">🔍 Analisar e priorizar</button>
+    </div>
+
+    <div id="prio-loading" style="display:none;" class="loader"><div class="spinner"></div><p style="font-size:13px;">Analisando indicadores...</p></div>
+    <div id="prio-resultado"></div>
+  </div>
+
+  <!-- MODAL: Detalhe loja prioridade -->
+  <div id="modal-prio-loja" style="display:none;position:fixed;inset:0;background:#fff;z-index:210;overflow-y:auto;">
+    <div style="position:sticky;top:0;background:#fff;border-bottom:1.5px solid var(--border);z-index:10;padding:14px 16px;display:flex;align-items:center;justify-content:space-between;">
+      <div>
+        <div style="font-size:11px;color:var(--text-light);font-weight:600;">ANÁLISE DA LOJA</div>
+        <div style="font-weight:800;font-size:16px;" id="prio-modal-titulo"></div>
+      </div>
+      <button onclick="fecharPrioLoja()" style="background:none;border:none;font-size:24px;cursor:pointer;">✕</button>
+    </div>
+    <div id="prio-modal-body" style="padding:16px 16px 80px;"></div>
   </div>
 
   <!-- TELA: REVISÃO PLANO DE AÇÃO -->
@@ -440,10 +507,11 @@ window.addEventListener('DOMContentLoaded', async () => {
 // NAVEGAÇÃO
 // ==============================
 function mostrarTela(id) {
-  ['tela-home','tela-selecionar-loja','tela-plano-revisao','tela-energia','tela-visita','tela-encerrar','tela-encerrada']
+  ['tela-home','tela-selecionar-loja','tela-prioridade','tela-plano-revisao','tela-energia','tela-visita','tela-encerrar','tela-encerrada']
     .forEach(t => document.getElementById(t).style.display = t===id ? '':'none');
   window.scrollTo(0,0);
 }
+function irPrioridade() { mostrarTela('tela-prioridade'); }
 function irHome() { mostrarTela('tela-home'); carregarVisitasHoje(); carregarHistorico(tabHistAtual); }
 function voltarLoja() { mostrarTela('tela-selecionar-loja'); }
 function voltarParaPlanoOuLoja() { planosAnteriores.length>0 ? mostrarTela('tela-plano-revisao') : mostrarTela('tela-selecionar-loja'); }
@@ -1151,6 +1219,354 @@ function mostrarRelatorioChecklist(inserts){
 
 function fecharRelatorio(){
   document.getElementById('modal-relatorio-cl').style.display='none';
+}
+
+// ==============================
+// PRIORIDADE DE ROTA (análise de performance)
+// ==============================
+let prioArquivos = [];   // [{nome, periodo, dias, pdv:{code:row}, consultor:[rows], headerPDV}]
+let prioAnalise = [];    // resultado ordenado
+
+function onPrioFiles(ev){
+  const files = Array.from(ev.target.files||[]);
+  files.forEach(f=>{
+    if(prioArquivos.find(a=>a.nome===f.name)) return;
+    if(prioArquivos.length>=2){ showToast('Máximo 2 arquivos','error'); return; }
+    lerArquivoPrio(f);
+  });
+  ev.target.value='';
+}
+
+function lerArquivoPrio(file){
+  const reader = new FileReader();
+  reader.onload = (e)=>{
+    try{
+      const wb = XLSX.read(new Uint8Array(e.target.result), {type:'array'});
+      // FILTROS → período
+      let periodo='—', dias=0;
+      if(wb.Sheets['FILTROS']){
+        const fil = XLSX.utils.sheet_to_json(wb.Sheets['FILTROS'], {header:1});
+        const linhaAtual = fil.find(r=> r[0] && String(r[0]).toUpperCase().includes('PER') && String(r[0]).toUpperCase().includes('ATUAL'));
+        if(linhaAtual && linhaAtual[1]){
+          periodo = String(linhaAtual[1]);
+          const m = periodo.match(/(\d{2})\/(\d{2})\/(\d{4})\s*-\s*(\d{2})\/(\d{2})\/(\d{4})/);
+          if(m){ const d1=new Date(m[3],m[2]-1,m[1]); const d2=new Date(m[6],m[5]-1,m[4]); dias=Math.round((d2-d1)/86400000)+1; }
+        }
+      }
+      // PDV
+      const pdv = {};
+      let headerPDV=[];
+      if(wb.Sheets['PDV']){
+        const rows = XLSX.utils.sheet_to_json(wb.Sheets['PDV'], {header:1, raw:true});
+        headerPDV = rows[0]||[];
+        for(let i=3;i<rows.length;i++){
+          const r=rows[i]; if(!r||!r[0]) continue;
+          const code=String(r[0]).trim();
+          if(code==='TOTAL') continue;
+          pdv[code]=r;
+        }
+      }
+      // CONSULTOR
+      const consultor=[];
+      if(wb.Sheets['CONSULTOR']){
+        const rows = XLSX.utils.sheet_to_json(wb.Sheets['CONSULTOR'], {header:1, raw:true});
+        for(let i=3;i<rows.length;i++){
+          const r=rows[i]; if(!r||!r[0]||!r[1]) continue;
+          if(String(r[0]).trim()==='TOTAL') continue;
+          consultor.push(r);
+        }
+      }
+      prioArquivos.push({nome:file.name, periodo, dias, pdv, consultor, headerPDV});
+      renderPrioFiles();
+    }catch(err){
+      console.error(err);
+      showToast('Erro ao ler arquivo','error');
+    }
+  };
+  reader.readAsArrayBuffer(file);
+}
+
+function renderPrioFiles(){
+  const el=document.getElementById('prio-files-list');
+  if(prioArquivos.length===0){ el.innerHTML=''; document.getElementById('btn-analisar').style.display='none'; return; }
+  // ordena: maior período primeiro vira "30 dias", menor "7 dias"
+  el.innerHTML = prioArquivos.map((a,i)=>`
+    <div class="file-chip">
+      <span style="font-size:18px;">📄</span>
+      <div style="flex:1;">
+        <div style="font-weight:700;">${a.dias>0?a.dias+' dias':'Período'} · ${Object.keys(a.pdv).length} lojas</div>
+        <div style="font-size:11px;color:var(--text-light);">${a.periodo}</div>
+      </div>
+      <button onclick="removerPrioArquivo(${i})" style="background:none;border:none;color:#dc3545;font-size:18px;cursor:pointer;padding:4px;">✕</button>
+    </div>`).join('');
+  document.getElementById('btn-analisar').style.display='';
+}
+
+function removerPrioArquivo(i){ prioArquivos.splice(i,1); renderPrioFiles(); }
+
+// helpers
+function _n(v){ if(v===null||v===undefined||v==='-'||v==='') return null; const f=parseFloat(v); return isFinite(f)?f:null; }
+function _pct(v){ return (v*100).toFixed(1).replace('.',',')+'%'; }
+
+// Índices das colunas-chave na aba PDV (0-based)
+const PDV_COLS = {
+  receita:1, receitaMeta:2, receitaAno:3,
+  fluxo:4, fluxoMeta:5, fluxoAno:6,
+  ticket:7, ticketMeta:8, ticketAno:9,
+  pecas:10, pecasMeta:11, pecasAno:12,
+  pa:13, paMeta:14, paAno:15
+};
+
+function scorePDV(r){
+  const C=_n(r[PDV_COLS.receitaMeta]), D=_n(r[PDV_COLS.receitaAno]), G=_n(r[PDV_COLS.fluxoAno]),
+        I=_n(r[PDV_COLS.ticketMeta]), J=_n(r[PDV_COLS.ticketAno]), M=_n(r[PDV_COLS.pecasAno]), P=_n(r[PDV_COLS.paAno]);
+  let s=0;
+  if(C!==null && C<0) s+=Math.abs(C)*100*3;
+  if(D!==null && D<0) s+=Math.abs(D)*100*2;
+  if(G!==null && G<0) s+=Math.abs(G)*100*1.5;
+  if(I!==null && I<0) s+=Math.abs(I)*100*1;
+  if(J!==null && J<0) s+=Math.abs(J)*100*1;
+  if(M!==null && M<0) s+=Math.abs(M)*100*1.5;
+  if(P!==null && P<0) s+=Math.abs(P)*100*1;
+  if(G!==null && M!==null && G>0 && M<0) s+=30; // fluxo subiu mas peças caíram
+  return s;
+}
+
+// Gera lista de alertas (vermelho) e conquistas (verde) com base nos indicadores-core
+function reasonsPDV(r){
+  const alertas=[], conquistas=[];
+  const add=(arr,txt)=>arr.push(txt);
+  const C=_n(r[PDV_COLS.receitaMeta]), D=_n(r[PDV_COLS.receitaAno]), G=_n(r[PDV_COLS.fluxoAno]),
+        I=_n(r[PDV_COLS.ticketMeta]), J=_n(r[PDV_COLS.ticketAno]), M=_n(r[PDV_COLS.pecasAno]), P=_n(r[PDV_COLS.paAno]);
+  // Meta PEF (principal)
+  if(C!==null){ if(C<0) add(alertas,`🎯 Receita <strong>${_pct(C)}</strong> abaixo da meta PEF`); else add(conquistas,`🎯 Receita <strong>+${_pct(C)}</strong> acima da meta PEF`); }
+  if(D!==null){ if(D<0) add(alertas,`📉 Receita <strong>${_pct(D)}</strong> vs ano anterior`); else add(conquistas,`📈 Receita <strong>+${_pct(D)}</strong> vs ano anterior`); }
+  if(G!==null){ if(G<0) add(alertas,`🚶 Fluxo de clientes <strong>${_pct(G)}</strong> vs ano anterior`); else add(conquistas,`🚶 Fluxo <strong>+${_pct(G)}</strong> vs ano anterior`); }
+  if(J!==null){ if(J<0) add(alertas,`🎫 Ticket médio <strong>${_pct(J)}</strong> vs ano anterior`); else add(conquistas,`🎫 Ticket médio <strong>+${_pct(J)}</strong> vs ano anterior`); }
+  if(I!==null && I<0) add(alertas,`🎫 Ticket médio abaixo da meta (${_pct(I)})`);
+  if(M!==null){ if(M<0) add(alertas,`📦 Peças vendidas <strong>${_pct(M)}</strong> vs ano anterior`); else add(conquistas,`📦 Peças <strong>+${_pct(M)}</strong> vs ano anterior`); }
+  if(P!==null){ if(P<0) add(alertas,`🛍️ P.A (peças/atend.) <strong>${_pct(P)}</strong> vs ano anterior`); else add(conquistas,`🛍️ P.A <strong>+${_pct(P)}</strong> vs ano anterior`); }
+  // Cruzamento crítico
+  if(G!==null && M!==null && G>0 && M<0)
+    add(alertas,`🚨 <strong>Alerta total:</strong> fluxo subiu (+${_pct(G).replace('+','')}) mas peças caíram (${_pct(M)}) — não está convertendo o movimento!`);
+  return {alertas, conquistas};
+}
+
+// Varre TODAS as colunas "Vs. Período Anterior" para alertas/conquistas extras
+function extrasVsAno(r, header){
+  const coreVsAno = new Set([PDV_COLS.receitaAno,PDV_COLS.fluxoAno,PDV_COLS.ticketAno,PDV_COLS.pecasAno,PDV_COLS.paAno]);
+  const alertas=[], conquistas=[];
+  for(let g=0; (1+3*g)<r.length; g++){
+    const vIdx=1+3*g, perIdx=3+3*g;
+    if(coreVsAno.has(perIdx)) continue;            // já tratados no core
+    const nome = header[vIdx] ? String(header[vIdx]).trim() : null;
+    if(!nome || nome==='-') continue;
+    const v=_n(r[perIdx]);
+    if(v===null || Math.abs(v)<0.01) continue;     // ignora ~0
+    if(v<0) alertas.push(`${nome}: <strong>${_pct(v)}</strong>`);
+    else conquistas.push(`${nome}: <strong>+${_pct(v)}</strong>`);
+  }
+  return {alertas, conquistas};
+}
+
+// Consultoras: destaques e detratoras de uma loja
+function analiseConsultoras(code){
+  const C={receita:2, receitaAno:3, pa:10, paAno:11};
+  const linhas=[];
+  prioArquivos.forEach(a=>{
+    a.consultor.forEach(r=>{ if(String(r[1]).trim()===code) linhas.push(r); });
+  });
+  // dedup por nome (mantém a de maior receita)
+  const porNome={};
+  linhas.forEach(r=>{
+    const nome=String(r[0]).trim();
+    const rec=_n(r[C.receita])||0;
+    if(!porNome[nome] || rec>(_n(porNome[nome][C.receita])||0)) porNome[nome]=r;
+  });
+  const arr=Object.values(porNome).map(r=>({
+    nome:String(r[0]).trim(), receita:_n(r[C.receita])||0, receitaAno:_n(r[C.receitaAno]),
+    pa:_n(r[C.pa]), paAno:_n(r[C.paAno])
+  }));
+  const destaques = arr.filter(c=>c.receitaAno!==null && c.receitaAno>0).sort((a,b)=>b.receitaAno-a.receitaAno).slice(0,3);
+  const detratoras = arr.filter(c=>c.receitaAno!==null && c.receitaAno< -0.10).sort((a,b)=>a.receitaAno-b.receitaAno).slice(0,3);
+  return {destaques, detratoras, total:arr.length};
+}
+
+function severidade(score){
+  if(score>=130) return {nivel:'critica', label:'Crítica', cls:'sev-critica', border:'border-critica'};
+  if(score>=80)  return {nivel:'alta', label:'Alta', cls:'sev-alta', border:'border-alta'};
+  if(score>=40)  return {nivel:'media', label:'Média', cls:'sev-media', border:'border-media'};
+  return {nivel:'saudavel', label:'Saudável', cls:'sev-saudavel', border:'border-saudavel'};
+}
+
+function analisarPerformance(){
+  if(prioArquivos.length===0){ showToast('Anexe ao menos 1 arquivo','error'); return; }
+  document.getElementById('prio-loading').style.display='';
+  document.getElementById('prio-resultado').innerHTML='';
+
+  setTimeout(()=>{
+    // identifica arquivo de maior e menor período
+    const ordenados=[...prioArquivos].sort((a,b)=>b.dias-a.dias);
+    const fileLongo = ordenados[0];
+    const fileCurto = ordenados.length>1 ? ordenados[ordenados.length-1] : null;
+
+    // só as lojas da supervisora
+    prioAnalise = lojas.map(loja=>{
+      const code=String(loja.codigo).trim();
+      const rLongo = fileLongo.pdv[code];
+      const rCurto = fileCurto ? fileCurto.pdv[code] : null;
+      if(!rLongo && !rCurto) return null;
+
+      const sLongo = rLongo ? scorePDV(rLongo) : 0;
+      const sCurto = rCurto ? scorePDV(rCurto) : 0;
+      let score;
+      if(rLongo && rCurto) score = sLongo*0.45 + sCurto*0.55;
+      else score = rCurto ? sCurto : sLongo;
+
+      const rPrincipal = rCurto || rLongo; // prioriza recente p/ exibir
+      const headerP = (rCurto?fileCurto:fileLongo).headerPDV;
+      const core = reasonsPDV(rPrincipal);
+      const extras = extrasVsAno(rPrincipal, headerP);
+      const consult = analiseConsultoras(code);
+
+      return {
+        loja, code, score, sev:severidade(score),
+        alertas:core.alertas, conquistas:core.conquistas,
+        extrasAlertas:extras.alertas, extrasConquistas:extras.conquistas,
+        consult,
+        temLongo:!!rLongo, temCurto:!!rCurto, sLongo, sCurto
+      };
+    }).filter(Boolean).sort((a,b)=>b.score-a.score);
+
+    document.getElementById('prio-loading').style.display='none';
+    renderPrioResultado(fileLongo, fileCurto);
+    document.getElementById('card-upload-prio').style.display='none';
+  }, 50);
+}
+
+function renderPrioResultado(fileLongo, fileCurto){
+  const el=document.getElementById('prio-resultado');
+  if(prioAnalise.length===0){
+    el.innerHTML=`<div class="empty"><div class="empty-icon">🔍</div><p>Nenhuma das suas lojas foi encontrada no arquivo.</p>
+      <button class="btn btn-secondary btn-sm" style="margin-top:12px;" onclick="resetPrio()">Tentar outro arquivo</button></div>`;
+    return;
+  }
+  const periodos = fileCurto
+    ? `Comparando <strong>${fileCurto.dias} dias</strong> (recente) + <strong>${fileLongo.dias} dias</strong>`
+    : `Período de <strong>${fileLongo.dias} dias</strong>`;
+
+  const criticas=prioAnalise.filter(p=>p.sev.nivel==='critica').length;
+  const altas=prioAnalise.filter(p=>p.sev.nivel==='alta').length;
+
+  let html=`
+    <div class="card" style="background:var(--sfera-light);">
+      <div style="font-size:13px;color:var(--sfera-dark);">${periodos}</div>
+      <div style="font-size:13px;margin-top:6px;">
+        <strong>${prioAnalise.length}</strong> lojas analisadas ·
+        <span style="color:#dc3545;font-weight:700;">${criticas} crítica(s)</span> ·
+        <span style="color:#fd7e14;font-weight:700;">${altas} alta(s)</span>
+      </div>
+      <div style="font-size:12px;color:var(--text-light);margin-top:8px;">👇 Ordenadas da mais urgente para a menos. Toque numa loja para ver os detalhes.</div>
+    </div>
+    <div style="font-size:13px;font-weight:800;color:var(--text-light);text-transform:uppercase;letter-spacing:0.5px;margin:6px 4px 10px;">🗺️ Rota sugerida</div>
+  `;
+
+  html += prioAnalise.map((p,i)=>{
+    const topAlertas = p.alertas.slice(0,3);
+    return `<div class="prio-card ${p.sev.border}" onclick="abrirPrioLoja(${i})" style="cursor:pointer;">
+      <div style="display:flex;align-items:center;gap:12px;">
+        <div class="prio-rank">${i+1}º</div>
+        <div style="flex:1;">
+          <div style="font-weight:800;font-size:16px;">${p.loja.nome}</div>
+          <div style="font-size:12px;color:var(--text-light);">${p.loja.cidade||''} · cód ${p.code}</div>
+        </div>
+        <span class="sev-badge ${p.sev.cls}">${p.sev.label}</span>
+      </div>
+      ${topAlertas.length>0?`<div style="margin-top:10px;">${topAlertas.map(a=>`<div style="font-size:12px;color:#842029;padding:2px 0;">• ${a}</div>`).join('')}</div>`:`<div style="margin-top:10px;font-size:12px;color:#0f5132;">✓ Indicadores saudáveis — visita de reconhecimento!</div>`}
+      ${p.alertas.length>3?`<div style="font-size:11px;color:var(--sfera-dark);margin-top:6px;font-weight:700;">+ ${p.alertas.length-3} outros pontos · toque para ver tudo →</div>`:''}
+    </div>`;
+  }).join('');
+
+  html+=`<button class="btn btn-secondary btn-full" style="margin-top:8px;" onclick="resetPrio()">↻ Analisar outros arquivos</button>`;
+  el.innerHTML=html;
+}
+
+function abrirPrioLoja(i){
+  const p=prioAnalise[i];
+  document.getElementById('prio-modal-titulo').textContent=`${i+1}º · ${p.loja.nome}`;
+  let html=`
+    <div style="display:flex;align-items:center;gap:10px;margin-bottom:16px;">
+      <span class="sev-badge ${p.sev.cls}">Prioridade ${p.sev.label}</span>
+      <span style="font-size:12px;color:var(--text-light);">cód ${p.code}</span>
+    </div>`;
+
+  // Alertas
+  const todosAlertas=[...p.alertas, ...p.extrasAlertas];
+  if(todosAlertas.length>0){
+    html+=`<div class="card" style="border-left:4px solid #dc3545;">
+      <div style="font-weight:800;font-size:14px;color:#842029;margin-bottom:8px;">🔴 Pontos de atenção (${todosAlertas.length})</div>
+      ${todosAlertas.map(a=>`<div class="alerta-linha"><span>${a}</span></div>`).join('')}
+    </div>`;
+  }
+
+  // Conquistas
+  const todasConquistas=[...p.conquistas, ...p.extrasConquistas];
+  if(todasConquistas.length>0){
+    html+=`<div class="card" style="border-left:4px solid #28a745;">
+      <div style="font-weight:800;font-size:14px;color:#0f5132;margin-bottom:8px;">🟢 Para elogiar e comemorar (${todasConquistas.length})</div>
+      ${todasConquistas.map(a=>`<div class="alerta-linha" style="color:#0f5132;"><span>${a}</span></div>`).join('')}
+    </div>`;
+  }
+
+  // Consultoras
+  const c=p.consult;
+  if(c.total>0){
+    html+=`<div class="card">
+      <div style="font-weight:800;font-size:14px;margin-bottom:10px;">👥 Equipe (${c.total} consultoras)</div>`;
+    if(c.destaques.length>0){
+      html+=`<div style="font-size:12px;font-weight:700;color:#0f5132;margin-bottom:6px;">⭐ Destaques — elogie em público!</div>`;
+      html+=c.destaques.map(d=>`<div style="background:#d1e7dd;border-radius:8px;padding:8px 10px;margin-bottom:6px;">
+        <div style="font-weight:700;font-size:13px;">${d.nome}</div>
+        <div style="font-size:12px;color:#0f5132;">📈 +${_pct(d.receitaAno)} em receita vs ano anterior</div>
+      </div>`).join('');
+    }
+    if(c.detratoras.length>0){
+      html+=`<div style="font-size:12px;font-weight:700;color:#856404;margin:10px 0 6px;">⚠️ Para desenvolver na visita</div>`;
+      html+=c.detratoras.map(d=>`<div style="background:#fff3cd;border-radius:8px;padding:8px 10px;margin-bottom:6px;">
+        <div style="font-weight:700;font-size:13px;">${d.nome}</div>
+        <div style="font-size:12px;color:#856404;">📉 ${_pct(d.receitaAno)} em receita vs ano anterior${d.pa!==null?` · P.A ${d.pa.toFixed(2)}`:''}</div>
+      </div>`).join('');
+    }
+    if(c.destaques.length===0 && c.detratoras.length===0)
+      html+=`<div style="font-size:12px;color:var(--text-light);">Sem variação relevante vs ano anterior.</div>`;
+    html+=`</div>`;
+  }
+
+  // Ação: iniciar visita nesta loja
+  html+=`<button class="btn btn-primary btn-full" onclick="iniciarVisitaDaPrioridade('${p.loja.id}')" style="margin-top:8px;">🏪 Iniciar visita nesta loja</button>`;
+
+  document.getElementById('prio-modal-body').innerHTML=html;
+  document.getElementById('modal-prio-loja').style.display='';
+  document.getElementById('modal-prio-loja').scrollTop=0;
+}
+
+function fecharPrioLoja(){ document.getElementById('modal-prio-loja').style.display='none'; }
+
+function iniciarVisitaDaPrioridade(lojaId){
+  const loja = lojas.find(l=>String(l.id)===String(lojaId));
+  if(!loja) return;
+  fecharPrioLoja();
+  // reseta estado de visita (igual abrirNovaVisita)
+  lojaSelecionada=null; energiaSelecionada=null; visitaAtual=null; registros=[]; planosAnteriores=[]; revisaoPlano={};
+  selecionarLoja(loja.id);
+}
+
+function resetPrio(){
+  prioArquivos=[]; prioAnalise=[];
+  document.getElementById('prio-resultado').innerHTML='';
+  document.getElementById('prio-files-list').innerHTML='';
+  document.getElementById('btn-analisar').style.display='none';
+  document.getElementById('card-upload-prio').style.display='';
 }
 
 // ==============================
