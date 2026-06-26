@@ -3,7 +3,11 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Visitas Sfera</title>
+  <title>Sfera · Super em Ação</title>
+  <link rel="icon" type="image/png" href="img/sfera-logo.png">
+  <link rel="apple-touch-icon" href="img/sfera-logo.png">
+  <meta name="theme-color" content="#042C53">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="stylesheet" href="css/style.css">
   <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
   <style>
@@ -59,10 +63,11 @@
       .pdf-logo {
         text-align:center;
         padding:20px 0 16px;
-        border-bottom:3px solid #00BFFF;
+        border-bottom:3px solid #042C53;
         margin-bottom:20px;
       }
-      .pdf-logo h1 { font-size:36px; font-weight:900; color:#00BFFF; margin:0; letter-spacing:-1px; }
+      .pdf-logo img { width:160px; height:auto; }
+      .pdf-logo h1 { font-size:30px; font-weight:800; color:#042C53; margin:6px 0 0; letter-spacing:-1px; }
       .pdf-logo p { color:#666; font-size:13px; margin:4px 0 0; }
       .pdf-header-info { font-size:13px; color:#444; margin-bottom:16px; padding-bottom:12px; border-bottom:1px solid #eee; }
       .pdf-header-info strong { color:#000; }
@@ -72,7 +77,10 @@
 <body>
 
 <div class="header">
-  <div class="header-logo">Sfera Visitas<span>Supervisora</span></div>
+  <div class="header-brand">
+    <div class="header-logo-img"><img src="img/sfera-logo.png" alt="Sfera"></div>
+    <div class="header-title"><strong>Super em Ação</strong><span>Supervisão</span></div>
+  </div>
   <div class="header-user">
     <strong id="hdr-nome">...</strong>
     <button class="btn-logout" onclick="logout()">Sair</button>
@@ -109,7 +117,7 @@
     </div>
 
     <!-- Prioridade de rota -->
-    <div class="card" style="background:linear-gradient(135deg,#00BFFF 0%,#0080CC 100%);color:white;cursor:pointer;" onclick="irPrioridade()">
+    <div class="card" style="background:linear-gradient(135deg,#042C53 0%,#1BA8D9 100%);color:white;cursor:pointer;border:none;" onclick="irPrioridade()">
       <div style="display:flex;align-items:center;gap:14px;">
         <div style="font-size:34px;">📊</div>
         <div style="flex:1;">
@@ -348,8 +356,8 @@
     <!-- Cabeçalho visível apenas no PDF/impressão -->
     <div class="pdf-only">
       <div class="pdf-logo">
-        <h1>Sfera</h1>
-        <p>Multifranquias · O Boticário</p>
+        <img src="img/sfera-logo.png" alt="Sfera Multifranquias">
+        <p>Super em Ação · Supervisão O Boticário</p>
       </div>
       <div class="pdf-header-info">
         <strong>Supervisora:</strong> <span id="pdf-supervisora"></span> &nbsp;|&nbsp;
