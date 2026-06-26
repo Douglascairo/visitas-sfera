@@ -31,10 +31,29 @@
 
     .pdf-only { display:none; }
     @media print {
-      .header, .steps, .card-title, button, .btn, .cat-btn, .btn-del { display:none !important; }
+      * { -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; }
+      .header, .steps, button, .btn, .cat-btn, .btn-del,
+      #tela-encerrar > div:first-child,
+      #tela-encerrar .card:nth-child(3),
+      #tela-encerrar .card:nth-child(4),
+      #tela-encerrar > div:last-child { display:none !important; }
       .pdf-only { display:block !important; }
-      body { background:white; }
-      .card { box-shadow:none; border:1px solid #ddd; }
+      body { background:white; font-family:'Segoe UI',sans-serif; }
+      .container { padding:0; max-width:100%; }
+      .card { box-shadow:none; border:1px solid #e0e0e0; margin-bottom:12px; }
+      .card-title { display:flex !important; }
+      #resumo-print { border:none; padding:0; }
+
+      .pdf-logo {
+        text-align:center;
+        padding:20px 0 16px;
+        border-bottom:3px solid #00BFFF;
+        margin-bottom:20px;
+      }
+      .pdf-logo h1 { font-size:36px; font-weight:900; color:#00BFFF; margin:0; letter-spacing:-1px; }
+      .pdf-logo p { color:#666; font-size:13px; margin:4px 0 0; }
+      .pdf-header-info { font-size:13px; color:#444; margin-bottom:16px; padding-bottom:12px; border-bottom:1px solid #eee; }
+      .pdf-header-info strong { color:#000; }
     }
   </style>
 </head>
@@ -256,6 +275,19 @@
       <div>
         <div style="font-size:13px;color:var(--text-light);" id="encerrar-loja-nome"></div>
         <div style="font-size:18px;font-weight:800;">Encerrar Visita</div>
+      </div>
+    </div>
+
+    <!-- Cabeçalho visível apenas no PDF/impressão -->
+    <div class="pdf-only">
+      <div class="pdf-logo">
+        <h1>Sfera</h1>
+        <p>Multifranquias · O Boticário</p>
+      </div>
+      <div class="pdf-header-info">
+        <strong>Supervisora:</strong> <span id="pdf-supervisora"></span> &nbsp;|&nbsp;
+        <strong>Loja:</strong> <span id="pdf-loja"></span> &nbsp;|&nbsp;
+        <strong>Data:</strong> <span id="pdf-data"></span>
       </div>
     </div>
 
@@ -802,6 +834,9 @@ function fecharChecklist(){document.getElementById('modal-checklist').style.disp
 // ==============================
 function irEncerrar() {
   document.getElementById('encerrar-loja-nome').textContent=lojaSelecionada.nome;
+  document.getElementById('pdf-supervisora').textContent=usuario.nome;
+  document.getElementById('pdf-loja').textContent=lojaSelecionada.nome+' · '+lojaSelecionada.cidade+'/'+lojaSelecionada.estado;
+  document.getElementById('pdf-data').textContent=new Date().toLocaleDateString('pt-BR',{weekday:'long',day:'numeric',month:'long',year:'numeric'});
   const info=ENERGIA_INFO[energiaSelecionada];
   const catCounts={};
   registros.forEach(r=>{catCounts[r.categoria]=(catCounts[r.categoria]||0)+1;});
