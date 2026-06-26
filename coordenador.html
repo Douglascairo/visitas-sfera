@@ -435,10 +435,15 @@ async function carregarMetricas() {
 
   let qVis=db.from('visitas').select('*,supervisoras(nome,nome_curto),lojas(nome)').gte('data_visita',inicio).lte('data_visita',fim);
   if(supId) qVis=qVis.eq('supervisora_id',supId);
-  const {data:visitas}=await qVis;
+  const {data:visitas,error:errVis}=await qVis;
+  if(errVis) console.error('Erro visitas:',errVis);
 
-  let qRegs=db.from('registros_visita').select('categoria,visita_id').in('visita_id',(visitas||[]).map(v=>v.id));
-  const {data:regs}=await qRegs;
+  const ids=(visitas||[]).map(v=>v.id);
+  let regs=[];
+  if(ids.length>0){
+    const {data:regsData}=await db.from('registros_visita').select('categoria,visita_id').in('visita_id',ids);
+    regs=regsData||[];
+  }
 
   const {data:dias}=await db.from('dias_supervisora').select('tipo,supervisora_id,supervisoras(nome)').gte('data',inicio).lte('data',fim);
 
