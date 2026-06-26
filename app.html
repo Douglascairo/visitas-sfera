@@ -330,16 +330,24 @@
 </div><!-- /container -->
 
 <!-- MODAL: Checklist -->
-<div id="modal-checklist" style="display:none">
-  <div class="modal-bg" onclick="fecharChecklist()">
-    <div class="modal-box" onclick="event.stopPropagation()">
-      <div class="modal-title" id="modal-cl-titulo"></div>
-      <div id="modal-cl-itens"></div>
-      <div class="modal-actions">
-        <button class="btn btn-secondary" onclick="fecharChecklist()" style="flex:1">Cancelar</button>
-        <button class="btn btn-primary" onclick="salvarChecklist()" style="flex:2">✓ Salvar</button>
+<div id="modal-checklist" style="display:none;position:fixed;inset:0;background:#fff;z-index:200;overflow-y:auto;padding:0;">
+  <div style="position:sticky;top:0;background:#fff;border-bottom:1.5px solid var(--border);z-index:10;padding:14px 16px;">
+    <div style="display:flex;align-items:center;justify-content:space-between;">
+      <div>
+        <div style="font-size:11px;color:var(--text-light);font-weight:600;">CHECKLIST</div>
+        <div style="font-weight:800;font-size:16px;" id="modal-cl-titulo"></div>
       </div>
+      <button onclick="fecharChecklist()" style="background:none;border:none;font-size:24px;cursor:pointer;padding:4px;">✕</button>
     </div>
+    <div style="display:flex;gap:8px;margin-top:10px;flex-wrap:wrap;">
+      <button class="btn btn-secondary btn-sm" id="btn-filtro-chamado" onclick="toggleFiltroChamado()">🎫 Filtrar: só chamados</button>
+      <span id="cl-progresso" style="font-size:12px;color:var(--text-light);align-self:center;margin-left:auto;"></span>
+    </div>
+  </div>
+  <div id="modal-cl-itens" style="padding:0 16px 100px;"></div>
+  <div style="position:sticky;bottom:0;background:#fff;border-top:1.5px solid var(--border);padding:12px 16px;display:flex;gap:8px;">
+    <button class="btn btn-secondary" onclick="fecharChecklist()" style="flex:1">Cancelar</button>
+    <button class="btn btn-primary" onclick="salvarChecklist()" style="flex:2">✓ Salvar Checklist</button>
   </div>
 </div>
 
@@ -787,46 +795,182 @@ function renderRegistros() {
 async function carregarTemplates() {
   const {data}=await db.from('checklist_templates').select('*,checklist_itens(*)').eq('ativo',true);
   const el=document.getElementById('lista-templates-check');
-  if(!data||data.length===0){el.innerHTML='<p style="color:var(--text-light);font-size:13px;">Nenhum checklist disponível.</p>';return;}
-  el.innerHTML=data.map(t=>`
-    <div style="display:flex;align-items:center;justify-content:space-between;padding:10px 12px;border-radius:10px;border:1.5px solid var(--border);margin-bottom:8px;">
-      <div><div style="font-weight:700;font-size:14px;">${t.titulo}</div>
-      <div style="font-size:12px;color:var(--text-light);">${t.checklist_itens?.length||0} itens</div></div>
-      <button class="btn btn-secondary btn-sm" onclick='abrirChecklist(${JSON.stringify(t)})'>Aplicar</button>
-    </div>`).join('');
-}
-
-function abrirChecklist(template) {
-  checklistAtual=template; checklistRespostas={};
-  document.getElementById('modal-cl-titulo').textContent=template.titulo;
-  const itens=template.checklist_itens||[];
-  document.getElementById('modal-cl-itens').innerHTML=itens.sort((a,b)=>a.ordem-b.ordem).map(item=>`
-    <div class="checklist-item">
-      <div class="checklist-pergunta">${item.pergunta}</div>
-      <div class="checklist-opcoes">
-        <button class="opt-btn" id="opt-sim-${item.id}" onclick="responderCheck('${item.id}','sim')">✓</button>
-        <button class="opt-btn" id="opt-nao-${item.id}" onclick="responderCheck('${item.id}','nao')">✗</button>
-        <button class="opt-btn" id="opt-parcial-${item.id}" onclick="responderCheck('${item.id}','parcial')">~</button>
+  if(!data||data.length===0){el.innerHTML='<p style="color:var(--text-light);font-size:13px;">Nenhum checklist disponível. Execute o SQL do arquivo supabase_checklist.sql no Supabase.</p>';return;}
+  el.innerHTML=data.map(t=>{
+    const respondidos=Object.keys(checklistRespostas).filter(id=>checklistRespostas[id]?.avaliacao).length;
+    const total=t.checklist_itens?.length||0;
+    const pct=total>0?Math.round(respondidos/total*100):0;
+    return `<div style="padding:10px 12px;border-radius:10px;border:1.5px solid var(--border);margin-bottom:8px;">
+      <div style="display:flex;align-items:center;justify-content:space-between;">
+        <div><div style="font-weight:700;font-size:14px;">${t.titulo}</div>
+        <div style="font-size:12px;color:var(--text-light);">${total} itens</div></div>
+        <button class="btn btn-secondary btn-sm" onclick='abrirChecklist(${JSON.stringify(t).replace(/'/g,"&#39;")})'>Aplicar ☑️</button>
       </div>
-    </div>`).join('');
-  document.getElementById('modal-checklist').style.display='';
+    </div>`;
+  }).join('');
 }
 
-function responderCheck(itemId,resp) {
-  checklistRespostas[itemId]=resp;
-  ['sim','nao','parcial'].forEach(r=>{
-    const b=document.getElementById(`opt-${r}-${itemId}`);
-    b.className='opt-btn'+(r===resp?` sel-${r}`:'');
+let clFiltroSoChamados=false;
+let clMediaFiles={};
+
+function toggleFiltroChamado(){
+  clFiltroSoChamados=!clFiltroSoChamados;
+  const btn=document.getElementById('btn-filtro-chamado');
+  btn.style.background=clFiltroSoChamados?'var(--sfera)':'';
+  btn.style.color=clFiltroSoChamados?'#fff':'';
+  document.querySelectorAll('.cl-item').forEach(el=>{
+    const permiteChamado=el.dataset.permiteChamado==='true';
+    if(clFiltroSoChamados) el.style.display=permiteChamado?'':'none';
+    else el.style.display='';
+  });
+  document.querySelectorAll('.cl-secao-header').forEach(h=>{
+    const sec=h.dataset.secao;
+    if(clFiltroSoChamados){
+      const temItensVisiveis=document.querySelectorAll(`.cl-item[data-secao="${sec}"][data-permite-chamado="true"]`).length>0;
+      h.style.display=temItensVisiveis?'':'none';
+    } else h.style.display='';
   });
 }
 
+function abrirChecklist(template) {
+  checklistAtual=template; checklistRespostas={}; clMediaFiles={}; clFiltroSoChamados=false;
+  const btn=document.getElementById('btn-filtro-chamado');
+  btn.style.background=''; btn.style.color='';
+  document.getElementById('modal-cl-titulo').textContent=template.titulo;
+
+  const itens=(template.checklist_itens||[]).sort((a,b)=>a.ordem-b.ordem);
+  const secoes={};
+  itens.forEach(it=>{const s=it.secao||'Geral';if(!secoes[s])secoes[s]=[];secoes[s].push(it);});
+
+  let html='';
+  Object.entries(secoes).forEach(([sec,items])=>{
+    html+=`<div class="cl-secao-header" data-secao="${sec}" style="background:var(--sfera-light);padding:10px 0 6px;margin:14px 0 4px;border-radius:8px;text-align:center;">
+      <span style="font-size:11px;font-weight:800;color:var(--sfera-dark);text-transform:uppercase;letter-spacing:1px;">${sec}</span>
+    </div>`;
+    items.forEach(item=>{
+      const permiteChamado=item.permite_chamado?'true':'false';
+      html+=`<div class="cl-item" data-item-id="${item.id}" data-secao="${sec}" data-permite-chamado="${permiteChamado}" style="border:1.5px solid var(--border);border-radius:12px;padding:12px;margin-bottom:10px;">
+        <div style="font-size:14px;font-weight:600;margin-bottom:10px;line-height:1.4;">${item.ordem}. ${item.pergunta}</div>
+
+        <!-- Avaliação 5 opções -->
+        <div style="display:grid;grid-template-columns:repeat(5,1fr);gap:4px;margin-bottom:10px;">
+          ${['pessimo','ruim','regular','bom','otimo'].map((av,i)=>{
+            const labels=['Péssimo','Ruim','Regular','Bom','Ótimo'];
+            const cores=['#dc3545','#fd7e14','#ffc107','#0d6efd','#198754'];
+            return `<button id="av-${av}-${item.id}" onclick="avaliarItem('${item.id}','${av}')"
+              style="border:2px solid ${cores[i]};background:#fff;color:${cores[i]};border-radius:8px;padding:4px 2px;font-size:11px;font-weight:700;cursor:pointer;transition:all .15s;"
+              >${labels[i]}</button>`;
+          }).join('')}
+        </div>
+
+        <!-- Observação -->
+        <textarea id="obs-${item.id}" placeholder="Observação (opcional)..." rows="2"
+          style="width:100%;border:1.5px solid var(--border);border-radius:8px;padding:8px;font-size:13px;resize:none;box-sizing:border-box;font-family:inherit;margin-bottom:8px;"></textarea>
+
+        <!-- Foto -->
+        <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px;">
+          <input type="file" id="foto-${item.id}" accept="image/*,video/*" capture="environment" style="display:none" onchange="previewClFoto('${item.id}')">
+          <button type="button" class="btn btn-secondary btn-sm" onclick="document.getElementById('foto-${item.id}').click()">📷 Foto</button>
+          <span id="foto-label-${item.id}" style="font-size:12px;color:var(--text-light);"></span>
+        </div>
+
+        <!-- Chamado (só se permite_chamado) -->
+        ${item.permite_chamado?`
+        <div style="border-top:1px dashed var(--border);padding-top:8px;margin-top:4px;">
+          <div style="display:flex;align-items:center;gap:8px;margin-bottom:6px;">
+            <label style="font-size:12px;font-weight:700;color:#856404;">🎫 Chamado:</label>
+          </div>
+          <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;">
+            <div style="flex:1;min-width:140px;">
+              <input type="text" id="chamado-${item.id}" placeholder="Nº do chamado já aberto"
+                style="width:100%;border:1.5px solid var(--border);border-radius:8px;padding:6px 10px;font-size:13px;box-sizing:border-box;">
+            </div>
+            <button type="button" class="btn btn-sm" id="btn-abrir-${item.id}"
+              style="background:#fff3cd;border:1.5px solid #ffc107;color:#856404;white-space:nowrap;"
+              onclick="marcarAbrirChamado('${item.id}')">📋 Gerente abre</button>
+          </div>
+        </div>`:``}
+      </div>`;
+    });
+  });
+
+  document.getElementById('modal-cl-itens').innerHTML=html;
+  atualizarProgressoCl();
+  document.getElementById('modal-checklist').style.display='';
+  document.getElementById('modal-checklist').scrollTop=0;
+}
+
+function avaliarItem(itemId,av){
+  const cores={pessimo:'#dc3545',ruim:'#fd7e14',regular:'#ffc107',bom:'#0d6efd',otimo:'#198754'};
+  ['pessimo','ruim','regular','bom','otimo'].forEach(a=>{
+    const b=document.getElementById(`av-${a}-${itemId}`);
+    if(!b)return;
+    b.style.background=a===av?cores[a]:'#fff';
+    b.style.color=a===av?'#fff':cores[a];
+  });
+  if(!checklistRespostas[itemId])checklistRespostas[itemId]={};
+  checklistRespostas[itemId].avaliacao=av;
+  atualizarProgressoCl();
+}
+
+function marcarAbrirChamado(itemId){
+  if(!checklistRespostas[itemId])checklistRespostas[itemId]={};
+  checklistRespostas[itemId].precisaChamado=!checklistRespostas[itemId].precisaChamado;
+  const btn=document.getElementById(`btn-abrir-${itemId}`);
+  const marcado=checklistRespostas[itemId].precisaChamado;
+  btn.style.background=marcado?'#ffc107':'#fff3cd';
+  btn.style.fontWeight=marcado?'800':'';
+  btn.textContent=marcado?'✅ Gerente abre':'📋 Gerente abre';
+}
+
+function previewClFoto(itemId){
+  const f=document.getElementById(`foto-${itemId}`).files[0];
+  if(!f)return;
+  clMediaFiles[itemId]=f;
+  document.getElementById(`foto-label-${itemId}`).textContent=f.name;
+}
+
+function atualizarProgressoCl(){
+  if(!checklistAtual)return;
+  const total=checklistAtual.checklist_itens?.length||0;
+  const resp=Object.values(checklistRespostas).filter(r=>r?.avaliacao).length;
+  document.getElementById('cl-progresso').textContent=`${resp}/${total} respondidos`;
+}
+
 async function salvarChecklist() {
+  if(!checklistAtual||!visitaAtual){fecharChecklist();return;}
   const itens=checklistAtual.checklist_itens||[];
-  const inserts=itens.map(item=>({visita_id:visitaAtual.id,template_id:checklistAtual.id,item_id:item.id,resposta:checklistRespostas[item.id]||'na'}));
-  await db.from('checklist_respostas').insert(inserts);
+  const inserts=[];
+  for(const item of itens){
+    const r=checklistRespostas[item.id]||{};
+    const obs=document.getElementById(`obs-${item.id}`)?.value||'';
+    const chamadoNum=document.getElementById(`chamado-${item.id}`)?.value||'';
+    let mediaUrl=null;
+    if(clMediaFiles[item.id]){
+      const f=clMediaFiles[item.id];
+      const path=`checklist/${visitaAtual.id}/${item.id}_${Date.now()}_${f.name}`;
+      const {data:up}=await db.storage.from('visitas-midias').upload(path,f);
+      if(up){const {data:pub}=db.storage.from('visitas-midias').getPublicUrl(path);mediaUrl=pub?.publicUrl||null;}
+    }
+    inserts.push({
+      visita_id:visitaAtual.id,
+      template_id:checklistAtual.id,
+      item_id:item.id,
+      resposta:'na',
+      avaliacao:r.avaliacao||null,
+      observacao:obs||null,
+      media_url:mediaUrl,
+      chamado_numero:chamadoNum||null,
+      precisa_chamado:r.precisaChamado||false
+    });
+  }
+  const {error}=await db.from('checklist_respostas').insert(inserts);
+  if(error){showToast('Erro ao salvar','error');return;}
   fecharChecklist();
   showToast('Checklist salvo!','success');
+  carregarTemplates();
 }
+
 function fecharChecklist(){document.getElementById('modal-checklist').style.display='none';}
 
 // ==============================
