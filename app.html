@@ -898,11 +898,18 @@ async function abrirChecklist(template) {
           ${temHistCritico?`<span id="badge-hist-${item.id}" style="display:none;margin-left:6px;background:#ffc107;color:#000;font-size:10px;font-weight:800;padding:2px 6px;border-radius:10px;">⚠️ REINCIDENTE</span>`:''}
         </div>
         ${alertaHtml}
-        <!-- Avaliação 5 opções -->
-        <div style="display:grid;grid-template-columns:repeat(5,1fr);gap:4px;margin-bottom:10px;">
-          ${['pessimo','ruim','regular','bom','otimo'].map(av=>`<button id="av-${av}-${item.id}" onclick="avaliarItem('${item.id}','${av}')"
-            style="border:2px solid ${CL_CORES[av]};background:#fff;color:${CL_CORES[av]};border-radius:8px;padding:4px 2px;font-size:11px;font-weight:700;cursor:pointer;transition:all .15s;"
-            >${CL_LABELS[av]}</button>`).join('')}
+        <!-- Avaliação: linha 1 = críticos, linha 2 = positivos -->
+        <div class="cl-aval-grid">
+          ${['pessimo','ruim','regular'].map(av=>`<button id="av-${av}-${item.id}" class="cl-aval-btn" onclick="avaliarItem('${item.id}','${av}')"
+            style="border-color:${CL_CORES[av]};color:${CL_CORES[av]};">
+            <span class="cl-dot">${CL_EMOJIS[av]}</span>${CL_LABELS[av]}
+          </button>`).join('')}
+        </div>
+        <div class="cl-aval-grid-2">
+          ${['bom','otimo'].map(av=>`<button id="av-${av}-${item.id}" class="cl-aval-btn" onclick="avaliarItem('${item.id}','${av}')"
+            style="border-color:${CL_CORES[av]};color:${CL_CORES[av]};">
+            <span class="cl-dot">${CL_EMOJIS[av]}</span>${CL_LABELS[av]}
+          </button>`).join('')}
         </div>
         ${alertaHtml?`<div id="alerta-hist-wrap-${item.id}" style="display:none;">${alertaHtml}</div>`:''}
         <!-- Observação -->
