@@ -904,6 +904,7 @@ async function carregarTemplates() {
 let clFiltroSoChamados=false;
 let clMediaFiles={};
 let clHistorico={};
+let clUploadFalhou=false;
 
 function toggleFiltroChamado(){
   clFiltroSoChamados=!clFiltroSoChamados;
@@ -1072,6 +1073,7 @@ function atualizarProgressoCl(){
 
 async function salvarChecklist() {
   if(!checklistAtual||!visitaAtual){fecharChecklist();return;}
+  clUploadFalhou=false;
   const itens=(checklistAtual.checklist_itens||[]).sort((a,b)=>a.ordem-b.ordem);
   const inserts=[];
   for(const item of itens){
@@ -1082,7 +1084,8 @@ async function salvarChecklist() {
     if(clMediaFiles[item.id]){
       const f=clMediaFiles[item.id];
       const path=`checklist/${visitaAtual.id}/${item.id}_${Date.now()}_${f.name}`;
-      const {data:up}=await db.storage.from('visitas-midias').upload(path,f);
+      const {data:up,error:upErr}=await db.storage.from('visitas-midias').upload(path,f);
+      if(upErr){ console.error('Upload falhou:',upErr); clUploadFalhou=true; }
       if(up){const {data:pub}=db.storage.from('visitas-midias').getPublicUrl(path);mediaUrl=pub?.publicUrl||null;}
     }
     inserts.push({
@@ -1098,6 +1101,7 @@ async function salvarChecklist() {
   const {error}=await db.from('checklist_respostas').insert(inserts.map(i=>i._db));
   if(error){showToast('Erro ao salvar','error');console.error(error);return;}
   fecharChecklist();
+  if(clUploadFalhou){ showToast('Checklist salvo, mas as fotos falharam (bucket ausente)','error'); }
   mostrarRelatorioChecklist(inserts);
   carregarTemplates();
 }
@@ -1132,6 +1136,13 @@ function mostrarRelatorioChecklist(inserts){
   // Cores de fundo por nível
   const bgNivel={pessimo:'#f8d7da',ruim:'#ffe5d0',regular:'#fff3cd',bom:'#cfe2ff',otimo:'#d1e7dd'};
 
+  // Miniatura de foto (clicável p/ abrir em tela cheia)
+  const fotoHtml=(r)=> r.media_url
+    ? `<a href="${r.media_url}" target="_blank" style="display:inline-block;margin-top:8px;">
+         <img src="${r.media_url}" alt="foto" style="width:72px;height:72px;object-fit:cover;border-radius:8px;border:1.5px solid var(--border);">
+       </a>`
+    : '';
+
   let html=`
   <!-- Resumo -->
   <div style="display:grid;grid-template-columns:repeat(5,1fr);gap:6px;margin-bottom:16px;">
@@ -1155,6 +1166,7 @@ function mostrarRelatorioChecklist(inserts){
           <div style="font-size:13px;font-weight:700;">${r.secao} · ${r.pergunta_texto}</div>
           <div style="font-size:12px;margin-top:4px;">Hoje: <strong style="color:${CL_CORES[r.avaliacao]};">${CL_LABELS[r.avaliacao]}</strong> · Histórico: ${histStr}</div>
           ${r.observacao?`<div style="font-size:12px;color:var(--text-light);margin-top:4px;">💬 ${r.observacao}</div>`:''}
+          ${fotoHtml(r)}
         </div>`;
       }).join('')}
     </div>`;
@@ -1172,7 +1184,7 @@ function mostrarRelatorioChecklist(inserts){
           <span style="background:${CL_CORES[r.avaliacao]};color:#fff;font-size:10px;font-weight:800;padding:2px 8px;border-radius:10px;flex-shrink:0;margin-left:8px;">${CL_LABELS[r.avaliacao]}</span>
         </div>
         ${r.observacao?`<div style="font-size:12px;color:var(--text-light);margin-top:4px;">💬 ${r.observacao}</div>`:''}
-        ${r.media_url?`<a href="${r.media_url}" target="_blank" style="font-size:12px;color:var(--sfera);">📎 Ver foto</a>`:''}
+        ${fotoHtml(r)}
       </div>`).join('')}
     </div>`;
   }
@@ -1186,6 +1198,7 @@ function mostrarRelatorioChecklist(inserts){
         <div style="font-size:13px;font-weight:700;">${r.secao} · ${r.pergunta_texto}</div>
         <div style="font-size:12px;margin-top:4px;color:var(--sfera-dark);">Chamado nº: <strong>${r.chamado_numero}</strong></div>
         ${r.observacao?`<div style="font-size:12px;color:var(--text-light);">💬 ${r.observacao}</div>`:''}
+        ${fotoHtml(r)}
       </div>`).join('')}
     </div>`;
   }
@@ -1199,6 +1212,7 @@ function mostrarRelatorioChecklist(inserts){
         <div style="font-size:13px;font-weight:700;">${r.secao} · ${r.pergunta_texto}</div>
         ${r.avaliacao?`<span style="background:${CL_CORES[r.avaliacao]};color:#fff;font-size:10px;padding:2px 8px;border-radius:10px;">${CL_LABELS[r.avaliacao]}</span>`:''}
         ${r.observacao?`<div style="font-size:12px;color:var(--text-light);margin-top:4px;">💬 ${r.observacao}</div>`:''}
+        ${fotoHtml(r)}
       </div>`).join('')}
     </div>`;
   }
@@ -1215,6 +1229,7 @@ function mostrarRelatorioChecklist(inserts){
           <span style="font-size:13px;">${r.secao} · ${r.pergunta_texto}</span>
           <span style="background:${CL_CORES[r.avaliacao]};color:#fff;font-size:10px;padding:2px 8px;border-radius:10px;">${CL_LABELS[r.avaliacao]}</span>
         </div>
+        ${fotoHtml(r)}
       </div>`).join('')}
       </div>
     </details>`;
