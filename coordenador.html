@@ -395,18 +395,31 @@ async function carregarRotas() {
     if(!sup) continue;
     const diaInfo=(dias||[]).find(d=>d.supervisora_id===supId);
     const homeCoordsKey=sup.nome_curto;
-    const saindoDoEscritorio=diaInfo?.tipo==='escritorio';
-    const homeCoords=saindoDoEscritorio ? SEDE : HOMES[homeCoordsKey];
+    const diaEscritorio=diaInfo?.tipo==='escritorio';
+    const casaCoords=HOMES[homeCoordsKey];
 
-    // Calcular km total
+    // Montar sequência de pontos:
+    // Dia normal:      Casa → lojas → Casa
+    // Dia escritório:  Casa → Escritório → lojas (se houver) → Escritório → Casa
     let kmTotal=0;
     const pontos=[];
-    if(homeCoords) pontos.push({...homeCoords,tipo:'home'});
-    visits.forEach(v=>{
-      const c=LOJA_COORDS[v.lojas?.codigo];
-      if(c) pontos.push({...c,tipo:'loja',nome:v.lojas?.nome,hora:formatHora(v.hora_inicio)});
-    });
-    if(homeCoords&&pontos.length>1) pontos.push({...homeCoords,tipo:'home-ret',nome:saindoDoEscritorio?'Retorno ao escritório':'Casa (retorno)'});
+    if(diaEscritorio) {
+      if(casaCoords) pontos.push({...casaCoords,tipo:'home',nome:casaCoords.nome});
+      pontos.push({...SEDE,tipo:'escritorio'});
+      visits.forEach(v=>{
+        const c=LOJA_COORDS[v.lojas?.codigo];
+        if(c) pontos.push({...c,tipo:'loja',nome:v.lojas?.nome,hora:formatHora(v.hora_inicio)});
+      });
+      if(visits.some(v=>LOJA_COORDS[v.lojas?.codigo])) pontos.push({...SEDE,tipo:'escritorio-ret',nome:'Escritório (retorno)'});
+      if(casaCoords) pontos.push({...casaCoords,tipo:'home-ret',nome:'Casa (retorno)'});
+    } else {
+      if(casaCoords) pontos.push({...casaCoords,tipo:'home',nome:casaCoords.nome});
+      visits.forEach(v=>{
+        const c=LOJA_COORDS[v.lojas?.codigo];
+        if(c) pontos.push({...c,tipo:'loja',nome:v.lojas?.nome,hora:formatHora(v.hora_inicio)});
+      });
+      if(casaCoords&&pontos.length>1) pontos.push({...casaCoords,tipo:'home-ret',nome:'Casa (retorno)'});
+    }
 
     for(let i=0;i<pontos.length-1;i++) {
       kmTotal+=haversine(pontos[i].lat,pontos[i].lng,pontos[i+1].lat,pontos[i+1].lng)*1.35;
@@ -417,6 +430,17 @@ async function carregarRotas() {
 
     const tipoBadge=diaInfo?`<span class="tipo-dia-badge ${TIPO_DIA[diaInfo.tipo]?.badge}">${TIPO_DIA[diaInfo.tipo]?.label}</span>`:'';
 
+    // Renderizar linha de rota para cada ponto
+    const rotaLinhas=pontos.map((p,i)=>{
+      if(p.tipo==='home')          return `<div class="rota-loja"><div class="rota-home">🏠</div><div><strong>${p.nome||'Casa'}</strong><div style="font-size:11px;color:var(--text-light);">${sup.cidade_residencial||''}</div></div></div>`;
+      if(p.tipo==='escritorio')    return `<div class="rota-loja"><div class="rota-home">🏢</div><div><strong>Escritório Sfera</strong><div style="font-size:11px;color:var(--text-light);">Av Rio Branco, 245 · Centro, RJ</div></div></div>`;
+      if(p.tipo==='escritorio-ret')return `<div class="rota-loja"><div class="rota-home">🏢</div><div><strong>Escritório Sfera (retorno)</strong><div style="font-size:11px;color:var(--text-light);">Av Rio Branco, 245 · Centro, RJ</div></div></div>`;
+      if(p.tipo==='home-ret')      return `<div class="rota-loja"><div class="rota-home">🏠</div><div><strong>Casa (retorno)</strong><div style="font-size:11px;color:var(--text-light);">${sup.cidade_residencial||''}</div></div></div>`;
+      const visitaIdx=visits.findIndex(v=>v.lojas?.nome===p.nome);
+      const v=visits[visitaIdx];
+      return `<div class="rota-loja"><div class="rota-num">${visitaIdx+1}</div><div style="flex:1;"><strong>${p.nome}</strong><div style="font-size:11px;color:var(--text-light);">${v?.lojas?.cidade||''} · ${p.hora||''}${v?.hora_fim?' → '+formatHora(v.hora_fim):''}</div></div><span style="font-size:18px;">${ENERGIA_INFO[v?.energia_time]?.emoji||''}</span></div>`;
+    }).join('');
+
     html+=`<div class="card" style="margin-bottom:14px;">
       <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:10px;">
         <div>
@@ -426,16 +450,7 @@ async function carregarRotas() {
         </div>
         <span class="km-badge">~${kmTotal.toFixed(0)} km</span>
       </div>
-      <div style="margin-bottom:12px;">
-        <div class="rota-loja"><div class="rota-home">${saindoDoEscritorio?'🏢':'🏠'}</div><div><strong>${homeCoords?.nome||'Casa'}</strong><div style="font-size:11px;color:var(--text-light);">${saindoDoEscritorio?'Centro, Rio de Janeiro/RJ':sup.cidade_residencial||''}</div></div></div>
-        ${visits.map((v,i)=>`
-          <div class="rota-loja">
-            <div class="rota-num">${i+1}</div>
-            <div style="flex:1;"><strong>${v.lojas?.nome}</strong><div style="font-size:11px;color:var(--text-light);">${v.lojas?.cidade} · ${formatHora(v.hora_inicio)}${v.hora_fim?' → '+formatHora(v.hora_fim):''}</div></div>
-            <span style="font-size:18px;">${ENERGIA_INFO[v.energia_time]?.emoji||''}</span>
-          </div>`).join('')}
-        ${homeCoords?`<div class="rota-loja"><div class="rota-home">🏠</div><div><strong>Retorno para casa</strong></div></div>`:''}
-      </div>
+      <div style="margin-bottom:12px;">${rotaLinhas}</div>
       <a href="${mapsUrl}" target="_blank" class="btn btn-secondary btn-full btn-sm">🗺️ Ver rota no Google Maps</a>
     </div>`;
   }
