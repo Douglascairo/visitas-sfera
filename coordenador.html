@@ -163,6 +163,9 @@ const TIPO_DIA = {
   demanda:{label:'📋 Outra demanda',badge:'td-badge-demanda'}
 };
 
+// Escritório Sfera Multifranquias — Av Rio Branco, 245, 16° andar, Centro, Rio de Janeiro/RJ
+const SEDE = {lat:-22.9035,lng:-43.1731,nome:'Escritório Sfera - Av Rio Branco'};
+
 // Coordenadas aproximadas das residências das supervisoras
 const HOMES = {
   'CANTIERI': {lat:-21.7538,lng:-43.3502,nome:'Casa - Jf'},
@@ -392,7 +395,8 @@ async function carregarRotas() {
     if(!sup) continue;
     const diaInfo=(dias||[]).find(d=>d.supervisora_id===supId);
     const homeCoordsKey=sup.nome_curto;
-    const homeCoords=HOMES[homeCoordsKey];
+    const saindoDoEscritorio=diaInfo?.tipo==='escritorio';
+    const homeCoords=saindoDoEscritorio ? SEDE : HOMES[homeCoordsKey];
 
     // Calcular km total
     let kmTotal=0;
@@ -402,7 +406,7 @@ async function carregarRotas() {
       const c=LOJA_COORDS[v.lojas?.codigo];
       if(c) pontos.push({...c,tipo:'loja',nome:v.lojas?.nome,hora:formatHora(v.hora_inicio)});
     });
-    if(homeCoords&&pontos.length>1) pontos.push({...homeCoords,tipo:'home-ret',nome:'Casa (retorno)'});
+    if(homeCoords&&pontos.length>1) pontos.push({...homeCoords,tipo:'home-ret',nome:saindoDoEscritorio?'Retorno ao escritório':'Casa (retorno)'});
 
     for(let i=0;i<pontos.length-1;i++) {
       kmTotal+=haversine(pontos[i].lat,pontos[i].lng,pontos[i+1].lat,pontos[i+1].lng)*1.35;
@@ -423,7 +427,7 @@ async function carregarRotas() {
         <span class="km-badge">~${kmTotal.toFixed(0)} km</span>
       </div>
       <div style="margin-bottom:12px;">
-        <div class="rota-loja"><div class="rota-home">🏠</div><div><strong>${homeCoords?.nome||'Casa'}</strong><div style="font-size:11px;color:var(--text-light);">${sup.cidade_residencial||''}</div></div></div>
+        <div class="rota-loja"><div class="rota-home">${saindoDoEscritorio?'🏢':'🏠'}</div><div><strong>${homeCoords?.nome||'Casa'}</strong><div style="font-size:11px;color:var(--text-light);">${saindoDoEscritorio?'Centro, Rio de Janeiro/RJ':sup.cidade_residencial||''}</div></div></div>
         ${visits.map((v,i)=>`
           <div class="rota-loja">
             <div class="rota-num">${i+1}</div>
