@@ -1,0 +1,89 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Visitas Sfera</title>
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+<div class="login-wrap">
+  <div class="login-box">
+    <div class="login-logo">
+      <h1>Sfera</h1>
+      <p>Gestão de Visitas · O Boticário</p>
+    </div>
+
+    <div id="step-email">
+      <p class="login-title">Qual é o seu e-mail?</p>
+      <div class="form-group">
+        <input type="email" id="email-input" class="form-control" placeholder="seu@email.com" autocomplete="email">
+      </div>
+      <button class="btn btn-primary btn-full" onclick="checkEmail()">Entrar</button>
+    </div>
+
+    <div id="step-loading" style="display:none" class="loader">
+      <div class="spinner"></div>
+      <p>Verificando...</p>
+    </div>
+
+    <div id="step-erro" style="display:none">
+      <p style="color:#dc3545;margin-bottom:16px;text-align:center;">❌ E-mail não encontrado no sistema.</p>
+      <button class="btn btn-secondary btn-full" onclick="voltarLogin()">Tentar novamente</button>
+    </div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
+<script src="js/supabase.js"></script>
+<script>
+  const emailInput = document.getElementById('email-input');
+  emailInput.addEventListener('keydown', e => { if (e.key === 'Enter') checkEmail(); });
+
+  async function checkEmail() {
+    const email = emailInput.value.trim().toLowerCase();
+    if (!email) return showToast('Digite seu e-mail', 'error');
+
+    // Coordenador
+    if (email === 'douglas.cairo@franquiasboticario.com') {
+      sessionStorage.setItem('usuario', JSON.stringify({ tipo: 'coordenador', nome: 'Douglas Cairo', email }));
+      window.location.href = 'coordenador.html';
+      return;
+    }
+
+    show('step-loading');
+    hide('step-email');
+
+    const { data, error } = await db.from('supervisoras').select('*').eq('email', email).single();
+
+    if (error || !data) {
+      show('step-erro');
+      hide('step-loading');
+      return;
+    }
+
+    sessionStorage.setItem('usuario', JSON.stringify({ tipo: 'supervisora', ...data }));
+    window.location.href = 'app.html';
+  }
+
+  function voltarLogin() {
+    show('step-email');
+    hide('step-erro');
+    emailInput.value = '';
+    emailInput.focus();
+  }
+
+  function show(id) { document.getElementById(id).style.display = ''; }
+  function hide(id) { document.getElementById(id).style.display = 'none'; }
+
+  function showToast(msg, tipo = '') {
+    const t = document.getElementById('toast');
+    t.textContent = msg;
+    t.className = 'toast show ' + tipo;
+    setTimeout(() => t.className = 'toast', 2500);
+  }
+</script>
+</body>
+</html>

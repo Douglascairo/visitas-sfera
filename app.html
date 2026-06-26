@@ -1,0 +1,696 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Visitas Sfera</title>
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+
+<div class="header">
+  <div class="header-logo">Sfera Visitas<span>Supervisora</span></div>
+  <div class="header-user">
+    <strong id="hdr-nome">...</strong>
+    <button class="btn-logout" onclick="logout()">Sair</button>
+  </div>
+</div>
+
+<div class="container">
+
+  <!-- TELA: HOME -->
+  <div id="tela-home">
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px;">
+      <div>
+        <div style="font-size:13px;color:var(--text-light);">Hoje, <span id="data-hoje"></span></div>
+        <div style="font-size:20px;font-weight:800;margin-top:2px;">Minhas Visitas</div>
+      </div>
+      <button class="btn btn-primary" onclick="abrirNovaVisita()">+ Nova Visita</button>
+    </div>
+
+    <div id="lista-visitas-hoje">
+      <div class="loader"><div class="spinner"></div><p>Carregando...</p></div>
+    </div>
+  </div>
+
+  <!-- TELA: NOVA VISITA - passo 1: selecionar loja -->
+  <div id="tela-selecionar-loja" style="display:none">
+    <div style="display:flex;align-items:center;gap:12px;margin-bottom:20px;">
+      <button onclick="irHome()" style="background:none;border:none;font-size:22px;cursor:pointer;">←</button>
+      <div style="font-size:18px;font-weight:800;">Selecionar Loja</div>
+    </div>
+    <div class="steps">
+      <div class="step active">1. Loja</div>
+      <div class="step">2. Energia</div>
+      <div class="step">3. Visita</div>
+      <div class="step">4. Encerrar</div>
+    </div>
+    <div id="lista-lojas"></div>
+  </div>
+
+  <!-- TELA: ENERGIA DO TIME -->
+  <div id="tela-energia" style="display:none">
+    <div style="display:flex;align-items:center;gap:12px;margin-bottom:20px;">
+      <button onclick="voltarLoja()" style="background:none;border:none;font-size:22px;cursor:pointer;">←</button>
+      <div>
+        <div style="font-size:13px;color:var(--text-light);" id="energia-loja-nome"></div>
+        <div style="font-size:18px;font-weight:800;">Energia do Time</div>
+      </div>
+    </div>
+    <div class="steps">
+      <div class="step done">1. Loja</div>
+      <div class="step active">2. Energia</div>
+      <div class="step">3. Visita</div>
+      <div class="step">4. Encerrar</div>
+    </div>
+
+    <div class="card">
+      <div class="card-title">🌟 Como você encontrou a energia do time ao entrar na loja?</div>
+      <div class="energia-wrap" id="energia-opcoes">
+        <div class="energia-item" onclick="selecionarEnergia(1)">
+          <span class="energia-emoji">😢</span>
+          <span class="energia-label">Muito apagada</span>
+        </div>
+        <div class="energia-item" onclick="selecionarEnergia(2)">
+          <span class="energia-emoji">😟</span>
+          <span class="energia-label">Abaixo do esperado</span>
+        </div>
+        <div class="energia-item" onclick="selecionarEnergia(3)">
+          <span class="energia-emoji">😐</span>
+          <span class="energia-label">Neutra / Normal</span>
+        </div>
+        <div class="energia-item" onclick="selecionarEnergia(4)">
+          <span class="energia-emoji">😊</span>
+          <span class="energia-label">Boa energia</span>
+        </div>
+        <div class="energia-item" onclick="selecionarEnergia(5)">
+          <span class="energia-emoji">🤩</span>
+          <span class="energia-label">Super energizada!</span>
+        </div>
+      </div>
+    </div>
+
+    <button class="btn btn-primary btn-full" id="btn-confirmar-energia" onclick="confirmarEnergia()" disabled>Iniciar Visita →</button>
+  </div>
+
+  <!-- TELA: VISITA EM ANDAMENTO -->
+  <div id="tela-visita" style="display:none">
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;">
+      <div>
+        <div style="font-size:13px;color:var(--text-light);" id="visita-loja-nome"></div>
+        <div style="font-size:18px;font-weight:800;">Visita em Andamento</div>
+      </div>
+      <span class="visita-card-status status-aberta">● Aberta</span>
+    </div>
+    <div class="steps" style="margin-bottom:20px;">
+      <div class="step done">1. Loja</div>
+      <div class="step done">2. Energia</div>
+      <div class="step active">3. Visita</div>
+      <div class="step">4. Encerrar</div>
+    </div>
+
+    <!-- Energia resumo -->
+    <div class="card" style="padding:12px 16px;margin-bottom:12px;">
+      <div style="display:flex;align-items:center;gap:10px;">
+        <span style="font-size:28px;" id="energia-resumo-emoji"></span>
+        <div>
+          <div style="font-size:12px;color:var(--text-light);font-weight:600;">ENERGIA DO TIME</div>
+          <div style="font-size:14px;font-weight:700;" id="energia-resumo-label"></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Registrar atividade -->
+    <div class="card">
+      <div class="card-title">📝 O que você fez agora?</div>
+      <div class="categorias-grid" id="categorias-grid">
+        <button class="cat-btn" onclick="selecionarCategoria('atendimento')"><span class="cat-icon">🎯</span>Atendimento</button>
+        <button class="cat-btn" onclick="selecionarCategoria('exposicao')"><span class="cat-icon">🪟</span>Exposição</button>
+        <button class="cat-btn" onclick="selecionarCategoria('elogio')"><span class="cat-icon">⭐</span>Elogio</button>
+        <button class="cat-btn" onclick="selecionarCategoria('demanda')"><span class="cat-icon">📋</span>Demanda</button>
+        <button class="cat-btn" onclick="selecionarCategoria('plano_acao')"><span class="cat-icon">🎯</span>Plano de Ação</button>
+        <button class="cat-btn" onclick="selecionarCategoria('campanha')"><span class="cat-icon">📣</span>Campanha</button>
+        <button class="cat-btn" onclick="selecionarCategoria('outro')" style="grid-column:span 2"><span class="cat-icon">💬</span>Outro</button>
+      </div>
+
+      <div id="form-registro" style="display:none;margin-top:14px;">
+        <div style="font-size:13px;font-weight:700;color:var(--sfera-dark);margin-bottom:8px;" id="cat-label"></div>
+        <textarea class="form-control" id="registro-texto" placeholder="Descreva o que foi tratado..."></textarea>
+        <div style="display:flex;gap:8px;margin-top:10px;">
+          <button class="btn btn-secondary btn-sm" onclick="cancelarRegistro()">Cancelar</button>
+          <button class="btn btn-primary btn-sm" onclick="salvarRegistro()" style="flex:1">+ Adicionar</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Registros do dia -->
+    <div class="card">
+      <div class="card-title">✅ Registros desta visita</div>
+      <div id="lista-registros">
+        <div class="empty"><div class="empty-icon">📝</div><p>Nenhum registro ainda</p></div>
+      </div>
+    </div>
+
+    <!-- Checklists -->
+    <div class="card">
+      <div class="card-title">☑️ Checklists</div>
+      <div id="lista-templates-check">
+        <div class="loader"><div class="spinner"></div></div>
+      </div>
+    </div>
+
+    <button class="btn btn-success btn-full" onclick="irEncerrar()" style="margin-bottom:8px;">Encerrar Visita →</button>
+  </div>
+
+  <!-- TELA: ENCERRAR VISITA -->
+  <div id="tela-encerrar" style="display:none">
+    <div style="display:flex;align-items:center;gap:12px;margin-bottom:20px;">
+      <button onclick="voltarVisita()" style="background:none;border:none;font-size:22px;cursor:pointer;">←</button>
+      <div>
+        <div style="font-size:13px;color:var(--text-light);" id="encerrar-loja-nome"></div>
+        <div style="font-size:18px;font-weight:800;">Encerrar Visita</div>
+      </div>
+    </div>
+    <div class="steps">
+      <div class="step done">1. Loja</div>
+      <div class="step done">2. Energia</div>
+      <div class="step done">3. Visita</div>
+      <div class="step active">4. Encerrar</div>
+    </div>
+
+    <div class="card">
+      <div class="card-title">📊 Resumo da Visita</div>
+      <div id="resumo-visita"></div>
+    </div>
+
+    <div class="card">
+      <div class="card-title">✉️ Enviar resumo para a gerente?</div>
+      <div class="form-group">
+        <label class="form-label">E-mail da gerente (opcional)</label>
+        <input type="email" id="email-gerente" class="form-control" placeholder="gerente@email.com">
+        <div style="font-size:12px;color:var(--text-light);margin-top:6px;">Deixe em branco para não enviar</div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-title">💬 Observação geral (opcional)</div>
+      <textarea class="form-control" id="obs-geral" placeholder="Alguma observação final sobre esta visita..."></textarea>
+    </div>
+
+    <div style="display:flex;gap:10px;margin-bottom:20px;">
+      <button class="btn btn-secondary" onclick="voltarVisita()" style="flex:1">← Voltar</button>
+      <button class="btn btn-success" onclick="encerrarVisita()" style="flex:2" id="btn-encerrar">✓ Encerrar Visita</button>
+    </div>
+  </div>
+
+  <!-- TELA: VISITA ENCERRADA -->
+  <div id="tela-encerrada" style="display:none">
+    <div class="card" style="text-align:center;padding:40px 20px;">
+      <div style="font-size:64px;margin-bottom:16px;">✅</div>
+      <div style="font-size:22px;font-weight:800;color:var(--success);margin-bottom:8px;">Visita Encerrada!</div>
+      <div style="color:var(--text-light);font-size:14px;" id="encerrada-msg"></div>
+    </div>
+    <button class="btn btn-primary btn-full" onclick="irHome()">Voltar ao início</button>
+    <button class="btn btn-secondary btn-full" style="margin-top:10px;" onclick="abrirNovaVisita()">+ Iniciar nova visita</button>
+  </div>
+
+</div><!-- /container -->
+
+<!-- MODAL: Checklist -->
+<div id="modal-checklist" style="display:none">
+  <div class="modal-bg" onclick="fecharChecklist()">
+    <div class="modal-box" onclick="event.stopPropagation()">
+      <div class="modal-title" id="modal-cl-titulo"></div>
+      <div id="modal-cl-itens"></div>
+      <div class="modal-actions">
+        <button class="btn btn-secondary" onclick="fecharChecklist()" style="flex:1">Cancelar</button>
+        <button class="btn btn-primary" onclick="salvarChecklist()" style="flex:2">✓ Salvar Checklist</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
+<script src="js/supabase.js"></script>
+<script>
+// ==============================
+// ESTADO
+// ==============================
+let usuario = null;
+let lojas = [];
+let lojaSelecionada = null;
+let energiaSelecionada = null;
+let visitaAtual = null;
+let registros = [];
+let categoriaAtual = null;
+let checklistAtual = null;
+let checklistRespostas = {};
+
+const ENERGIA_INFO = {
+  1: { emoji: '😢', label: 'Muito apagada' },
+  2: { emoji: '😟', label: 'Abaixo do esperado' },
+  3: { emoji: '😐', label: 'Neutra / Normal' },
+  4: { emoji: '😊', label: 'Boa energia' },
+  5: { emoji: '🤩', label: 'Super energizada!' }
+};
+
+const CAT_INFO = {
+  atendimento: { label: 'Atendimento', badge: 'badge-atendimento' },
+  exposicao: { label: 'Exposição', badge: 'badge-exposicao' },
+  elogio: { label: 'Elogio', badge: 'badge-elogio' },
+  demanda: { label: 'Demanda', badge: 'badge-demanda' },
+  plano_acao: { label: 'Plano de Ação', badge: 'badge-plano_acao' },
+  campanha: { label: 'Campanha', badge: 'badge-campanha' },
+  outro: { label: 'Outro', badge: 'badge-outro' }
+};
+
+// ==============================
+// INIT
+// ==============================
+window.addEventListener('DOMContentLoaded', async () => {
+  const u = sessionStorage.getItem('usuario');
+  if (!u) { window.location.href = 'index.html'; return; }
+  usuario = JSON.parse(u);
+  if (usuario.tipo !== 'supervisora') { window.location.href = 'index.html'; return; }
+
+  document.getElementById('hdr-nome').textContent = usuario.nome;
+  document.getElementById('data-hoje').textContent = new Date().toLocaleDateString('pt-BR', { weekday:'long', day:'numeric', month:'long' });
+
+  await carregarLojas();
+  await carregarVisitasHoje();
+});
+
+// ==============================
+// NAVEGAÇÃO
+// ==============================
+function mostrarTela(id) {
+  ['tela-home','tela-selecionar-loja','tela-energia','tela-visita','tela-encerrar','tela-encerrada']
+    .forEach(t => document.getElementById(t).style.display = t === id ? '' : 'none');
+}
+
+function irHome() { mostrarTela('tela-home'); carregarVisitasHoje(); }
+function voltarLoja() { mostrarTela('tela-selecionar-loja'); }
+function voltarVisita() { mostrarTela('tela-visita'); }
+
+// ==============================
+// CARREGAR LOJAS
+// ==============================
+async function carregarLojas() {
+  const { data } = await db.from('lojas').select('*').eq('supervisora_id', usuario.id).eq('ativo', true).order('nome');
+  lojas = data || [];
+}
+
+// ==============================
+// CARREGAR VISITAS HOJE
+// ==============================
+async function carregarVisitasHoje() {
+  const hoje = new Date().toISOString().split('T')[0];
+  const { data } = await db.from('visitas')
+    .select('*, lojas(nome, cidade)')
+    .eq('supervisora_id', usuario.id)
+    .eq('data_visita', hoje)
+    .order('hora_inicio', { ascending: false });
+
+  const el = document.getElementById('lista-visitas-hoje');
+  if (!data || data.length === 0) {
+    el.innerHTML = `<div class="empty"><div class="empty-icon">🏪</div><p>Nenhuma visita hoje.<br>Toque em <strong>+ Nova Visita</strong> para começar!</p></div>`;
+    return;
+  }
+
+  el.innerHTML = data.map(v => `
+    <div class="visita-card" onclick="abrirVisitaExistente('${v.id}')">
+      <div class="visita-card-loja">${v.lojas?.nome || '—'}</div>
+      <div class="visita-card-info">${v.lojas?.cidade || ''} · ${formatHora(v.hora_inicio)}</div>
+      <div style="display:flex;align-items:center;gap:8px;margin-top:6px;">
+        <span class="visita-card-status ${v.status === 'aberta' ? 'status-aberta' : 'status-encerrada'}">
+          ${v.status === 'aberta' ? '● Em andamento' : '✓ Encerrada'}
+        </span>
+        <span style="font-size:18px;">${ENERGIA_INFO[v.energia_time]?.emoji || '—'}</span>
+      </div>
+    </div>
+  `).join('');
+}
+
+// ==============================
+// NOVA VISITA
+// ==============================
+function abrirNovaVisita() {
+  lojaSelecionada = null;
+  energiaSelecionada = null;
+  visitaAtual = null;
+  registros = [];
+
+  const el = document.getElementById('lista-lojas');
+  if (lojas.length === 0) {
+    el.innerHTML = '<div class="empty"><p>Nenhuma loja cadastrada.</p></div>';
+  } else {
+    el.innerHTML = lojas.map(l => `
+      <div class="loja-item" onclick="selecionarLoja('${l.id}')">
+        <div class="loja-nome">${l.nome}</div>
+        <div class="loja-info">${l.cidade} · ${l.estado} · Cód. ${l.codigo}</div>
+      </div>
+    `).join('');
+  }
+  mostrarTela('tela-selecionar-loja');
+}
+
+function selecionarLoja(id) {
+  lojaSelecionada = lojas.find(l => l.id === id);
+  document.getElementById('energia-loja-nome').textContent = lojaSelecionada.nome + ' · ' + lojaSelecionada.cidade;
+  document.querySelectorAll('.loja-item').forEach(el => el.classList.remove('selected'));
+  event.currentTarget.classList.add('selected');
+  setTimeout(() => mostrarTela('tela-energia'), 150);
+}
+
+// ==============================
+// ENERGIA
+// ==============================
+function selecionarEnergia(val) {
+  energiaSelecionada = val;
+  document.querySelectorAll('.energia-item').forEach((el, i) => {
+    el.classList.toggle('selected', i + 1 === val);
+  });
+  document.getElementById('btn-confirmar-energia').disabled = false;
+}
+
+async function confirmarEnergia() {
+  if (!energiaSelecionada) return;
+
+  const btn = document.getElementById('btn-confirmar-energia');
+  btn.disabled = true;
+  btn.textContent = 'Abrindo visita...';
+
+  const { data, error } = await db.from('visitas').insert({
+    loja_id: lojaSelecionada.id,
+    supervisora_id: usuario.id,
+    data_visita: new Date().toISOString().split('T')[0],
+    energia_time: energiaSelecionada,
+    status: 'aberta'
+  }).select().single();
+
+  if (error) {
+    showToast('Erro ao criar visita', 'error');
+    btn.disabled = false;
+    btn.textContent = 'Iniciar Visita →';
+    return;
+  }
+
+  visitaAtual = data;
+  registros = [];
+  abrirTelaVisita();
+}
+
+// ==============================
+// TELA VISITA
+// ==============================
+function abrirTelaVisita() {
+  document.getElementById('visita-loja-nome').textContent = lojaSelecionada.nome + ' · ' + lojaSelecionada.cidade;
+  const info = ENERGIA_INFO[energiaSelecionada];
+  document.getElementById('energia-resumo-emoji').textContent = info.emoji;
+  document.getElementById('energia-resumo-label').textContent = info.label;
+  renderRegistros();
+  carregarTemplates();
+  mostrarTela('tela-visita');
+}
+
+async function abrirVisitaExistente(visitaId) {
+  const { data: v } = await db.from('visitas').select('*, lojas(*)').eq('id', visitaId).single();
+  if (!v) return;
+
+  visitaAtual = v;
+  lojaSelecionada = v.lojas;
+  energiaSelecionada = v.energia_time;
+
+  if (v.status === 'encerrada') {
+    await verResumoVisita(v);
+    return;
+  }
+
+  const { data: regs } = await db.from('registros_visita').select('*').eq('visita_id', visitaId).order('created_at');
+  registros = regs || [];
+
+  abrirTelaVisita();
+}
+
+// ==============================
+// CATEGORIAS / REGISTROS
+// ==============================
+function selecionarCategoria(cat) {
+  categoriaAtual = cat;
+  document.querySelectorAll('.cat-btn').forEach(b => b.classList.remove('active'));
+  event.currentTarget.classList.add('active');
+  document.getElementById('cat-label').textContent = CAT_INFO[cat].label;
+  document.getElementById('registro-texto').value = '';
+  document.getElementById('form-registro').style.display = '';
+  document.getElementById('registro-texto').focus();
+}
+
+function cancelarRegistro() {
+  document.getElementById('form-registro').style.display = 'none';
+  document.querySelectorAll('.cat-btn').forEach(b => b.classList.remove('active'));
+  categoriaAtual = null;
+}
+
+async function salvarRegistro() {
+  const texto = document.getElementById('registro-texto').value.trim();
+  if (!texto) { showToast('Digite o que foi feito', 'error'); return; }
+
+  const { data, error } = await db.from('registros_visita').insert({
+    visita_id: visitaAtual.id,
+    categoria: categoriaAtual,
+    descricao: texto
+  }).select().single();
+
+  if (error) { showToast('Erro ao salvar', 'error'); return; }
+
+  registros.push(data);
+  cancelarRegistro();
+  renderRegistros();
+  showToast('Registro adicionado!', 'success');
+}
+
+async function deletarRegistro(id) {
+  await db.from('registros_visita').delete().eq('id', id);
+  registros = registros.filter(r => r.id !== id);
+  renderRegistros();
+}
+
+function renderRegistros() {
+  const el = document.getElementById('lista-registros');
+  if (registros.length === 0) {
+    el.innerHTML = '<div class="empty"><div class="empty-icon">📝</div><p>Nenhum registro ainda</p></div>';
+    return;
+  }
+  el.innerHTML = registros.map(r => `
+    <div class="registro-item">
+      <span class="registro-badge ${CAT_INFO[r.categoria]?.badge}">${CAT_INFO[r.categoria]?.label}</span>
+      <span class="registro-texto">${r.descricao}</span>
+      <button class="btn-del" onclick="deletarRegistro('${r.id}')">✕</button>
+    </div>
+  `).join('');
+}
+
+// ==============================
+// CHECKLISTS
+// ==============================
+async function carregarTemplates() {
+  const { data } = await db.from('checklist_templates').select('*, checklist_itens(*)').eq('ativo', true);
+  const el = document.getElementById('lista-templates-check');
+  if (!data || data.length === 0) {
+    el.innerHTML = '<p style="color:var(--text-light);font-size:13px;">Nenhum checklist disponível ainda.</p>';
+    return;
+  }
+  el.innerHTML = data.map(t => `
+    <div style="display:flex;align-items:center;justify-content:space-between;padding:10px 12px;border-radius:10px;border:1.5px solid var(--border);margin-bottom:8px;">
+      <div>
+        <div style="font-weight:700;font-size:14px;">${t.titulo}</div>
+        <div style="font-size:12px;color:var(--text-light);">${t.checklist_itens?.length || 0} itens</div>
+      </div>
+      <button class="btn btn-secondary btn-sm" onclick='abrirChecklist(${JSON.stringify(t)})'>Aplicar</button>
+    </div>
+  `).join('');
+}
+
+function abrirChecklist(template) {
+  checklistAtual = template;
+  checklistRespostas = {};
+  document.getElementById('modal-cl-titulo').textContent = template.titulo;
+  const itens = template.checklist_itens || [];
+  document.getElementById('modal-cl-itens').innerHTML = itens
+    .sort((a,b) => a.ordem - b.ordem)
+    .map(item => `
+      <div class="checklist-item">
+        <div class="checklist-pergunta">${item.pergunta}</div>
+        <div class="checklist-opcoes">
+          <button class="opt-btn" id="opt-sim-${item.id}" onclick="responderCheck('${item.id}','sim')">✓</button>
+          <button class="opt-btn" id="opt-nao-${item.id}" onclick="responderCheck('${item.id}','nao')">✗</button>
+          <button class="opt-btn" id="opt-parcial-${item.id}" onclick="responderCheck('${item.id}','parcial')">~</button>
+        </div>
+      </div>
+    `).join('');
+  document.getElementById('modal-checklist').style.display = '';
+}
+
+function responderCheck(itemId, resp) {
+  checklistRespostas[itemId] = resp;
+  ['sim','nao','parcial'].forEach(r => {
+    const b = document.getElementById(`opt-${r}-${itemId}`);
+    b.className = 'opt-btn' + (r === resp ? ` sel-${r}` : '');
+  });
+}
+
+async function salvarChecklist() {
+  const itens = checklistAtual.checklist_itens || [];
+  const inserts = itens.map(item => ({
+    visita_id: visitaAtual.id,
+    template_id: checklistAtual.id,
+    item_id: item.id,
+    resposta: checklistRespostas[item.id] || 'na'
+  }));
+  await db.from('checklist_respostas').insert(inserts);
+  fecharChecklist();
+  showToast('Checklist salvo!', 'success');
+}
+
+function fecharChecklist() {
+  document.getElementById('modal-checklist').style.display = 'none';
+}
+
+// ==============================
+// ENCERRAR VISITA
+// ==============================
+function irEncerrar() {
+  document.getElementById('encerrar-loja-nome').textContent = lojaSelecionada.nome;
+
+  // Resumo
+  const catCounts = {};
+  registros.forEach(r => { catCounts[r.categoria] = (catCounts[r.categoria] || 0) + 1; });
+  const info = ENERGIA_INFO[energiaSelecionada];
+
+  document.getElementById('resumo-visita').innerHTML = `
+    <div style="display:flex;align-items:center;gap:10px;margin-bottom:12px;padding:10px;background:var(--bg);border-radius:10px;">
+      <span style="font-size:28px;">${info.emoji}</span>
+      <div><div style="font-size:12px;color:var(--text-light);">Energia ao chegar</div><strong>${info.label}</strong></div>
+    </div>
+    <div style="font-size:13px;font-weight:700;color:var(--text-light);margin-bottom:8px;">REGISTROS (${registros.length})</div>
+    ${Object.entries(catCounts).map(([cat, n]) => `
+      <div style="display:flex;justify-content:space-between;padding:6px 0;border-bottom:1px solid var(--border);">
+        <span>${CAT_INFO[cat]?.label}</span><strong>${n} registro${n>1?'s':''}</strong>
+      </div>
+    `).join('') || '<p style="color:var(--text-light);font-size:14px;">Nenhum registro feito nesta visita.</p>'}
+  `;
+  mostrarTela('tela-encerrar');
+}
+
+async function encerrarVisita() {
+  const btn = document.getElementById('btn-encerrar');
+  btn.disabled = true;
+  btn.textContent = 'Encerrando...';
+
+  const emailGerente = document.getElementById('email-gerente').value.trim();
+  const obs = document.getElementById('obs-geral').value.trim();
+
+  await db.from('visitas').update({
+    status: 'encerrada',
+    hora_fim: new Date().toISOString(),
+    email_gerente: emailGerente || null,
+    observacao_geral: obs || null,
+    resumo_enviado: false
+  }).eq('id', visitaAtual.id);
+
+  let msg = `Visita em ${lojaSelecionada.nome} encerrada com sucesso!`;
+
+  if (emailGerente) {
+    await enviarEmailResumo(emailGerente, obs);
+    msg += ` Resumo enviado para ${emailGerente}.`;
+  }
+
+  document.getElementById('encerrada-msg').textContent = msg;
+  mostrarTela('tela-encerrada');
+}
+
+async function enviarEmailResumo(emailGerente, obs) {
+  const info = ENERGIA_INFO[energiaSelecionada];
+  const catCounts = {};
+  registros.forEach(r => { catCounts[r.categoria] = (catCounts[r.categoria] || 0) + 1; });
+
+  const listaRegistros = registros.map(r =>
+    `• [${CAT_INFO[r.categoria]?.label}] ${r.descricao}`
+  ).join('\n');
+
+  const corpo = `
+Olá!
+
+A supervisora ${usuario.nome} realizou uma visita na sua loja hoje, ${new Date().toLocaleDateString('pt-BR')}.
+
+📍 LOJA: ${lojaSelecionada.nome} - ${lojaSelecionada.cidade}/${lojaSelecionada.estado}
+
+🌟 ENERGIA DO TIME AO CHEGAR: ${info.emoji} ${info.label}
+
+📋 O QUE FOI TRATADO:
+${listaRegistros || '(nenhum registro feito)'}
+
+${obs ? `💬 OBSERVAÇÃO GERAL:\n${obs}` : ''}
+
+Atenciosamente,
+${usuario.nome}
+Supervisora - Sfera Multifranquias
+  `.trim();
+
+  try {
+    await db.functions.invoke('send-email', {
+      body: {
+        to: emailGerente,
+        subject: `Resumo de Visita - ${lojaSelecionada.nome} - ${new Date().toLocaleDateString('pt-BR')}`,
+        body: corpo
+      }
+    });
+    await db.from('visitas').update({ resumo_enviado: true }).eq('id', visitaAtual.id);
+  } catch(e) {
+    console.log('Email não enviado (função não configurada):', e);
+  }
+}
+
+// ==============================
+// VER RESUMO DE VISITA ENCERRADA
+// ==============================
+async function verResumoVisita(v) {
+  const { data: regs } = await db.from('registros_visita').select('*').eq('visita_id', v.id).order('created_at');
+  registros = regs || [];
+  lojaSelecionada = v.lojas;
+  energiaSelecionada = v.energia_time;
+  visitaAtual = v;
+
+  document.getElementById('encerrar-loja-nome').textContent = lojaSelecionada.nome;
+  document.getElementById('email-gerente').value = v.email_gerente || '';
+  document.getElementById('obs-geral').value = v.observacao_geral || '';
+  irEncerrar();
+
+  document.getElementById('btn-encerrar').style.display = 'none';
+  document.querySelector('[onclick="voltarVisita()"]').textContent = '← Voltar';
+}
+
+// ==============================
+// UTILS
+// ==============================
+function formatHora(iso) {
+  if (!iso) return '';
+  return new Date(iso).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
+}
+
+function showToast(msg, tipo = '') {
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.className = 'toast show ' + tipo;
+  setTimeout(() => t.className = 'toast', 2500);
+}
+
+function logout() {
+  sessionStorage.clear();
+  window.location.href = 'index.html';
+}
+</script>
+</body>
+</html>
