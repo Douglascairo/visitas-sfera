@@ -72,6 +72,29 @@
       .pdf-header-info { font-size:13px; color:#444; margin-bottom:16px; padding-bottom:12px; border-bottom:1px solid #eee; }
       .pdf-header-info strong { color:#000; }
     }
+
+    /* Cabeçalho PDF do checklist (só no print) */
+    .rel-pdf-header { display:none; }
+    @media print {
+      body.print-cl > *:not(#modal-relatorio-cl) { display:none !important; }
+      body.print-cl #modal-relatorio-cl {
+        position:static !important; inset:auto !important; overflow:visible !important;
+        height:auto !important; z-index:auto !important; display:block !important;
+      }
+      body.print-cl .rel-no-print { display:none !important; }
+      body.print-cl #rel-corpo { padding:0 !important; }
+      body.print-cl .rel-pdf-header {
+        display:block !important;
+        text-align:center; padding:6px 0 14px; border-bottom:3px solid #042C53; margin-bottom:18px;
+      }
+      body.print-cl .rel-pdf-header img { width:160px; height:auto; }
+      body.print-cl .rel-pdf-header .rel-pdf-sub { color:#666; font-size:12px; margin-top:4px; }
+      body.print-cl .rel-pdf-header .rel-pdf-info { font-size:13px; color:#222; margin-top:10px; font-weight:600; }
+      body.print-cl #rel-corpo details { display:block !important; }
+      body.print-cl #rel-corpo details > summary { list-style:none; }
+      body.print-cl * { -webkit-print-color-adjust:exact !important; print-color-adjust:exact !important; }
+      body.print-cl { background:#fff !important; }
+    }
   </style>
 </head>
 <body>
@@ -428,16 +451,19 @@
 
 <!-- RELATÓRIO FINAL CHECKLIST -->
 <div id="modal-relatorio-cl" style="display:none;position:fixed;inset:0;background:#fff;z-index:210;overflow-y:auto;">
-  <div style="position:sticky;top:0;background:#fff;border-bottom:1.5px solid var(--border);z-index:10;padding:14px 16px;display:flex;align-items:center;justify-content:space-between;">
+  <div class="rel-no-print" style="position:sticky;top:0;background:#fff;border-bottom:1.5px solid var(--border);z-index:10;padding:14px 16px;display:flex;align-items:center;justify-content:space-between;">
     <div>
       <div style="font-size:11px;color:var(--text-light);font-weight:600;">RELATÓRIO</div>
       <div style="font-weight:800;font-size:16px;" id="rel-titulo"></div>
     </div>
     <button onclick="fecharRelatorio()" style="background:none;border:none;font-size:24px;cursor:pointer;">✕</button>
   </div>
-  <div id="rel-corpo" style="padding:16px 16px 80px;"></div>
-  <div style="position:sticky;bottom:0;background:#fff;border-top:1.5px solid var(--border);padding:12px 16px;">
-    <button class="btn btn-secondary btn-full" onclick="fecharRelatorio()">Fechar Relatório</button>
+  <!-- Cabeçalho que só aparece no PDF impresso -->
+  <div id="rel-pdf-header" class="rel-pdf-header"></div>
+  <div id="rel-corpo" style="padding:16px 16px 90px;"></div>
+  <div class="rel-no-print" style="position:sticky;bottom:0;background:#fff;border-top:1.5px solid var(--border);padding:12px 16px;display:flex;gap:8px;">
+    <button class="btn btn-secondary" style="flex:1;" onclick="fecharRelatorio()">Fechar</button>
+    <button class="btn btn-primary" style="flex:2;" onclick="exportarChecklistPDF()">📄 Exportar PDF</button>
   </div>
 </div>
 
@@ -1111,6 +1137,12 @@ function fecharChecklist(){document.getElementById('modal-checklist').style.disp
 function mostrarRelatorioChecklist(inserts){
   const loja=lojaSelecionada?.nome||'';
   document.getElementById('rel-titulo').textContent=`${checklistAtual?.titulo||'Checklist'} · ${loja}`;
+  const dataHoje=new Date().toLocaleDateString('pt-BR');
+  document.getElementById('rel-pdf-header').innerHTML=`
+    <img src="img/sfera-logo.png" alt="Sfera Multifranquias">
+    <div class="rel-pdf-sub">Super em Ação · Supervisão O Boticário</div>
+    <div class="rel-pdf-info">${checklistAtual?.titulo||'Checklist'} — ${loja}<br>
+    Supervisora: ${usuario?.nome||''} · Data: ${dataHoje}</div>`;
 
   // Separar por nível
   const porNivel={pessimo:[],ruim:[],regular:[],bom:[],otimo:[],semResposta:[]};
@@ -1242,6 +1274,14 @@ function mostrarRelatorioChecklist(inserts){
 
 function fecharRelatorio(){
   document.getElementById('modal-relatorio-cl').style.display='none';
+}
+
+function exportarChecklistPDF(){
+  // abre todos os <details> (itens Bom/Ótimo) p/ saírem completos no PDF
+  document.querySelectorAll('#rel-corpo details').forEach(d=>d.open=true);
+  document.body.classList.add('print-cl');
+  window.print();
+  setTimeout(()=>document.body.classList.remove('print-cl'), 400);
 }
 
 // ==============================
