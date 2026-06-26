@@ -351,6 +351,21 @@
   </div>
 </div>
 
+<!-- RELATÓRIO FINAL CHECKLIST -->
+<div id="modal-relatorio-cl" style="display:none;position:fixed;inset:0;background:#fff;z-index:210;overflow-y:auto;">
+  <div style="position:sticky;top:0;background:#fff;border-bottom:1.5px solid var(--border);z-index:10;padding:14px 16px;display:flex;align-items:center;justify-content:space-between;">
+    <div>
+      <div style="font-size:11px;color:var(--text-light);font-weight:600;">RELATÓRIO</div>
+      <div style="font-weight:800;font-size:16px;" id="rel-titulo"></div>
+    </div>
+    <button onclick="fecharRelatorio()" style="background:none;border:none;font-size:24px;cursor:pointer;">✕</button>
+  </div>
+  <div id="rel-corpo" style="padding:16px 16px 80px;"></div>
+  <div style="position:sticky;bottom:0;background:#fff;border-top:1.5px solid var(--border);padding:12px 16px;">
+    <button class="btn btn-secondary btn-full" onclick="fecharRelatorio()">Fechar Relatório</button>
+  </div>
+</div>
+
 <!-- MODAL: Detalhes histórico -->
 <div id="modal-hist" style="display:none">
   <div class="modal-bg" onclick="fecharModalHist()">
@@ -812,6 +827,7 @@ async function carregarTemplates() {
 
 let clFiltroSoChamados=false;
 let clMediaFiles={};
+let clHistorico={};
 
 function toggleFiltroChamado(){
   clFiltroSoChamados=!clFiltroSoChamados;
@@ -832,11 +848,31 @@ function toggleFiltroChamado(){
   });
 }
 
-function abrirChecklist(template) {
-  checklistAtual=template; checklistRespostas={}; clMediaFiles={}; clFiltroSoChamados=false;
+const CL_NIVEIS_CRITICOS=new Set(['pessimo','ruim','regular']);
+const CL_CORES={pessimo:'#dc3545',ruim:'#fd7e14',regular:'#ffc107',bom:'#0d6efd',otimo:'#198754'};
+const CL_LABELS={pessimo:'Péssimo',ruim:'Ruim',regular:'Regular',bom:'Bom',otimo:'Ótimo'};
+const CL_EMOJIS={pessimo:'🔴',ruim:'🟠',regular:'🟡',bom:'🔵',otimo:'🟢'};
+
+async function abrirChecklist(template) {
+  checklistAtual=template; checklistRespostas={}; clMediaFiles={}; clHistorico={}; clFiltroSoChamados=false;
   const btn=document.getElementById('btn-filtro-chamado');
   btn.style.background=''; btn.style.color='';
   document.getElementById('modal-cl-titulo').textContent=template.titulo;
+  document.getElementById('modal-cl-itens').innerHTML='<div class="loader"><div class="spinner"></div><p style="font-size:13px;color:var(--text-light)">Carregando histórico...</p></div>';
+  document.getElementById('modal-checklist').style.display='';
+
+  // Carregar histórico completo desta loja para este template
+  if(lojaSelecionada){
+    const {data:visAnts}=await db.from('visitas').select('id').eq('loja_id',lojaSelecionada.id).neq('id',visitaAtual?.id||'00000000-0000-0000-0000-000000000000');
+    const idsAnts=(visAnts||[]).map(v=>v.id);
+    if(idsAnts.length>0){
+      const {data:resps}=await db.from('checklist_respostas').select('item_id,avaliacao,visita_id').in('visita_id',idsAnts).eq('template_id',template.id).not('avaliacao','is',null);
+      (resps||[]).forEach(r=>{
+        if(!clHistorico[r.item_id])clHistorico[r.item_id]=[];
+        clHistorico[r.item_id].push(r.avaliacao);
+      });
+    }
+  }
 
   const itens=(template.checklist_itens||[]).sort((a,b)=>a.ordem-b.ordem);
   const secoes={};
@@ -849,67 +885,81 @@ function abrirChecklist(template) {
     </div>`;
     items.forEach(item=>{
       const permiteChamado=item.permite_chamado?'true':'false';
-      html+=`<div class="cl-item" data-item-id="${item.id}" data-secao="${sec}" data-permite-chamado="${permiteChamado}" style="border:1.5px solid var(--border);border-radius:12px;padding:12px;margin-bottom:10px;">
-        <div style="font-size:14px;font-weight:600;margin-bottom:10px;line-height:1.4;">${item.ordem}. ${item.pergunta}</div>
+      const hist=clHistorico[item.id]||[];
+      const histCriticos=hist.filter(av=>CL_NIVEIS_CRITICOS.has(av));
+      const temHistCritico=histCriticos.length>0;
+      const alertaHtml=temHistCritico?`<div id="alerta-hist-${item.id}" style="display:none;background:#fff3cd;border:1.5px solid #ffc107;border-radius:8px;padding:8px 10px;margin-bottom:8px;font-size:12px;color:#856404;">
+        ⚠️ <strong>Reincidência!</strong> Este item foi avaliado como ${[...new Set(histCriticos)].map(av=>CL_LABELS[av]).join('/')} em <strong>${histCriticos.length} checklist(s) anterior(es)</strong>.<br>
+        <span style="font-size:11px;">Histórico: ${hist.map(av=>`${CL_EMOJIS[av]} ${CL_LABELS[av]}`).join(' · ')}</span>
+      </div>`:'';
 
+      html+=`<div class="cl-item" data-item-id="${item.id}" data-secao="${sec}" data-permite-chamado="${permiteChamado}" style="border:1.5px solid var(--border);border-radius:12px;padding:12px;margin-bottom:10px;" id="item-wrap-${item.id}">
+        <div style="font-size:14px;font-weight:600;margin-bottom:10px;line-height:1.4;">${item.ordem}. ${item.pergunta}
+          ${temHistCritico?`<span id="badge-hist-${item.id}" style="display:none;margin-left:6px;background:#ffc107;color:#000;font-size:10px;font-weight:800;padding:2px 6px;border-radius:10px;">⚠️ REINCIDENTE</span>`:''}
+        </div>
+        ${alertaHtml}
         <!-- Avaliação 5 opções -->
         <div style="display:grid;grid-template-columns:repeat(5,1fr);gap:4px;margin-bottom:10px;">
-          ${['pessimo','ruim','regular','bom','otimo'].map((av,i)=>{
-            const labels=['Péssimo','Ruim','Regular','Bom','Ótimo'];
-            const cores=['#dc3545','#fd7e14','#ffc107','#0d6efd','#198754'];
-            return `<button id="av-${av}-${item.id}" onclick="avaliarItem('${item.id}','${av}')"
-              style="border:2px solid ${cores[i]};background:#fff;color:${cores[i]};border-radius:8px;padding:4px 2px;font-size:11px;font-weight:700;cursor:pointer;transition:all .15s;"
-              >${labels[i]}</button>`;
-          }).join('')}
+          ${['pessimo','ruim','regular','bom','otimo'].map(av=>`<button id="av-${av}-${item.id}" onclick="avaliarItem('${item.id}','${av}')"
+            style="border:2px solid ${CL_CORES[av]};background:#fff;color:${CL_CORES[av]};border-radius:8px;padding:4px 2px;font-size:11px;font-weight:700;cursor:pointer;transition:all .15s;"
+            >${CL_LABELS[av]}</button>`).join('')}
         </div>
-
+        ${alertaHtml?`<div id="alerta-hist-wrap-${item.id}" style="display:none;">${alertaHtml}</div>`:''}
         <!-- Observação -->
         <textarea id="obs-${item.id}" placeholder="Observação (opcional)..." rows="2"
           style="width:100%;border:1.5px solid var(--border);border-radius:8px;padding:8px;font-size:13px;resize:none;box-sizing:border-box;font-family:inherit;margin-bottom:8px;"></textarea>
-
         <!-- Foto -->
         <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px;">
           <input type="file" id="foto-${item.id}" accept="image/*,video/*" capture="environment" style="display:none" onchange="previewClFoto('${item.id}')">
           <button type="button" class="btn btn-secondary btn-sm" onclick="document.getElementById('foto-${item.id}').click()">📷 Foto</button>
           <span id="foto-label-${item.id}" style="font-size:12px;color:var(--text-light);"></span>
         </div>
-
-        <!-- Chamado (só se permite_chamado) -->
         ${item.permite_chamado?`
         <div style="border-top:1px dashed var(--border);padding-top:8px;margin-top:4px;">
-          <div style="display:flex;align-items:center;gap:8px;margin-bottom:6px;">
-            <label style="font-size:12px;font-weight:700;color:#856404;">🎫 Chamado:</label>
-          </div>
+          <label style="font-size:12px;font-weight:700;color:#856404;display:block;margin-bottom:6px;">🎫 Chamado:</label>
           <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;">
-            <div style="flex:1;min-width:140px;">
-              <input type="text" id="chamado-${item.id}" placeholder="Nº do chamado já aberto"
-                style="width:100%;border:1.5px solid var(--border);border-radius:8px;padding:6px 10px;font-size:13px;box-sizing:border-box;">
-            </div>
+            <input type="text" id="chamado-${item.id}" placeholder="Nº do chamado já aberto"
+              style="flex:1;min-width:140px;border:1.5px solid var(--border);border-radius:8px;padding:6px 10px;font-size:13px;box-sizing:border-box;">
             <button type="button" class="btn btn-sm" id="btn-abrir-${item.id}"
               style="background:#fff3cd;border:1.5px solid #ffc107;color:#856404;white-space:nowrap;"
               onclick="marcarAbrirChamado('${item.id}')">📋 Gerente abre</button>
           </div>
-        </div>`:``}
+        </div>`:''}
       </div>`;
     });
   });
 
   document.getElementById('modal-cl-itens').innerHTML=html;
   atualizarProgressoCl();
-  document.getElementById('modal-checklist').style.display='';
   document.getElementById('modal-checklist').scrollTop=0;
 }
 
 function avaliarItem(itemId,av){
-  const cores={pessimo:'#dc3545',ruim:'#fd7e14',regular:'#ffc107',bom:'#0d6efd',otimo:'#198754'};
   ['pessimo','ruim','regular','bom','otimo'].forEach(a=>{
     const b=document.getElementById(`av-${a}-${itemId}`);
     if(!b)return;
-    b.style.background=a===av?cores[a]:'#fff';
-    b.style.color=a===av?'#fff':cores[a];
+    b.style.background=a===av?CL_CORES[a]:'#fff';
+    b.style.color=a===av?'#fff':CL_CORES[a];
   });
   if(!checklistRespostas[itemId])checklistRespostas[itemId]={};
   checklistRespostas[itemId].avaliacao=av;
+
+  // Alerta de reincidência em tempo real
+  const hist=clHistorico[itemId]||[];
+  const histCriticos=hist.filter(h=>CL_NIVEIS_CRITICOS.has(h));
+  const isCritico=CL_NIVEIS_CRITICOS.has(av);
+  const wrap=document.getElementById(`item-wrap-${itemId}`);
+  const alertaWrap=document.getElementById(`alerta-hist-wrap-${itemId}`);
+  const badge=document.getElementById(`badge-hist-${itemId}`);
+  if(isCritico && histCriticos.length>0){
+    if(wrap) wrap.style.border='2px solid #ffc107';
+    if(alertaWrap) alertaWrap.style.display='';
+    if(badge) badge.style.display='inline';
+  } else {
+    if(wrap) wrap.style.border=isCritico?`2px solid ${CL_CORES[av]}`:'1.5px solid var(--border)';
+    if(alertaWrap) alertaWrap.style.display='none';
+    if(badge) badge.style.display='none';
+  }
   atualizarProgressoCl();
 }
 
@@ -939,7 +989,7 @@ function atualizarProgressoCl(){
 
 async function salvarChecklist() {
   if(!checklistAtual||!visitaAtual){fecharChecklist();return;}
-  const itens=checklistAtual.checklist_itens||[];
+  const itens=(checklistAtual.checklist_itens||[]).sort((a,b)=>a.ordem-b.ordem);
   const inserts=[];
   for(const item of itens){
     const r=checklistRespostas[item.id]||{};
@@ -953,25 +1003,148 @@ async function salvarChecklist() {
       if(up){const {data:pub}=db.storage.from('visitas-midias').getPublicUrl(path);mediaUrl=pub?.publicUrl||null;}
     }
     inserts.push({
-      visita_id:visitaAtual.id,
-      template_id:checklistAtual.id,
-      item_id:item.id,
-      resposta:'na',
-      avaliacao:r.avaliacao||null,
-      observacao:obs||null,
-      media_url:mediaUrl,
-      chamado_numero:chamadoNum||null,
-      precisa_chamado:r.precisaChamado||false
+      // campos para o DB
+      _db:{visita_id:visitaAtual.id,template_id:checklistAtual.id,item_id:item.id,resposta:'na',avaliacao:r.avaliacao||null,observacao:obs||null,media_url:mediaUrl,chamado_numero:chamadoNum||null,precisa_chamado:r.precisaChamado||false},
+      // campos extras só para o relatório (não vão ao DB)
+      item_id:item.id, pergunta_texto:item.pergunta, secao:item.secao||'Geral',
+      avaliacao:r.avaliacao||null, observacao:obs||null, media_url:mediaUrl,
+      chamado_numero:chamadoNum||null, precisa_chamado:r.precisaChamado||false,
+      permite_chamado:item.permite_chamado||false
     });
   }
-  const {error}=await db.from('checklist_respostas').insert(inserts);
-  if(error){showToast('Erro ao salvar','error');return;}
+  const {error}=await db.from('checklist_respostas').insert(inserts.map(i=>i._db));
+  if(error){showToast('Erro ao salvar','error');console.error(error);return;}
   fecharChecklist();
-  showToast('Checklist salvo!','success');
+  mostrarRelatorioChecklist(inserts);
   carregarTemplates();
 }
 
 function fecharChecklist(){document.getElementById('modal-checklist').style.display='none';}
+
+function mostrarRelatorioChecklist(inserts){
+  const loja=lojaSelecionada?.nome||'';
+  document.getElementById('rel-titulo').textContent=`${checklistAtual?.titulo||'Checklist'} · ${loja}`;
+
+  // Separar por nível
+  const porNivel={pessimo:[],ruim:[],regular:[],bom:[],otimo:[],semResposta:[]};
+  const comChamadoAberto=[];
+  const paraAbrirChamado=[];
+  const reincidentes=[];
+
+  inserts.forEach(ins=>{
+    const av=ins.avaliacao;
+    const hist=clHistorico[ins.item_id]||[];
+    const histCriticos=hist.filter(h=>CL_NIVEIS_CRITICOS.has(h));
+    if(av) porNivel[av].push(ins); else porNivel.semResposta.push(ins);
+    if(ins.chamado_numero) comChamadoAberto.push(ins);
+    if(ins.precisa_chamado) paraAbrirChamado.push(ins);
+    if(av && CL_NIVEIS_CRITICOS.has(av) && histCriticos.length>0){
+      reincidentes.push({...ins, histCriticos, hist});
+    }
+  });
+
+  const total=inserts.length;
+  const respondidos=inserts.filter(i=>i.avaliacao).length;
+
+  // Cores de fundo por nível
+  const bgNivel={pessimo:'#f8d7da',ruim:'#ffe5d0',regular:'#fff3cd',bom:'#cfe2ff',otimo:'#d1e7dd'};
+
+  let html=`
+  <!-- Resumo -->
+  <div style="display:grid;grid-template-columns:repeat(5,1fr);gap:6px;margin-bottom:16px;">
+    ${['otimo','bom','regular','ruim','pessimo'].map(av=>`
+    <div style="background:${bgNivel[av]};border-radius:10px;padding:8px 4px;text-align:center;">
+      <div style="font-size:18px;">${CL_EMOJIS[av]}</div>
+      <div style="font-size:20px;font-weight:800;color:${CL_CORES[av]};">${porNivel[av].length}</div>
+      <div style="font-size:10px;color:var(--text-light);">${CL_LABELS[av]}</div>
+    </div>`).join('')}
+  </div>
+  <div style="text-align:center;font-size:12px;color:var(--text-light);margin-bottom:20px;">${respondidos}/${total} respondidos</div>`;
+
+  // Alertas de reincidência
+  if(reincidentes.length>0){
+    html+=`<div style="background:#fff3cd;border:2px solid #ffc107;border-radius:12px;padding:14px;margin-bottom:16px;">
+      <div style="font-weight:800;font-size:14px;color:#856404;margin-bottom:10px;">⚠️ ALERTAS DE REINCIDÊNCIA (${reincidentes.length})</div>
+      <p style="font-size:12px;color:#856404;margin:0 0 10px;">Estes itens foram avaliados como Regular/Ruim/Péssimo nesta visita E em visitas anteriores:</p>
+      ${reincidentes.map(r=>{
+        const histStr=r.hist.map(av=>`${CL_EMOJIS[av]} ${CL_LABELS[av]}`).join(' → ');
+        return `<div style="background:#fff;border-radius:8px;padding:10px;margin-bottom:8px;border-left:4px solid ${CL_CORES[r.avaliacao]};">
+          <div style="font-size:13px;font-weight:700;">${r.secao} · ${r.pergunta_texto}</div>
+          <div style="font-size:12px;margin-top:4px;">Hoje: <strong style="color:${CL_CORES[r.avaliacao]};">${CL_LABELS[r.avaliacao]}</strong> · Histórico: ${histStr}</div>
+          ${r.observacao?`<div style="font-size:12px;color:var(--text-light);margin-top:4px;">💬 ${r.observacao}</div>`:''}
+        </div>`;
+      }).join('')}
+    </div>`;
+  }
+
+  // Itens críticos (péssimo + ruim + regular)
+  const criticos=[...porNivel.pessimo,...porNivel.ruim,...porNivel.regular];
+  if(criticos.length>0){
+    html+=`<div style="background:#f8f9fa;border-radius:12px;padding:14px;margin-bottom:16px;">
+      <div style="font-weight:800;font-size:14px;margin-bottom:10px;">🔴 ITENS QUE PRECISAM DE ATENÇÃO (${criticos.length})</div>
+      ${criticos.map(r=>`
+      <div style="background:#fff;border-radius:8px;padding:10px;margin-bottom:8px;border-left:4px solid ${CL_CORES[r.avaliacao]};">
+        <div style="display:flex;justify-content:space-between;align-items:flex-start;">
+          <div style="font-size:13px;font-weight:700;flex:1;">${r.secao} · ${r.pergunta_texto}</div>
+          <span style="background:${CL_CORES[r.avaliacao]};color:#fff;font-size:10px;font-weight:800;padding:2px 8px;border-radius:10px;flex-shrink:0;margin-left:8px;">${CL_LABELS[r.avaliacao]}</span>
+        </div>
+        ${r.observacao?`<div style="font-size:12px;color:var(--text-light);margin-top:4px;">💬 ${r.observacao}</div>`:''}
+        ${r.media_url?`<a href="${r.media_url}" target="_blank" style="font-size:12px;color:var(--sfera);">📎 Ver foto</a>`:''}
+      </div>`).join('')}
+    </div>`;
+  }
+
+  // Chamados já abertos
+  if(comChamadoAberto.length>0){
+    html+=`<div style="background:#e8f4fd;border-radius:12px;padding:14px;margin-bottom:16px;">
+      <div style="font-weight:800;font-size:14px;margin-bottom:10px;">🎫 CHAMADOS JÁ ABERTOS (${comChamadoAberto.length})</div>
+      ${comChamadoAberto.map(r=>`
+      <div style="background:#fff;border-radius:8px;padding:10px;margin-bottom:6px;">
+        <div style="font-size:13px;font-weight:700;">${r.secao} · ${r.pergunta_texto}</div>
+        <div style="font-size:12px;margin-top:4px;color:var(--sfera-dark);">Chamado nº: <strong>${r.chamado_numero}</strong></div>
+        ${r.observacao?`<div style="font-size:12px;color:var(--text-light);">💬 ${r.observacao}</div>`:''}
+      </div>`).join('')}
+    </div>`;
+  }
+
+  // Para a gerente abrir chamado
+  if(paraAbrirChamado.length>0){
+    html+=`<div style="background:#fff3cd;border-radius:12px;padding:14px;margin-bottom:16px;">
+      <div style="font-weight:800;font-size:14px;margin-bottom:10px;">📋 GERENTE PRECISA ABRIR CHAMADO (${paraAbrirChamado.length})</div>
+      ${paraAbrirChamado.map(r=>`
+      <div style="background:#fff;border-radius:8px;padding:10px;margin-bottom:6px;">
+        <div style="font-size:13px;font-weight:700;">${r.secao} · ${r.pergunta_texto}</div>
+        ${r.avaliacao?`<span style="background:${CL_CORES[r.avaliacao]};color:#fff;font-size:10px;padding:2px 8px;border-radius:10px;">${CL_LABELS[r.avaliacao]}</span>`:''}
+        ${r.observacao?`<div style="font-size:12px;color:var(--text-light);margin-top:4px;">💬 ${r.observacao}</div>`:''}
+      </div>`).join('')}
+    </div>`;
+  }
+
+  // Itens Bom e Ótimo
+  const positivos=[...porNivel.bom,...porNivel.otimo];
+  if(positivos.length>0){
+    html+=`<details style="margin-bottom:16px;">
+      <summary style="font-weight:800;font-size:14px;cursor:pointer;padding:14px;background:#d1e7dd;border-radius:12px;">🟢 ITENS BOM E ÓTIMO (${positivos.length})</summary>
+      <div style="padding:10px 0;">
+      ${positivos.map(r=>`
+      <div style="border-radius:8px;padding:10px;margin-bottom:6px;border-left:4px solid ${CL_CORES[r.avaliacao]};background:#f8f9fa;">
+        <div style="display:flex;justify-content:space-between;">
+          <span style="font-size:13px;">${r.secao} · ${r.pergunta_texto}</span>
+          <span style="background:${CL_CORES[r.avaliacao]};color:#fff;font-size:10px;padding:2px 8px;border-radius:10px;">${CL_LABELS[r.avaliacao]}</span>
+        </div>
+      </div>`).join('')}
+      </div>
+    </details>`;
+  }
+
+  document.getElementById('rel-corpo').innerHTML=html;
+  document.getElementById('modal-relatorio-cl').style.display='';
+  document.getElementById('modal-relatorio-cl').scrollTop=0;
+}
+
+function fecharRelatorio(){
+  document.getElementById('modal-relatorio-cl').style.display='none';
+}
 
 // ==============================
 // ENCERRAR
