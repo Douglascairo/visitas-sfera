@@ -5,6 +5,38 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Visitas Sfera</title>
   <link rel="stylesheet" href="css/style.css">
+  <style>
+    .tipo-dia-grid { display:grid; grid-template-columns:1fr 1fr 1fr; gap:10px; margin:14px 0; }
+    .tipo-dia-btn { padding:16px 8px; border-radius:12px; border:2px solid var(--border); background:white; cursor:pointer; text-align:center; transition:all 0.2s; }
+    .tipo-dia-btn .td-icon { font-size:28px; display:block; margin-bottom:6px; }
+    .tipo-dia-btn .td-label { font-size:12px; font-weight:700; color:var(--text-light); }
+    .tipo-dia-btn.selected { border-color:var(--sfera); background:var(--sfera-light); }
+    .tipo-dia-btn.selected .td-label { color:var(--sfera-dark); }
+
+    .plano-item { padding:12px; border-radius:10px; border:1.5px solid var(--border); margin-bottom:10px; }
+    .plano-item-desc { font-size:14px; margin-bottom:10px; }
+    .plano-opcoes { display:flex; gap:6px; }
+    .plano-opt { flex:1; padding:8px 4px; border-radius:8px; border:1.5px solid var(--border); font-size:12px; font-weight:700; cursor:pointer; text-align:center; background:white; transition:all 0.15s; }
+    .plano-opt.sel-concluido { background:#d1e7dd; border-color:#28a745; color:#0f5132; }
+    .plano-opt.sel-andamento { background:#fff3cd; border-color:#ffc107; color:#856404; }
+    .plano-opt.sel-pendente { background:#f8d7da; border-color:#dc3545; color:#842029; }
+
+    .hist-item { padding:12px 14px; border-radius:10px; background:white; margin-bottom:10px; box-shadow:var(--shadow); cursor:pointer; }
+    .hist-loja { font-weight:700; font-size:15px; }
+    .hist-info { font-size:12px; color:var(--text-light); margin-top:3px; }
+
+    .media-preview { display:flex; gap:8px; flex-wrap:wrap; margin-top:8px; }
+    .media-thumb { width:60px; height:60px; border-radius:8px; object-fit:cover; border:1.5px solid var(--border); cursor:pointer; }
+    .media-file { width:60px; height:60px; border-radius:8px; border:1.5px solid var(--border); display:flex; align-items:center; justify-content:center; font-size:24px; background:var(--bg); cursor:pointer; }
+
+    .pdf-only { display:none; }
+    @media print {
+      .header, .steps, .card-title, button, .btn, .cat-btn, .btn-del { display:none !important; }
+      .pdf-only { display:block !important; }
+      body { background:white; }
+      .card { box-shadow:none; border:1px solid #ddd; }
+    }
+  </style>
 </head>
 <body>
 
@@ -20,20 +52,55 @@
 
   <!-- TELA: HOME -->
   <div id="tela-home">
-    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px;">
-      <div>
-        <div style="font-size:13px;color:var(--text-light);">Hoje, <span id="data-hoje"></span></div>
-        <div style="font-size:20px;font-weight:800;margin-top:2px;">Minhas Visitas</div>
+    <div style="margin-bottom:16px;">
+      <div style="font-size:13px;color:var(--text-light);">Hoje, <span id="data-hoje"></span></div>
+      <div style="font-size:20px;font-weight:800;margin-top:2px;">Olá, <span id="home-nome-curto"></span>! 👋</div>
+    </div>
+
+    <!-- Tipo de dia -->
+    <div class="card" id="card-tipo-dia">
+      <div class="card-title">📅 Como será seu dia hoje?</div>
+      <div class="tipo-dia-grid">
+        <div class="tipo-dia-btn" id="td-visitas" onclick="selecionarTipoDia('visitas')">
+          <span class="td-icon">🏪</span><span class="td-label">Visita a Lojas</span>
+        </div>
+        <div class="tipo-dia-btn" id="td-escritorio" onclick="selecionarTipoDia('escritorio')">
+          <span class="td-icon">🏢</span><span class="td-label">Escritório</span>
+        </div>
+        <div class="tipo-dia-btn" id="td-demanda" onclick="selecionarTipoDia('demanda')">
+          <span class="td-icon">📋</span><span class="td-label">Outra Demanda</span>
+        </div>
       </div>
-      <button class="btn btn-primary" onclick="abrirNovaVisita()">+ Nova Visita</button>
+      <div id="form-demanda" style="display:none;">
+        <input type="text" class="form-control" id="desc-demanda" placeholder="Descreva a demanda do dia...">
+        <button class="btn btn-primary btn-sm" style="margin-top:8px;" onclick="salvarTipoDia()">Confirmar</button>
+      </div>
+    </div>
+
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;">
+      <div style="font-size:16px;font-weight:800;">Visitas de Hoje</div>
+      <button class="btn btn-primary btn-sm" onclick="abrirNovaVisita()" id="btn-nova-visita">+ Nova Visita</button>
     </div>
 
     <div id="lista-visitas-hoje">
-      <div class="loader"><div class="spinner"></div><p>Carregando...</p></div>
+      <div class="loader"><div class="spinner"></div></div>
+    </div>
+
+    <!-- Tabs histórico -->
+    <div style="margin-top:20px;">
+      <div style="font-size:16px;font-weight:800;margin-bottom:12px;">Histórico</div>
+      <div class="tabs" style="margin-bottom:12px;">
+        <button class="tab-btn active" onclick="mudarTabHist('semana')">Esta semana</button>
+        <button class="tab-btn" onclick="mudarTabHist('mes')">Este mês</button>
+        <button class="tab-btn" onclick="mudarTabHist('todas')">Todas</button>
+      </div>
+      <div id="lista-historico">
+        <div class="loader"><div class="spinner"></div></div>
+      </div>
     </div>
   </div>
 
-  <!-- TELA: NOVA VISITA - passo 1: selecionar loja -->
+  <!-- TELA: SELECIONAR LOJA -->
   <div id="tela-selecionar-loja" style="display:none">
     <div style="display:flex;align-items:center;gap:12px;margin-bottom:20px;">
       <button onclick="irHome()" style="background:none;border:none;font-size:22px;cursor:pointer;">←</button>
@@ -41,17 +108,46 @@
     </div>
     <div class="steps">
       <div class="step active">1. Loja</div>
-      <div class="step">2. Energia</div>
-      <div class="step">3. Visita</div>
-      <div class="step">4. Encerrar</div>
+      <div class="step">2. Plano</div>
+      <div class="step">3. Energia</div>
+      <div class="step">4. Visita</div>
     </div>
     <div id="lista-lojas"></div>
   </div>
 
-  <!-- TELA: ENERGIA DO TIME -->
+  <!-- TELA: REVISÃO PLANO DE AÇÃO -->
+  <div id="tela-plano-revisao" style="display:none">
+    <div style="display:flex;align-items:center;gap:12px;margin-bottom:8px;">
+      <button onclick="voltarLoja()" style="background:none;border:none;font-size:22px;cursor:pointer;">←</button>
+      <div>
+        <div style="font-size:13px;color:var(--text-light);" id="plano-loja-nome"></div>
+        <div style="font-size:18px;font-weight:800;">Revisão do Plano de Ação</div>
+      </div>
+    </div>
+    <div class="steps">
+      <div class="step done">1. Loja</div>
+      <div class="step active">2. Plano</div>
+      <div class="step">3. Energia</div>
+      <div class="step">4. Visita</div>
+    </div>
+
+    <div class="card" style="background:var(--sfera-light);border:1.5px solid var(--sfera);">
+      <div style="font-size:13px;color:var(--sfera-dark);">📌 Última visita: <strong id="plano-ultima-visita"></strong></div>
+    </div>
+
+    <div class="card">
+      <div class="card-title">🎯 O que ficou no plano de ação?</div>
+      <p style="font-size:13px;color:var(--text-light);margin-bottom:14px;">Marque o status de cada item para registrar a evolução:</p>
+      <div id="lista-plano-itens"></div>
+    </div>
+
+    <button class="btn btn-primary btn-full" onclick="salvarRevisaoPlano()">Salvar e Continuar →</button>
+  </div>
+
+  <!-- TELA: ENERGIA -->
   <div id="tela-energia" style="display:none">
     <div style="display:flex;align-items:center;gap:12px;margin-bottom:20px;">
-      <button onclick="voltarLoja()" style="background:none;border:none;font-size:22px;cursor:pointer;">←</button>
+      <button onclick="voltarParaPlanoOuLoja()" style="background:none;border:none;font-size:22px;cursor:pointer;">←</button>
       <div>
         <div style="font-size:13px;color:var(--text-light);" id="energia-loja-nome"></div>
         <div style="font-size:18px;font-weight:800;">Energia do Time</div>
@@ -59,37 +155,21 @@
     </div>
     <div class="steps">
       <div class="step done">1. Loja</div>
-      <div class="step active">2. Energia</div>
-      <div class="step">3. Visita</div>
-      <div class="step">4. Encerrar</div>
+      <div class="step done">2. Plano</div>
+      <div class="step active">3. Energia</div>
+      <div class="step">4. Visita</div>
     </div>
 
     <div class="card">
       <div class="card-title">🌟 Como você encontrou a energia do time ao entrar na loja?</div>
-      <div class="energia-wrap" id="energia-opcoes">
-        <div class="energia-item" onclick="selecionarEnergia(1)">
-          <span class="energia-emoji">😢</span>
-          <span class="energia-label">Muito apagada</span>
-        </div>
-        <div class="energia-item" onclick="selecionarEnergia(2)">
-          <span class="energia-emoji">😟</span>
-          <span class="energia-label">Abaixo do esperado</span>
-        </div>
-        <div class="energia-item" onclick="selecionarEnergia(3)">
-          <span class="energia-emoji">😐</span>
-          <span class="energia-label">Neutra / Normal</span>
-        </div>
-        <div class="energia-item" onclick="selecionarEnergia(4)">
-          <span class="energia-emoji">😊</span>
-          <span class="energia-label">Boa energia</span>
-        </div>
-        <div class="energia-item" onclick="selecionarEnergia(5)">
-          <span class="energia-emoji">🤩</span>
-          <span class="energia-label">Super energizada!</span>
-        </div>
+      <div class="energia-wrap">
+        <div class="energia-item" onclick="selecionarEnergia(1)"><span class="energia-emoji">😢</span><span class="energia-label">Muito apagada</span></div>
+        <div class="energia-item" onclick="selecionarEnergia(2)"><span class="energia-emoji">😟</span><span class="energia-label">Abaixo do esperado</span></div>
+        <div class="energia-item" onclick="selecionarEnergia(3)"><span class="energia-emoji">😐</span><span class="energia-label">Neutra / Normal</span></div>
+        <div class="energia-item" onclick="selecionarEnergia(4)"><span class="energia-emoji">😊</span><span class="energia-label">Boa energia</span></div>
+        <div class="energia-item" onclick="selecionarEnergia(5)"><span class="energia-emoji">🤩</span><span class="energia-label">Super energizada!</span></div>
       </div>
     </div>
-
     <button class="btn btn-primary btn-full" id="btn-confirmar-energia" onclick="confirmarEnergia()" disabled>Iniciar Visita →</button>
   </div>
 
@@ -102,28 +182,28 @@
       </div>
       <span class="visita-card-status status-aberta">● Aberta</span>
     </div>
-    <div class="steps" style="margin-bottom:20px;">
+    <div class="steps" style="margin-bottom:16px;">
       <div class="step done">1. Loja</div>
-      <div class="step done">2. Energia</div>
-      <div class="step active">3. Visita</div>
-      <div class="step">4. Encerrar</div>
+      <div class="step done">2. Plano</div>
+      <div class="step done">3. Energia</div>
+      <div class="step active">4. Visita</div>
     </div>
 
-    <!-- Energia resumo -->
-    <div class="card" style="padding:12px 16px;margin-bottom:12px;">
+    <div class="card" style="padding:12px 16px;">
       <div style="display:flex;align-items:center;gap:10px;">
         <span style="font-size:28px;" id="energia-resumo-emoji"></span>
         <div>
-          <div style="font-size:12px;color:var(--text-light);font-weight:600;">ENERGIA DO TIME</div>
+          <div style="font-size:11px;color:var(--text-light);font-weight:600;">ENERGIA AO CHEGAR</div>
           <div style="font-size:14px;font-weight:700;" id="energia-resumo-label"></div>
         </div>
+        <button class="btn btn-secondary btn-sm" style="margin-left:auto;" onclick="irEncerrar()">Encerrar →</button>
       </div>
     </div>
 
-    <!-- Registrar atividade -->
+    <!-- Registrar -->
     <div class="card">
       <div class="card-title">📝 O que você fez agora?</div>
-      <div class="categorias-grid" id="categorias-grid">
+      <div class="categorias-grid">
         <button class="cat-btn" onclick="selecionarCategoria('atendimento')"><span class="cat-icon">🎯</span>Atendimento</button>
         <button class="cat-btn" onclick="selecionarCategoria('exposicao')"><span class="cat-icon">🪟</span>Exposição</button>
         <button class="cat-btn" onclick="selecionarCategoria('elogio')"><span class="cat-icon">⭐</span>Elogio</button>
@@ -136,6 +216,15 @@
       <div id="form-registro" style="display:none;margin-top:14px;">
         <div style="font-size:13px;font-weight:700;color:var(--sfera-dark);margin-bottom:8px;" id="cat-label"></div>
         <textarea class="form-control" id="registro-texto" placeholder="Descreva o que foi tratado..."></textarea>
+
+        <!-- Upload de mídia -->
+        <div style="margin-top:10px;">
+          <label style="font-size:12px;font-weight:600;color:var(--text-light);display:block;margin-bottom:6px;">ANEXAR (foto, vídeo ou arquivo)</label>
+          <input type="file" id="media-input" accept="image/*,video/*,.pdf,.doc,.docx,.xls,.xlsx" capture="environment" style="display:none" onchange="previewMedia()">
+          <button type="button" class="btn btn-secondary btn-sm" onclick="document.getElementById('media-input').click()">📎 Anexar arquivo</button>
+          <div id="media-preview-wrap" class="media-preview"></div>
+        </div>
+
         <div style="display:flex;gap:8px;margin-top:10px;">
           <button class="btn btn-secondary btn-sm" onclick="cancelarRegistro()">Cancelar</button>
           <button class="btn btn-primary btn-sm" onclick="salvarRegistro()" style="flex:1">+ Adicionar</button>
@@ -143,9 +232,9 @@
       </div>
     </div>
 
-    <!-- Registros do dia -->
+    <!-- Registros -->
     <div class="card">
-      <div class="card-title">✅ Registros desta visita</div>
+      <div class="card-title">✅ Registros desta visita (<span id="count-registros">0</span>)</div>
       <div id="lista-registros">
         <div class="empty"><div class="empty-icon">📝</div><p>Nenhum registro ainda</p></div>
       </div>
@@ -154,15 +243,13 @@
     <!-- Checklists -->
     <div class="card">
       <div class="card-title">☑️ Checklists</div>
-      <div id="lista-templates-check">
-        <div class="loader"><div class="spinner"></div></div>
-      </div>
+      <div id="lista-templates-check"><div class="loader"><div class="spinner"></div></div></div>
     </div>
 
     <button class="btn btn-success btn-full" onclick="irEncerrar()" style="margin-bottom:8px;">Encerrar Visita →</button>
   </div>
 
-  <!-- TELA: ENCERRAR VISITA -->
+  <!-- TELA: ENCERRAR -->
   <div id="tela-encerrar" style="display:none">
     <div style="display:flex;align-items:center;gap:12px;margin-bottom:20px;">
       <button onclick="voltarVisita()" style="background:none;border:none;font-size:22px;cursor:pointer;">←</button>
@@ -171,39 +258,33 @@
         <div style="font-size:18px;font-weight:800;">Encerrar Visita</div>
       </div>
     </div>
-    <div class="steps">
-      <div class="step done">1. Loja</div>
-      <div class="step done">2. Energia</div>
-      <div class="step done">3. Visita</div>
-      <div class="step active">4. Encerrar</div>
-    </div>
 
-    <div class="card">
+    <div class="card" id="resumo-print">
       <div class="card-title">📊 Resumo da Visita</div>
       <div id="resumo-visita"></div>
     </div>
 
     <div class="card">
-      <div class="card-title">✉️ Enviar resumo para a gerente?</div>
+      <div class="card-title">✉️ Enviar resumo para a gerente</div>
       <div class="form-group">
         <label class="form-label">E-mail da gerente (opcional)</label>
         <input type="email" id="email-gerente" class="form-control" placeholder="gerente@email.com">
-        <div style="font-size:12px;color:var(--text-light);margin-top:6px;">Deixe em branco para não enviar</div>
       </div>
+      <button class="btn btn-secondary btn-full btn-sm" onclick="exportarPDF()">📄 Exportar / Imprimir resumo</button>
     </div>
 
     <div class="card">
       <div class="card-title">💬 Observação geral (opcional)</div>
-      <textarea class="form-control" id="obs-geral" placeholder="Alguma observação final sobre esta visita..."></textarea>
+      <textarea class="form-control" id="obs-geral" placeholder="Alguma observação final..."></textarea>
     </div>
 
     <div style="display:flex;gap:10px;margin-bottom:20px;">
       <button class="btn btn-secondary" onclick="voltarVisita()" style="flex:1">← Voltar</button>
-      <button class="btn btn-success" onclick="encerrarVisita()" style="flex:2" id="btn-encerrar">✓ Encerrar Visita</button>
+      <button class="btn btn-success" onclick="encerrarVisita()" style="flex:2" id="btn-encerrar">✓ Encerrar</button>
     </div>
   </div>
 
-  <!-- TELA: VISITA ENCERRADA -->
+  <!-- TELA: ENCERRADA -->
   <div id="tela-encerrada" style="display:none">
     <div class="card" style="text-align:center;padding:40px 20px;">
       <div style="font-size:64px;margin-bottom:16px;">✅</div>
@@ -211,7 +292,7 @@
       <div style="color:var(--text-light);font-size:14px;" id="encerrada-msg"></div>
     </div>
     <button class="btn btn-primary btn-full" onclick="irHome()">Voltar ao início</button>
-    <button class="btn btn-secondary btn-full" style="margin-top:10px;" onclick="abrirNovaVisita()">+ Iniciar nova visita</button>
+    <button class="btn btn-secondary btn-full" style="margin-top:10px;" onclick="abrirNovaVisita()">+ Nova visita</button>
   </div>
 
 </div><!-- /container -->
@@ -224,8 +305,19 @@
       <div id="modal-cl-itens"></div>
       <div class="modal-actions">
         <button class="btn btn-secondary" onclick="fecharChecklist()" style="flex:1">Cancelar</button>
-        <button class="btn btn-primary" onclick="salvarChecklist()" style="flex:2">✓ Salvar Checklist</button>
+        <button class="btn btn-primary" onclick="salvarChecklist()" style="flex:2">✓ Salvar</button>
       </div>
+    </div>
+  </div>
+</div>
+
+<!-- MODAL: Detalhes histórico -->
+<div id="modal-hist" style="display:none">
+  <div class="modal-bg" onclick="fecharModalHist()">
+    <div class="modal-box" onclick="event.stopPropagation()" style="max-height:85vh;overflow-y:auto;">
+      <div class="modal-title" id="modal-hist-titulo"></div>
+      <div id="modal-hist-body"></div>
+      <button class="btn btn-secondary btn-full" onclick="fecharModalHist()" style="margin-top:12px;">Fechar</button>
     </div>
   </div>
 </div>
@@ -247,23 +339,27 @@ let registros = [];
 let categoriaAtual = null;
 let checklistAtual = null;
 let checklistRespostas = {};
+let tipoDiaHoje = null;
+let planosAnteriores = [];
+let revisaoPlano = {};
+let mediaFile = null;
+let tabHistAtual = 'semana';
 
 const ENERGIA_INFO = {
-  1: { emoji: '😢', label: 'Muito apagada' },
-  2: { emoji: '😟', label: 'Abaixo do esperado' },
-  3: { emoji: '😐', label: 'Neutra / Normal' },
-  4: { emoji: '😊', label: 'Boa energia' },
-  5: { emoji: '🤩', label: 'Super energizada!' }
+  1:{emoji:'😢',label:'Muito apagada'},
+  2:{emoji:'😟',label:'Abaixo do esperado'},
+  3:{emoji:'😐',label:'Neutra / Normal'},
+  4:{emoji:'😊',label:'Boa energia'},
+  5:{emoji:'🤩',label:'Super energizada!'}
 };
-
 const CAT_INFO = {
-  atendimento: { label: 'Atendimento', badge: 'badge-atendimento' },
-  exposicao: { label: 'Exposição', badge: 'badge-exposicao' },
-  elogio: { label: 'Elogio', badge: 'badge-elogio' },
-  demanda: { label: 'Demanda', badge: 'badge-demanda' },
-  plano_acao: { label: 'Plano de Ação', badge: 'badge-plano_acao' },
-  campanha: { label: 'Campanha', badge: 'badge-campanha' },
-  outro: { label: 'Outro', badge: 'badge-outro' }
+  atendimento:{label:'Atendimento',badge:'badge-atendimento'},
+  exposicao:{label:'Exposição',badge:'badge-exposicao'},
+  elogio:{label:'Elogio',badge:'badge-elogio'},
+  demanda:{label:'Demanda',badge:'badge-demanda'},
+  plano_acao:{label:'Plano de Ação',badge:'badge-plano_acao'},
+  campanha:{label:'Campanha',badge:'badge-campanha'},
+  outro:{label:'Outro',badge:'badge-outro'}
 };
 
 // ==============================
@@ -271,134 +367,271 @@ const CAT_INFO = {
 // ==============================
 window.addEventListener('DOMContentLoaded', async () => {
   const u = sessionStorage.getItem('usuario');
-  if (!u) { window.location.href = 'index.html'; return; }
+  if (!u) { window.location.href='index.html'; return; }
   usuario = JSON.parse(u);
-  if (usuario.tipo !== 'supervisora') { window.location.href = 'index.html'; return; }
+  if (usuario.tipo !== 'supervisora') { window.location.href='index.html'; return; }
 
   document.getElementById('hdr-nome').textContent = usuario.nome;
-  document.getElementById('data-hoje').textContent = new Date().toLocaleDateString('pt-BR', { weekday:'long', day:'numeric', month:'long' });
+  document.getElementById('home-nome-curto').textContent = usuario.nome.split(' ')[1] || usuario.nome.split(' ')[0];
+  document.getElementById('data-hoje').textContent = new Date().toLocaleDateString('pt-BR',{weekday:'long',day:'numeric',month:'long'});
 
   await carregarLojas();
+  await carregarTipoDiaHoje();
   await carregarVisitasHoje();
+  await carregarHistorico('semana');
 });
 
 // ==============================
 // NAVEGAÇÃO
 // ==============================
 function mostrarTela(id) {
-  ['tela-home','tela-selecionar-loja','tela-energia','tela-visita','tela-encerrar','tela-encerrada']
-    .forEach(t => document.getElementById(t).style.display = t === id ? '' : 'none');
+  ['tela-home','tela-selecionar-loja','tela-plano-revisao','tela-energia','tela-visita','tela-encerrar','tela-encerrada']
+    .forEach(t => document.getElementById(t).style.display = t===id ? '':'none');
+  window.scrollTo(0,0);
 }
-
-function irHome() { mostrarTela('tela-home'); carregarVisitasHoje(); }
+function irHome() { mostrarTela('tela-home'); carregarVisitasHoje(); carregarHistorico(tabHistAtual); }
 function voltarLoja() { mostrarTela('tela-selecionar-loja'); }
+function voltarParaPlanoOuLoja() { planosAnteriores.length>0 ? mostrarTela('tela-plano-revisao') : mostrarTela('tela-selecionar-loja'); }
 function voltarVisita() { mostrarTela('tela-visita'); }
 
 // ==============================
-// CARREGAR LOJAS
+// TIPO DE DIA
+// ==============================
+async function carregarTipoDiaHoje() {
+  const hoje = new Date().toISOString().split('T')[0];
+  const {data} = await db.from('dias_supervisora').select('*').eq('supervisora_id',usuario.id).eq('data',hoje).single();
+  if (data) {
+    tipoDiaHoje = data.tipo;
+    document.querySelectorAll('.tipo-dia-btn').forEach(b => b.classList.remove('selected'));
+    const el = document.getElementById('td-'+data.tipo);
+    if (el) el.classList.add('selected');
+    document.getElementById('card-tipo-dia').style.display = 'none'; // já foi marcado
+  }
+}
+
+function selecionarTipoDia(tipo) {
+  document.querySelectorAll('.tipo-dia-btn').forEach(b => b.classList.remove('selected'));
+  document.getElementById('td-'+tipo).classList.add('selected');
+  tipoDiaHoje = tipo;
+  if (tipo === 'demanda') {
+    document.getElementById('form-demanda').style.display = '';
+  } else {
+    document.getElementById('form-demanda').style.display = 'none';
+    salvarTipoDia();
+  }
+}
+
+async function salvarTipoDia() {
+  const hoje = new Date().toISOString().split('T')[0];
+  const desc = document.getElementById('desc-demanda').value.trim();
+  await db.from('dias_supervisora').upsert({
+    supervisora_id: usuario.id,
+    data: hoje,
+    tipo: tipoDiaHoje,
+    descricao: desc || null
+  }, {onConflict:'supervisora_id,data'});
+  document.getElementById('card-tipo-dia').style.display = 'none';
+  showToast('Tipo de dia registrado!', 'success');
+}
+
+// ==============================
+// LOJAS
 // ==============================
 async function carregarLojas() {
-  const { data } = await db.from('lojas').select('*').eq('supervisora_id', usuario.id).eq('ativo', true).order('nome');
+  const {data} = await db.from('lojas').select('*').eq('supervisora_id',usuario.id).eq('ativo',true).order('nome');
   lojas = data || [];
 }
 
 // ==============================
-// CARREGAR VISITAS HOJE
+// VISITAS HOJE
 // ==============================
 async function carregarVisitasHoje() {
   const hoje = new Date().toISOString().split('T')[0];
-  const { data } = await db.from('visitas')
-    .select('*, lojas(nome, cidade)')
-    .eq('supervisora_id', usuario.id)
-    .eq('data_visita', hoje)
-    .order('hora_inicio', { ascending: false });
-
+  const {data} = await db.from('visitas').select('*,lojas(nome,cidade)').eq('supervisora_id',usuario.id).eq('data_visita',hoje).order('hora_inicio',{ascending:false});
   const el = document.getElementById('lista-visitas-hoje');
-  if (!data || data.length === 0) {
-    el.innerHTML = `<div class="empty"><div class="empty-icon">🏪</div><p>Nenhuma visita hoje.<br>Toque em <strong>+ Nova Visita</strong> para começar!</p></div>`;
+  if (!data || data.length===0) {
+    el.innerHTML=`<div class="empty"><div class="empty-icon">🏪</div><p>Nenhuma visita hoje.<br>Toque em <strong>+ Nova Visita</strong>!</p></div>`;
     return;
   }
-
-  el.innerHTML = data.map(v => `
+  el.innerHTML = data.map(v=>`
     <div class="visita-card" onclick="abrirVisitaExistente('${v.id}')">
-      <div class="visita-card-loja">${v.lojas?.nome || '—'}</div>
-      <div class="visita-card-info">${v.lojas?.cidade || ''} · ${formatHora(v.hora_inicio)}</div>
+      <div class="visita-card-loja">${v.lojas?.nome||'—'}</div>
+      <div class="visita-card-info">${v.lojas?.cidade||''} · ${formatHora(v.hora_inicio)}</div>
       <div style="display:flex;align-items:center;gap:8px;margin-top:6px;">
-        <span class="visita-card-status ${v.status === 'aberta' ? 'status-aberta' : 'status-encerrada'}">
-          ${v.status === 'aberta' ? '● Em andamento' : '✓ Encerrada'}
-        </span>
-        <span style="font-size:18px;">${ENERGIA_INFO[v.energia_time]?.emoji || '—'}</span>
+        <span class="visita-card-status ${v.status==='aberta'?'status-aberta':'status-encerrada'}">${v.status==='aberta'?'● Em andamento':'✓ Encerrada'}</span>
+        <span style="font-size:18px;">${ENERGIA_INFO[v.energia_time]?.emoji||'—'}</span>
       </div>
-    </div>
-  `).join('');
+    </div>`).join('');
 }
+
+// ==============================
+// HISTÓRICO
+// ==============================
+async function mudarTabHist(tab) {
+  tabHistAtual = tab;
+  document.querySelectorAll('#tela-home .tab-btn').forEach((b,i)=>b.classList.toggle('active',['semana','mes','todas'][i]===tab));
+  await carregarHistorico(tab);
+}
+
+async function carregarHistorico(periodo) {
+  const el = document.getElementById('lista-historico');
+  el.innerHTML='<div class="loader"><div class="spinner"></div></div>';
+  const hoje = new Date();
+  let inicio = null;
+  if (periodo==='semana') { const d=new Date(hoje); d.setDate(d.getDate()-7); inicio=d.toISOString().split('T')[0]; }
+  else if (periodo==='mes') { inicio=`${hoje.getFullYear()}-${String(hoje.getMonth()+1).padStart(2,'0')}-01`; }
+
+  let q = db.from('visitas').select('*,lojas(nome,cidade)').eq('supervisora_id',usuario.id).eq('status','encerrada').order('data_visita',{ascending:false}).limit(30);
+  if (inicio) q = q.gte('data_visita',inicio);
+
+  const {data} = await q;
+  if (!data||data.length===0) { el.innerHTML='<div class="empty"><div class="empty-icon">📋</div><p>Nenhuma visita encerrada neste período</p></div>'; return; }
+
+  el.innerHTML = data.map(v=>`
+    <div class="hist-item" onclick="verDetalhesHist('${v.id}')">
+      <div style="display:flex;justify-content:space-between;">
+        <div>
+          <div class="hist-loja">${v.lojas?.nome||'—'}</div>
+          <div class="hist-info">${formatData(v.data_visita)} · ${v.lojas?.cidade||''}</div>
+        </div>
+        <span style="font-size:24px;">${ENERGIA_INFO[v.energia_time]?.emoji||'—'}</span>
+      </div>
+    </div>`).join('');
+}
+
+async function verDetalhesHist(visitaId) {
+  const {data:v} = await db.from('visitas').select('*,lojas(*)').eq('id',visitaId).single();
+  const {data:regs} = await db.from('registros_visita').select('*').eq('visita_id',visitaId).order('created_at');
+  const info = ENERGIA_INFO[v.energia_time];
+
+  document.getElementById('modal-hist-titulo').textContent = `${v.lojas?.nome} · ${formatData(v.data_visita)}`;
+  const catGroups={};
+  (regs||[]).forEach(r=>{if(!catGroups[r.categoria])catGroups[r.categoria]=[];catGroups[r.categoria].push(r);});
+
+  let html=`<div style="display:flex;align-items:center;gap:10px;padding:12px;background:var(--bg);border-radius:10px;margin-bottom:14px;">
+    <span style="font-size:28px;">${info?.emoji}</span>
+    <div><div style="font-size:12px;color:var(--text-light);">Energia ao chegar</div><strong>${info?.label}</strong></div>
+  </div>`;
+
+  if (Object.keys(catGroups).length===0) {
+    html+='<p style="color:var(--text-light);">Nenhum registro nesta visita.</p>';
+  } else {
+    Object.entries(catGroups).forEach(([cat,items])=>{
+      html+=`<div style="font-size:12px;font-weight:700;color:var(--sfera-dark);margin:10px 0 6px;text-transform:uppercase;">${CAT_INFO[cat]?.label}</div>`;
+      items.forEach(r=>{
+        html+=`<div style="padding:8px 10px;background:var(--bg);border-radius:8px;font-size:14px;margin-bottom:6px;">• ${r.descricao}`;
+        if(r.media_url) html+=` <a href="${r.media_url}" target="_blank" style="color:var(--sfera);">📎</a>`;
+        html+='</div>';
+      });
+    });
+  }
+  if(v.observacao_geral) html+=`<hr class="divider"><p style="font-size:14px;"><strong>Obs:</strong> ${v.observacao_geral}</p>`;
+
+  document.getElementById('modal-hist-body').innerHTML=html;
+  document.getElementById('modal-hist').style.display='';
+}
+function fecharModalHist(){document.getElementById('modal-hist').style.display='none';}
 
 // ==============================
 // NOVA VISITA
 // ==============================
 function abrirNovaVisita() {
-  lojaSelecionada = null;
-  energiaSelecionada = null;
-  visitaAtual = null;
-  registros = [];
-
-  const el = document.getElementById('lista-lojas');
-  if (lojas.length === 0) {
-    el.innerHTML = '<div class="empty"><p>Nenhuma loja cadastrada.</p></div>';
-  } else {
-    el.innerHTML = lojas.map(l => `
-      <div class="loja-item" onclick="selecionarLoja('${l.id}')">
-        <div class="loja-nome">${l.nome}</div>
-        <div class="loja-info">${l.cidade} · ${l.estado} · Cód. ${l.codigo}</div>
-      </div>
-    `).join('');
-  }
+  lojaSelecionada=null; energiaSelecionada=null; visitaAtual=null; registros=[]; planosAnteriores=[]; revisaoPlano={};
+  const el=document.getElementById('lista-lojas');
+  el.innerHTML=lojas.map(l=>`
+    <div class="loja-item" onclick="selecionarLoja('${l.id}')">
+      <div class="loja-nome">${l.nome}</div>
+      <div class="loja-info">${l.cidade} · ${l.estado} · Cód. ${l.codigo}</div>
+    </div>`).join('');
   mostrarTela('tela-selecionar-loja');
 }
 
-function selecionarLoja(id) {
-  lojaSelecionada = lojas.find(l => l.id === id);
-  document.getElementById('energia-loja-nome').textContent = lojaSelecionada.nome + ' · ' + lojaSelecionada.cidade;
-  document.querySelectorAll('.loja-item').forEach(el => el.classList.remove('selected'));
-  event.currentTarget.classList.add('selected');
-  setTimeout(() => mostrarTela('tela-energia'), 150);
+async function selecionarLoja(id) {
+  lojaSelecionada=lojas.find(l=>l.id===id);
+  document.getElementById('energia-loja-nome').textContent=lojaSelecionada.nome+' · '+lojaSelecionada.cidade;
+  document.getElementById('plano-loja-nome').textContent=lojaSelecionada.nome;
+
+  // Verificar se há plano de ação de visitas anteriores
+  const {data:ultimaVisita} = await db.from('visitas')
+    .select('id,data_visita')
+    .eq('loja_id',lojaSelecionada.id)
+    .eq('supervisora_id',usuario.id)
+    .eq('status','encerrada')
+    .order('data_visita',{ascending:false})
+    .limit(1)
+    .single();
+
+  if (ultimaVisita) {
+    const {data:planos} = await db.from('registros_visita')
+      .select('*')
+      .eq('visita_id',ultimaVisita.id)
+      .eq('categoria','plano_acao');
+
+    if (planos && planos.length>0) {
+      planosAnteriores=planos;
+      document.getElementById('plano-ultima-visita').textContent=formatData(ultimaVisita.data_visita);
+
+      const listaEl=document.getElementById('lista-plano-itens');
+      listaEl.innerHTML=planos.map(p=>`
+        <div class="plano-item">
+          <div class="plano-item-desc">📌 ${p.descricao}</div>
+          <div class="plano-opcoes">
+            <button class="plano-opt" id="po-c-${p.id}" onclick="marcarPlano('${p.id}','concluido')">✅ Concluído</button>
+            <button class="plano-opt" id="po-a-${p.id}" onclick="marcarPlano('${p.id}','andamento')">🔄 Andamento</button>
+            <button class="plano-opt" id="po-p-${p.id}" onclick="marcarPlano('${p.id}','pendente')">❌ Pendente</button>
+          </div>
+        </div>`).join('');
+      mostrarTela('tela-plano-revisao');
+      return;
+    }
+  }
+  mostrarTela('tela-energia');
+}
+
+function marcarPlano(registroId, status) {
+  revisaoPlano[registroId] = status;
+  ['concluido','andamento','pendente'].forEach(s=>{
+    const b=document.getElementById(`po-${s[0]}-${registroId}`);
+    if(b) b.className='plano-opt'+(s===status?` sel-${s}`:'');
+  });
+}
+
+async function salvarRevisaoPlano() {
+  mostrarTela('tela-energia');
 }
 
 // ==============================
 // ENERGIA
 // ==============================
 function selecionarEnergia(val) {
-  energiaSelecionada = val;
-  document.querySelectorAll('.energia-item').forEach((el, i) => {
-    el.classList.toggle('selected', i + 1 === val);
-  });
-  document.getElementById('btn-confirmar-energia').disabled = false;
+  energiaSelecionada=val;
+  document.querySelectorAll('.energia-item').forEach((el,i)=>el.classList.toggle('selected',i+1===val));
+  document.getElementById('btn-confirmar-energia').disabled=false;
 }
 
 async function confirmarEnergia() {
-  if (!energiaSelecionada) return;
+  const btn=document.getElementById('btn-confirmar-energia');
+  btn.disabled=true; btn.textContent='Abrindo visita...';
 
-  const btn = document.getElementById('btn-confirmar-energia');
-  btn.disabled = true;
-  btn.textContent = 'Abrindo visita...';
-
-  const { data, error } = await db.from('visitas').insert({
-    loja_id: lojaSelecionada.id,
-    supervisora_id: usuario.id,
-    data_visita: new Date().toISOString().split('T')[0],
-    energia_time: energiaSelecionada,
-    status: 'aberta'
+  const {data,error}=await db.from('visitas').insert({
+    loja_id:lojaSelecionada.id, supervisora_id:usuario.id,
+    data_visita:new Date().toISOString().split('T')[0],
+    energia_time:energiaSelecionada, status:'aberta'
   }).select().single();
 
-  if (error) {
-    showToast('Erro ao criar visita', 'error');
-    btn.disabled = false;
-    btn.textContent = 'Iniciar Visita →';
-    return;
+  if(error){showToast('Erro ao criar visita','error');btn.disabled=false;btn.textContent='Iniciar Visita →';return;}
+
+  visitaAtual=data; registros=[];
+
+  // Salvar revisão do plano de ação
+  if(Object.keys(revisaoPlano).length>0){
+    const inserts=Object.entries(revisaoPlano).map(([rid,status])=>({
+      registro_original_id:rid, visita_revisao_id:data.id,
+      loja_id:lojaSelecionada.id, status
+    }));
+    await db.from('plano_acao_revisao').insert(inserts);
   }
 
-  visitaAtual = data;
-  registros = [];
   abrirTelaVisita();
 }
 
@@ -406,291 +639,232 @@ async function confirmarEnergia() {
 // TELA VISITA
 // ==============================
 function abrirTelaVisita() {
-  document.getElementById('visita-loja-nome').textContent = lojaSelecionada.nome + ' · ' + lojaSelecionada.cidade;
-  const info = ENERGIA_INFO[energiaSelecionada];
-  document.getElementById('energia-resumo-emoji').textContent = info.emoji;
-  document.getElementById('energia-resumo-label').textContent = info.label;
+  document.getElementById('visita-loja-nome').textContent=lojaSelecionada.nome+' · '+lojaSelecionada.cidade;
+  const info=ENERGIA_INFO[energiaSelecionada];
+  document.getElementById('energia-resumo-emoji').textContent=info.emoji;
+  document.getElementById('energia-resumo-label').textContent=info.label;
   renderRegistros();
   carregarTemplates();
   mostrarTela('tela-visita');
 }
 
 async function abrirVisitaExistente(visitaId) {
-  const { data: v } = await db.from('visitas').select('*, lojas(*)').eq('id', visitaId).single();
-  if (!v) return;
-
-  visitaAtual = v;
-  lojaSelecionada = v.lojas;
-  energiaSelecionada = v.energia_time;
-
-  if (v.status === 'encerrada') {
-    await verResumoVisita(v);
-    return;
-  }
-
-  const { data: regs } = await db.from('registros_visita').select('*').eq('visita_id', visitaId).order('created_at');
-  registros = regs || [];
-
+  const {data:v}=await db.from('visitas').select('*,lojas(*)').eq('id',visitaId).single();
+  if(!v) return;
+  visitaAtual=v; lojaSelecionada=v.lojas; energiaSelecionada=v.energia_time;
+  if(v.status==='encerrada'){verDetalhesHist(v.id);return;}
+  const {data:regs}=await db.from('registros_visita').select('*').eq('visita_id',visitaId).order('created_at');
+  registros=regs||[];
   abrirTelaVisita();
 }
 
 // ==============================
-// CATEGORIAS / REGISTROS
+// REGISTROS
 // ==============================
 function selecionarCategoria(cat) {
-  categoriaAtual = cat;
-  document.querySelectorAll('.cat-btn').forEach(b => b.classList.remove('active'));
+  categoriaAtual=cat;
+  document.querySelectorAll('.cat-btn').forEach(b=>b.classList.remove('active'));
   event.currentTarget.classList.add('active');
-  document.getElementById('cat-label').textContent = CAT_INFO[cat].label;
-  document.getElementById('registro-texto').value = '';
-  document.getElementById('form-registro').style.display = '';
+  document.getElementById('cat-label').textContent=CAT_INFO[cat].label;
+  document.getElementById('registro-texto').value='';
+  document.getElementById('media-preview-wrap').innerHTML='';
+  document.getElementById('media-input').value='';
+  mediaFile=null;
+  document.getElementById('form-registro').style.display='';
   document.getElementById('registro-texto').focus();
 }
 
 function cancelarRegistro() {
-  document.getElementById('form-registro').style.display = 'none';
-  document.querySelectorAll('.cat-btn').forEach(b => b.classList.remove('active'));
-  categoriaAtual = null;
+  document.getElementById('form-registro').style.display='none';
+  document.querySelectorAll('.cat-btn').forEach(b=>b.classList.remove('active'));
+  categoriaAtual=null; mediaFile=null;
+  document.getElementById('media-preview-wrap').innerHTML='';
+}
+
+function previewMedia() {
+  const input=document.getElementById('media-input');
+  if(!input.files||!input.files[0]) return;
+  mediaFile=input.files[0];
+  const wrap=document.getElementById('media-preview-wrap');
+  if(mediaFile.type.startsWith('image/')) {
+    const reader=new FileReader();
+    reader.onload=e=>{ wrap.innerHTML=`<img src="${e.target.result}" class="media-thumb" alt="preview">`; };
+    reader.readAsDataURL(mediaFile);
+  } else {
+    wrap.innerHTML=`<div class="media-file">📄</div><span style="font-size:11px;color:var(--text-light);">${mediaFile.name}</span>`;
+  }
+}
+
+async function uploadMedia() {
+  if(!mediaFile) return null;
+  const ext=mediaFile.name.split('.').pop();
+  const path=`${usuario.id}/${visitaAtual.id}/${Date.now()}.${ext}`;
+  const {data,error}=await db.storage.from('visitas-midias').upload(path,mediaFile,{upsert:true});
+  if(error){console.log('Erro upload:',error);return null;}
+  const {data:urlData}=db.storage.from('visitas-midias').getPublicUrl(path);
+  return urlData.publicUrl;
 }
 
 async function salvarRegistro() {
-  const texto = document.getElementById('registro-texto').value.trim();
-  if (!texto) { showToast('Digite o que foi feito', 'error'); return; }
+  const texto=document.getElementById('registro-texto').value.trim();
+  if(!texto){showToast('Digite o que foi feito','error');return;}
 
-  const { data, error } = await db.from('registros_visita').insert({
-    visita_id: visitaAtual.id,
-    categoria: categoriaAtual,
-    descricao: texto
+  let mediaUrl=null, mediaTipo=null;
+  if(mediaFile){
+    showToast('Enviando arquivo...');
+    mediaUrl=await uploadMedia();
+    if(mediaUrl) mediaTipo=mediaFile.type.startsWith('image/')?'foto':mediaFile.type.startsWith('video/')?'video':'arquivo';
+  }
+
+  const {data,error}=await db.from('registros_visita').insert({
+    visita_id:visitaAtual.id, categoria:categoriaAtual,
+    descricao:texto, media_url:mediaUrl||null, media_tipo:mediaTipo||null
   }).select().single();
 
-  if (error) { showToast('Erro ao salvar', 'error'); return; }
-
+  if(error){showToast('Erro ao salvar','error');return;}
   registros.push(data);
   cancelarRegistro();
   renderRegistros();
-  showToast('Registro adicionado!', 'success');
+  showToast('Registro adicionado!','success');
 }
 
 async function deletarRegistro(id) {
-  await db.from('registros_visita').delete().eq('id', id);
-  registros = registros.filter(r => r.id !== id);
+  await db.from('registros_visita').delete().eq('id',id);
+  registros=registros.filter(r=>r.id!==id);
   renderRegistros();
 }
 
 function renderRegistros() {
-  const el = document.getElementById('lista-registros');
-  if (registros.length === 0) {
-    el.innerHTML = '<div class="empty"><div class="empty-icon">📝</div><p>Nenhum registro ainda</p></div>';
-    return;
-  }
-  el.innerHTML = registros.map(r => `
+  document.getElementById('count-registros').textContent=registros.length;
+  const el=document.getElementById('lista-registros');
+  if(registros.length===0){el.innerHTML='<div class="empty"><div class="empty-icon">📝</div><p>Nenhum registro ainda</p></div>';return;}
+  el.innerHTML=registros.map(r=>`
     <div class="registro-item">
       <span class="registro-badge ${CAT_INFO[r.categoria]?.badge}">${CAT_INFO[r.categoria]?.label}</span>
-      <span class="registro-texto">${r.descricao}</span>
+      <div style="flex:1;">
+        <span class="registro-texto">${r.descricao}</span>
+        ${r.media_url?`<br><a href="${r.media_url}" target="_blank" style="font-size:12px;color:var(--sfera);">📎 Ver anexo</a>`:''}
+      </div>
       <button class="btn-del" onclick="deletarRegistro('${r.id}')">✕</button>
-    </div>
-  `).join('');
+    </div>`).join('');
 }
 
 // ==============================
 // CHECKLISTS
 // ==============================
 async function carregarTemplates() {
-  const { data } = await db.from('checklist_templates').select('*, checklist_itens(*)').eq('ativo', true);
-  const el = document.getElementById('lista-templates-check');
-  if (!data || data.length === 0) {
-    el.innerHTML = '<p style="color:var(--text-light);font-size:13px;">Nenhum checklist disponível ainda.</p>';
-    return;
-  }
-  el.innerHTML = data.map(t => `
+  const {data}=await db.from('checklist_templates').select('*,checklist_itens(*)').eq('ativo',true);
+  const el=document.getElementById('lista-templates-check');
+  if(!data||data.length===0){el.innerHTML='<p style="color:var(--text-light);font-size:13px;">Nenhum checklist disponível.</p>';return;}
+  el.innerHTML=data.map(t=>`
     <div style="display:flex;align-items:center;justify-content:space-between;padding:10px 12px;border-radius:10px;border:1.5px solid var(--border);margin-bottom:8px;">
-      <div>
-        <div style="font-weight:700;font-size:14px;">${t.titulo}</div>
-        <div style="font-size:12px;color:var(--text-light);">${t.checklist_itens?.length || 0} itens</div>
-      </div>
+      <div><div style="font-weight:700;font-size:14px;">${t.titulo}</div>
+      <div style="font-size:12px;color:var(--text-light);">${t.checklist_itens?.length||0} itens</div></div>
       <button class="btn btn-secondary btn-sm" onclick='abrirChecklist(${JSON.stringify(t)})'>Aplicar</button>
-    </div>
-  `).join('');
+    </div>`).join('');
 }
 
 function abrirChecklist(template) {
-  checklistAtual = template;
-  checklistRespostas = {};
-  document.getElementById('modal-cl-titulo').textContent = template.titulo;
-  const itens = template.checklist_itens || [];
-  document.getElementById('modal-cl-itens').innerHTML = itens
-    .sort((a,b) => a.ordem - b.ordem)
-    .map(item => `
-      <div class="checklist-item">
-        <div class="checklist-pergunta">${item.pergunta}</div>
-        <div class="checklist-opcoes">
-          <button class="opt-btn" id="opt-sim-${item.id}" onclick="responderCheck('${item.id}','sim')">✓</button>
-          <button class="opt-btn" id="opt-nao-${item.id}" onclick="responderCheck('${item.id}','nao')">✗</button>
-          <button class="opt-btn" id="opt-parcial-${item.id}" onclick="responderCheck('${item.id}','parcial')">~</button>
-        </div>
+  checklistAtual=template; checklistRespostas={};
+  document.getElementById('modal-cl-titulo').textContent=template.titulo;
+  const itens=template.checklist_itens||[];
+  document.getElementById('modal-cl-itens').innerHTML=itens.sort((a,b)=>a.ordem-b.ordem).map(item=>`
+    <div class="checklist-item">
+      <div class="checklist-pergunta">${item.pergunta}</div>
+      <div class="checklist-opcoes">
+        <button class="opt-btn" id="opt-sim-${item.id}" onclick="responderCheck('${item.id}','sim')">✓</button>
+        <button class="opt-btn" id="opt-nao-${item.id}" onclick="responderCheck('${item.id}','nao')">✗</button>
+        <button class="opt-btn" id="opt-parcial-${item.id}" onclick="responderCheck('${item.id}','parcial')">~</button>
       </div>
-    `).join('');
-  document.getElementById('modal-checklist').style.display = '';
+    </div>`).join('');
+  document.getElementById('modal-checklist').style.display='';
 }
 
-function responderCheck(itemId, resp) {
-  checklistRespostas[itemId] = resp;
-  ['sim','nao','parcial'].forEach(r => {
-    const b = document.getElementById(`opt-${r}-${itemId}`);
-    b.className = 'opt-btn' + (r === resp ? ` sel-${r}` : '');
+function responderCheck(itemId,resp) {
+  checklistRespostas[itemId]=resp;
+  ['sim','nao','parcial'].forEach(r=>{
+    const b=document.getElementById(`opt-${r}-${itemId}`);
+    b.className='opt-btn'+(r===resp?` sel-${r}`:'');
   });
 }
 
 async function salvarChecklist() {
-  const itens = checklistAtual.checklist_itens || [];
-  const inserts = itens.map(item => ({
-    visita_id: visitaAtual.id,
-    template_id: checklistAtual.id,
-    item_id: item.id,
-    resposta: checklistRespostas[item.id] || 'na'
-  }));
+  const itens=checklistAtual.checklist_itens||[];
+  const inserts=itens.map(item=>({visita_id:visitaAtual.id,template_id:checklistAtual.id,item_id:item.id,resposta:checklistRespostas[item.id]||'na'}));
   await db.from('checklist_respostas').insert(inserts);
   fecharChecklist();
-  showToast('Checklist salvo!', 'success');
+  showToast('Checklist salvo!','success');
 }
-
-function fecharChecklist() {
-  document.getElementById('modal-checklist').style.display = 'none';
-}
+function fecharChecklist(){document.getElementById('modal-checklist').style.display='none';}
 
 // ==============================
-// ENCERRAR VISITA
+// ENCERRAR
 // ==============================
 function irEncerrar() {
-  document.getElementById('encerrar-loja-nome').textContent = lojaSelecionada.nome;
+  document.getElementById('encerrar-loja-nome').textContent=lojaSelecionada.nome;
+  const info=ENERGIA_INFO[energiaSelecionada];
+  const catCounts={};
+  registros.forEach(r=>{catCounts[r.categoria]=(catCounts[r.categoria]||0)+1;});
 
-  // Resumo
-  const catCounts = {};
-  registros.forEach(r => { catCounts[r.categoria] = (catCounts[r.categoria] || 0) + 1; });
-  const info = ENERGIA_INFO[energiaSelecionada];
-
-  document.getElementById('resumo-visita').innerHTML = `
+  document.getElementById('resumo-visita').innerHTML=`
     <div style="display:flex;align-items:center;gap:10px;margin-bottom:12px;padding:10px;background:var(--bg);border-radius:10px;">
       <span style="font-size:28px;">${info.emoji}</span>
       <div><div style="font-size:12px;color:var(--text-light);">Energia ao chegar</div><strong>${info.label}</strong></div>
     </div>
     <div style="font-size:13px;font-weight:700;color:var(--text-light);margin-bottom:8px;">REGISTROS (${registros.length})</div>
-    ${Object.entries(catCounts).map(([cat, n]) => `
+    ${Object.entries(catCounts).map(([cat,n])=>`
       <div style="display:flex;justify-content:space-between;padding:6px 0;border-bottom:1px solid var(--border);">
         <span>${CAT_INFO[cat]?.label}</span><strong>${n} registro${n>1?'s':''}</strong>
-      </div>
-    `).join('') || '<p style="color:var(--text-light);font-size:14px;">Nenhum registro feito nesta visita.</p>'}
-  `;
+      </div>`).join('')||'<p style="color:var(--text-light);">Nenhum registro.</p>'}
+    <hr class="divider" style="margin:14px 0;">
+    <div style="font-size:13px;font-weight:700;color:var(--text-light);margin-bottom:8px;">DETALHES</div>
+    ${registros.map(r=>`<div style="margin-bottom:8px;padding:8px 10px;background:var(--bg);border-radius:8px;">
+      <span class="registro-badge ${CAT_INFO[r.categoria]?.badge}" style="font-size:10px;">${CAT_INFO[r.categoria]?.label}</span>
+      <div style="font-size:13px;margin-top:4px;">${r.descricao}</div>
+      ${r.media_url?`<a href="${r.media_url}" target="_blank" style="font-size:11px;color:var(--sfera);">📎 Anexo</a>`:''}
+    </div>`).join('')}`;
+
   mostrarTela('tela-encerrar');
 }
 
-async function encerrarVisita() {
-  const btn = document.getElementById('btn-encerrar');
-  btn.disabled = true;
-  btn.textContent = 'Encerrando...';
+function exportarPDF() {
+  window.print();
+}
 
-  const emailGerente = document.getElementById('email-gerente').value.trim();
-  const obs = document.getElementById('obs-geral').value.trim();
+async function encerrarVisita() {
+  const btn=document.getElementById('btn-encerrar');
+  btn.disabled=true; btn.textContent='Encerrando...';
+  const emailGerente=document.getElementById('email-gerente').value.trim();
+  const obs=document.getElementById('obs-geral').value.trim();
 
   await db.from('visitas').update({
-    status: 'encerrada',
-    hora_fim: new Date().toISOString(),
-    email_gerente: emailGerente || null,
-    observacao_geral: obs || null,
-    resumo_enviado: false
-  }).eq('id', visitaAtual.id);
+    status:'encerrada', hora_fim:new Date().toISOString(),
+    email_gerente:emailGerente||null, observacao_geral:obs||null
+  }).eq('id',visitaAtual.id);
 
-  let msg = `Visita em ${lojaSelecionada.nome} encerrada com sucesso!`;
-
-  if (emailGerente) {
-    await enviarEmailResumo(emailGerente, obs);
-    msg += ` Resumo enviado para ${emailGerente}.`;
-  }
-
-  document.getElementById('encerrada-msg').textContent = msg;
+  let msg=`Visita em ${lojaSelecionada.nome} encerrada!`;
+  if(emailGerente){await enviarEmailResumo(emailGerente,obs);msg+=` Resumo enviado para ${emailGerente}.`;}
+  document.getElementById('encerrada-msg').textContent=msg;
   mostrarTela('tela-encerrada');
 }
 
-async function enviarEmailResumo(emailGerente, obs) {
-  const info = ENERGIA_INFO[energiaSelecionada];
-  const catCounts = {};
-  registros.forEach(r => { catCounts[r.categoria] = (catCounts[r.categoria] || 0) + 1; });
-
-  const listaRegistros = registros.map(r =>
-    `• [${CAT_INFO[r.categoria]?.label}] ${r.descricao}`
-  ).join('\n');
-
-  const corpo = `
-Olá!
-
-A supervisora ${usuario.nome} realizou uma visita na sua loja hoje, ${new Date().toLocaleDateString('pt-BR')}.
-
-📍 LOJA: ${lojaSelecionada.nome} - ${lojaSelecionada.cidade}/${lojaSelecionada.estado}
-
-🌟 ENERGIA DO TIME AO CHEGAR: ${info.emoji} ${info.label}
-
-📋 O QUE FOI TRATADO:
-${listaRegistros || '(nenhum registro feito)'}
-
-${obs ? `💬 OBSERVAÇÃO GERAL:\n${obs}` : ''}
-
-Atenciosamente,
-${usuario.nome}
-Supervisora - Sfera Multifranquias
-  `.trim();
-
+async function enviarEmailResumo(emailGerente,obs) {
+  const info=ENERGIA_INFO[energiaSelecionada];
+  const listaRegs=registros.map(r=>`• [${CAT_INFO[r.categoria]?.label}] ${r.descricao}`).join('\n');
+  const corpo=`Olá!\n\nA supervisora ${usuario.nome} realizou uma visita na sua loja em ${new Date().toLocaleDateString('pt-BR')}.\n\n📍 LOJA: ${lojaSelecionada.nome} - ${lojaSelecionada.cidade}/${lojaSelecionada.estado}\n\n🌟 ENERGIA DO TIME AO CHEGAR: ${info.emoji} ${info.label}\n\n📋 O QUE FOI TRATADO:\n${listaRegs||'(nenhum registro)'}\n\n${obs?`💬 OBSERVAÇÃO:\n${obs}\n\n`:''}Atenciosamente,\n${usuario.nome} - Sfera Multifranquias`;
   try {
-    await db.functions.invoke('send-email', {
-      body: {
-        to: emailGerente,
-        subject: `Resumo de Visita - ${lojaSelecionada.nome} - ${new Date().toLocaleDateString('pt-BR')}`,
-        body: corpo
-      }
-    });
-    await db.from('visitas').update({ resumo_enviado: true }).eq('id', visitaAtual.id);
-  } catch(e) {
-    console.log('Email não enviado (função não configurada):', e);
-  }
-}
-
-// ==============================
-// VER RESUMO DE VISITA ENCERRADA
-// ==============================
-async function verResumoVisita(v) {
-  const { data: regs } = await db.from('registros_visita').select('*').eq('visita_id', v.id).order('created_at');
-  registros = regs || [];
-  lojaSelecionada = v.lojas;
-  energiaSelecionada = v.energia_time;
-  visitaAtual = v;
-
-  document.getElementById('encerrar-loja-nome').textContent = lojaSelecionada.nome;
-  document.getElementById('email-gerente').value = v.email_gerente || '';
-  document.getElementById('obs-geral').value = v.observacao_geral || '';
-  irEncerrar();
-
-  document.getElementById('btn-encerrar').style.display = 'none';
-  document.querySelector('[onclick="voltarVisita()"]').textContent = '← Voltar';
+    await db.functions.invoke('send-email',{body:{to:emailGerente,subject:`Resumo de Visita - ${lojaSelecionada.nome} - ${new Date().toLocaleDateString('pt-BR')}`,body:corpo}});
+    await db.from('visitas').update({resumo_enviado:true}).eq('id',visitaAtual.id);
+  } catch(e){console.log('Email não enviado:',e);}
 }
 
 // ==============================
 // UTILS
 // ==============================
-function formatHora(iso) {
-  if (!iso) return '';
-  return new Date(iso).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
-}
-
-function showToast(msg, tipo = '') {
-  const t = document.getElementById('toast');
-  t.textContent = msg;
-  t.className = 'toast show ' + tipo;
-  setTimeout(() => t.className = 'toast', 2500);
-}
-
-function logout() {
-  sessionStorage.clear();
-  window.location.href = 'index.html';
-}
+function formatData(iso){if(!iso)return'';const[y,m,d]=iso.split('-');return`${d}/${m}/${y}`;}
+function formatHora(iso){if(!iso)return'';return new Date(iso).toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit'});}
+function showToast(msg,tipo=''){const t=document.getElementById('toast');t.textContent=msg;t.className='toast show '+tipo;setTimeout(()=>t.className='toast',2500);}
+function logout(){sessionStorage.clear();window.location.href='index.html';}
 </script>
 </body>
 </html>

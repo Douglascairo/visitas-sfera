@@ -5,6 +5,19 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Visitas Sfera · Coordenador</title>
   <link rel="stylesheet" href="css/style.css">
+  <style>
+    .sup-card { background:white; border-radius:12px; padding:14px 16px; margin-bottom:10px; box-shadow:var(--shadow); }
+    .sup-nome { font-weight:800; font-size:15px; }
+    .sup-info { font-size:12px; color:var(--text-light); margin-top:2px; }
+    .tipo-dia-badge { display:inline-block; padding:3px 10px; border-radius:20px; font-size:11px; font-weight:700; }
+    .td-badge-visitas { background:#cfe2ff; color:#084298; }
+    .td-badge-escritorio { background:#e2e3e5; color:#383d41; }
+    .td-badge-demanda { background:#fff3cd; color:#856404; }
+    .rota-loja { display:flex; align-items:center; gap:10px; padding:8px 0; border-bottom:1px solid var(--border); }
+    .rota-num { width:24px; height:24px; border-radius:50%; background:var(--sfera); color:white; font-size:11px; font-weight:800; display:flex; align-items:center; justify-content:center; flex-shrink:0; }
+    .rota-home { width:24px; height:24px; border-radius:50%; background:#28a745; color:white; font-size:12px; display:flex; align-items:center; justify-content:center; flex-shrink:0; }
+    .km-badge { background:var(--sfera-light); color:var(--sfera-dark); padding:4px 12px; border-radius:20px; font-size:13px; font-weight:700; }
+  </style>
 </head>
 <body>
 
@@ -18,40 +31,48 @@
 
 <div class="container">
 
-  <!-- TABS PRINCIPAIS -->
   <div class="tabs">
     <button class="tab-btn active" onclick="mudarTab('visitas')">Visitas</button>
+    <button class="tab-btn" onclick="mudarTab('rota')">Rota</button>
     <button class="tab-btn" onclick="mudarTab('metricas')">Métricas</button>
     <button class="tab-btn" onclick="mudarTab('checklists')">Checklists</button>
   </div>
 
   <!-- ======== TAB: VISITAS ======== -->
   <div id="tab-visitas">
-
-    <!-- Filtros -->
     <div style="display:flex;gap:8px;margin-bottom:12px;flex-wrap:wrap;">
       <input type="date" id="filtro-data" class="form-control" style="flex:1;min-width:140px;" onchange="carregarVisitas()">
       <select class="form-control" id="filtro-sup" style="flex:1;min-width:140px;" onchange="carregarVisitas()">
         <option value="">Todas as supervisoras</option>
       </select>
     </div>
-
-    <div class="filter-chips" id="filtro-chips">
+    <div class="filter-chips">
       <span class="chip active" onclick="filtrarStatus('')" data-status="">Todas</span>
       <span class="chip" onclick="filtrarStatus('aberta')" data-status="aberta">Em andamento</span>
       <span class="chip" onclick="filtrarStatus('encerrada')" data-status="encerrada">Encerradas</span>
     </div>
-
     <div id="lista-visitas-coord">
       <div class="loader"><div class="spinner"></div><p>Carregando...</p></div>
     </div>
   </div>
 
+  <!-- ======== TAB: ROTA ======== -->
+  <div id="tab-rota" style="display:none">
+    <div style="display:flex;gap:8px;margin-bottom:16px;flex-wrap:wrap;">
+      <input type="date" id="rota-data" class="form-control" style="flex:1;" onchange="carregarRotas()">
+      <select class="form-control" id="rota-sup" style="flex:1;" onchange="carregarRotas()">
+        <option value="">Todas as supervisoras</option>
+      </select>
+    </div>
+    <div id="lista-rotas">
+      <div class="loader"><div class="spinner"></div></div>
+    </div>
+  </div>
+
   <!-- ======== TAB: MÉTRICAS ======== -->
   <div id="tab-metricas" style="display:none">
-
-    <div style="display:flex;gap:8px;margin-bottom:16px;">
-      <select class="form-control" id="met-mes" onchange="carregarMetricas()">
+    <div style="display:flex;gap:8px;margin-bottom:16px;flex-wrap:wrap;">
+      <select class="form-control" id="met-mes" style="flex:1;" onchange="carregarMetricas()">
         <option value="6">Junho 2026</option>
         <option value="5">Maio 2026</option>
         <option value="4">Abril 2026</option>
@@ -59,49 +80,29 @@
         <option value="2">Fevereiro 2026</option>
         <option value="1">Janeiro 2026</option>
       </select>
+      <select class="form-control" id="met-sup" style="flex:1;" onchange="carregarMetricas()">
+        <option value="">Todas</option>
+      </select>
     </div>
-
-    <!-- Cards de métricas gerais -->
     <div class="metrics-grid" id="metrics-gerais">
       <div class="loader" style="grid-column:span 2"><div class="spinner"></div></div>
     </div>
-
-    <!-- Energia média por supervisora -->
-    <div class="card">
-      <div class="card-title">🌟 Energia média por supervisora</div>
-      <div id="chart-energia"></div>
-    </div>
-
-    <!-- Visitas por supervisora -->
-    <div class="card">
-      <div class="card-title">📅 Visitas por supervisora</div>
-      <div id="chart-visitas-sup"></div>
-    </div>
-
-    <!-- Categorias mais registradas -->
-    <div class="card">
-      <div class="card-title">📋 Registros por categoria</div>
-      <div id="chart-categorias"></div>
-    </div>
-
-    <!-- Energia por loja -->
-    <div class="card">
-      <div class="card-title">🏪 Energia média por loja (últimas visitas)</div>
-      <div id="chart-energia-loja"></div>
-    </div>
+    <div class="card"><div class="card-title">🌟 Energia média por supervisora</div><div id="chart-energia"></div></div>
+    <div class="card"><div class="card-title">📅 Visitas por supervisora</div><div id="chart-visitas-sup"></div></div>
+    <div class="card"><div class="card-title">📋 Registros por categoria</div><div id="chart-categorias"></div></div>
+    <div class="card"><div class="card-title">🏪 Energia média por loja</div><div id="chart-energia-loja"></div></div>
+    <div class="card"><div class="card-title">📅 Dias por tipo (supervisoras)</div><div id="chart-tipo-dia"></div></div>
   </div>
 
   <!-- ======== TAB: CHECKLISTS ======== -->
   <div id="tab-checklists" style="display:none">
     <button class="btn btn-primary btn-full" onclick="abrirNovoChecklist()" style="margin-bottom:16px;">+ Novo Checklist</button>
-    <div id="lista-checklists">
-      <div class="loader"><div class="spinner"></div></div>
-    </div>
+    <div id="lista-checklists"><div class="loader"><div class="spinner"></div></div></div>
   </div>
 
-</div><!-- /container -->
+</div>
 
-<!-- MODAL: Detalhes da Visita -->
+<!-- MODAL: Detalhes Visita -->
 <div id="modal-visita" style="display:none">
   <div class="modal-bg" onclick="fecharModal()">
     <div class="modal-box" onclick="event.stopPropagation()" style="max-height:85vh;overflow-y:auto;">
@@ -122,20 +123,12 @@
         <input type="text" id="cl-titulo" class="form-control" placeholder="Ex: Checklist de Abertura">
       </div>
       <div class="form-group">
-        <label class="form-label">Descrição (opcional)</label>
-        <input type="text" id="cl-desc" class="form-control" placeholder="Descrição breve">
-      </div>
-      <div class="form-group">
         <label class="form-label">Itens (um por linha)</label>
-        <textarea class="form-control" id="cl-itens" rows="8" placeholder="Vitrine organizada e limpa
-Etiquetas de preço visíveis
-Equipe uniformizada
-Provadores organizados
-..."></textarea>
+        <textarea class="form-control" id="cl-itens" rows="8" placeholder="Vitrine organizada e limpa&#10;Etiquetas de preço visíveis&#10;Equipe uniformizada&#10;Provadores organizados"></textarea>
       </div>
       <div class="modal-actions">
         <button class="btn btn-secondary" onclick="fecharNovoChecklist()" style="flex:1">Cancelar</button>
-        <button class="btn btn-primary" onclick="salvarNovoChecklist()" style="flex:2">Salvar Checklist</button>
+        <button class="btn btn-primary" onclick="salvarNovoChecklist()" style="flex:2">Salvar</button>
       </div>
     </div>
   </div>
@@ -147,32 +140,65 @@ Provadores organizados
 <script src="js/supabase.js"></script>
 <script>
 const ENERGIA_INFO = {
-  1: { emoji: '😢', label: 'Muito apagada', cor: '#dc3545' },
-  2: { emoji: '😟', label: 'Abaixo do esperado', cor: '#fd7e14' },
-  3: { emoji: '😐', label: 'Neutra', cor: '#ffc107' },
-  4: { emoji: '😊', label: 'Boa energia', cor: '#20c997' },
-  5: { emoji: '🤩', label: 'Super energizada!', cor: '#28a745' }
+  1:{emoji:'😢',label:'Muito apagada',cor:'#dc3545'},
+  2:{emoji:'😟',label:'Abaixo do esperado',cor:'#fd7e14'},
+  3:{emoji:'😐',label:'Neutra',cor:'#ffc107'},
+  4:{emoji:'😊',label:'Boa energia',cor:'#20c997'},
+  5:{emoji:'🤩',label:'Super energizada!',cor:'#28a745'}
 };
-
 const CAT_INFO = {
-  atendimento: 'Atendimento', exposicao: 'Exposição', elogio: 'Elogio',
-  demanda: 'Demanda', plano_acao: 'Plano de Ação', campanha: 'Campanha', outro: 'Outro'
+  atendimento:'Atendimento',exposicao:'Exposição',elogio:'Elogio',
+  demanda:'Demanda',plano_acao:'Plano de Ação',campanha:'Campanha',outro:'Outro'
+};
+const TIPO_DIA = {
+  visitas:{label:'🏪 Visita a lojas',badge:'td-badge-visitas'},
+  escritorio:{label:'🏢 Escritório',badge:'td-badge-escritorio'},
+  demanda:{label:'📋 Outra demanda',badge:'td-badge-demanda'}
 };
 
-let tabAtual = 'visitas';
-let statusFiltro = '';
-let supervisoras = [];
+// Coordenadas aproximadas das residências das supervisoras
+const HOMES = {
+  'CANTIERI': {lat:-21.7538,lng:-43.3502,nome:'Casa - Jf'},
+  'MAFORTES': {lat:-20.3617,lng:-41.9447,nome:'Casa - Manhumirim'},
+  'LEIDI':    {lat:-19.7900,lng:-42.1350,nome:'Casa - Caratinga'},
+  'MIRELE':   {lat:-22.8730,lng:-43.0530,nome:'Casa - São Gonçalo'},
+  'PATRICIA': {lat:-22.8180,lng:-43.2070,nome:'Casa - Ilha Gov.'}
+};
 
-window.addEventListener('DOMContentLoaded', async () => {
-  const u = sessionStorage.getItem('usuario');
-  if (!u || JSON.parse(u).tipo !== 'coordenador') { window.location.href = 'index.html'; return; }
+// Coordenadas aproximadas das lojas (por cidade/cep)
+const LOJA_COORDS = {
+  '21476':{lat:-21.7630,lng:-43.3507},'21477':{lat:-21.7627,lng:-43.3492},
+  '21478':{lat:-21.7810,lng:-43.3660},'21479':{lat:-21.7612,lng:-43.3508},
+  '21480':{lat:-21.7550,lng:-43.3545},'21468':{lat:-21.7710,lng:-43.3680},
+  '21481':{lat:-21.7620,lng:-43.3498},'21482':{lat:-21.7420,lng:-43.3820},
+  '21484':{lat:-22.1170,lng:-43.2090},'21486':{lat:-22.1185,lng:-43.2108},
+  '23316':{lat:-21.0650,lng:-43.7930},'23317':{lat:-21.2280,lng:-43.9750},
+  '23295':{lat:-21.4650,lng:-43.5520},
+  '23453':{lat:-19.7840,lng:-42.1380},'23435':{lat:-19.7855,lng:-42.1368},
+  '23434':{lat:-19.4820,lng:-42.1120},'22553':{lat:-19.6760,lng:-41.7100},
+  '22552':{lat:-20.1070,lng:-42.4460},'24064':{lat:-19.5010,lng:-41.0740},
+  '23452':{lat:-20.7300,lng:-42.0280},'23451':{lat:-20.5430,lng:-41.9130},
+  '22586':{lat:-21.5270,lng:-43.0440},'22554':{lat:-21.8930,lng:-42.6940},
+  '22561':{lat:-20.3617,lng:-41.9447},'22562':{lat:-20.2570,lng:-42.0290},
+  '19836':{lat:-22.8260,lng:-43.0540},'19837':{lat:-22.8490,lng:-43.0690},
+  '19847':{lat:-22.8540,lng:-43.0550},'19939':{lat:-22.8890,lng:-43.0490},
+  '19985':{lat:-22.8610,lng:-43.0240},'20025':{lat:-22.8430,lng:-43.0880},
+  '20460':{lat:-22.8800,lng:-43.2730},'20502':{lat:-22.8800,lng:-43.2730},
+  '20738':{lat:-22.8760,lng:-43.3280},'20739':{lat:-22.8720,lng:-43.3240},
+  '20782':{lat:-22.8820,lng:-43.4040},'20786':{lat:-22.8820,lng:-43.4040},
+  '20902':{lat:-22.8710,lng:-43.3310},'21070':{lat:-22.8880,lng:-43.3670},
+  '24128':{lat:-22.8870,lng:-43.2940},'910595':{lat:-22.8790,lng:-43.2720}
+};
 
-  // Define data padrão = hoje
-  document.getElementById('filtro-data').value = new Date().toISOString().split('T')[0];
+let statusFiltro='';
+let supervisoras=[];
 
-  // Define mês atual
-  document.getElementById('met-mes').value = new Date().getMonth() + 1;
-
+window.addEventListener('DOMContentLoaded', async()=>{
+  const u=sessionStorage.getItem('usuario');
+  if(!u||JSON.parse(u).tipo!=='coordenador'){window.location.href='index.html';return;}
+  document.getElementById('filtro-data').value=new Date().toISOString().split('T')[0];
+  document.getElementById('rota-data').value=new Date().toISOString().split('T')[0];
+  document.getElementById('met-mes').value=new Date().getMonth()+1;
   await carregarSupervisoras();
   await carregarVisitas();
 });
@@ -181,27 +207,24 @@ window.addEventListener('DOMContentLoaded', async () => {
 // TABS
 // ==============================
 function mudarTab(tab) {
-  tabAtual = tab;
-  ['visitas','metricas','checklists'].forEach(t => {
-    document.getElementById('tab-' + t).style.display = t === tab ? '' : 'none';
-    document.querySelectorAll('.tab-btn')[['visitas','metricas','checklists'].indexOf(t)].classList.toggle('active', t === tab);
+  ['visitas','rota','metricas','checklists'].forEach((t,i)=>{
+    document.getElementById('tab-'+t).style.display=t===tab?'':'none';
+    document.querySelectorAll('.tab-btn')[i].classList.toggle('active',t===tab);
   });
-  if (tab === 'metricas') carregarMetricas();
-  if (tab === 'checklists') carregarChecklists();
+  if(tab==='metricas') carregarMetricas();
+  if(tab==='checklists') carregarChecklists();
+  if(tab==='rota') carregarRotas();
 }
 
 // ==============================
 // SUPERVISORAS
 // ==============================
 async function carregarSupervisoras() {
-  const { data } = await db.from('supervisoras').select('*').eq('ativo', true).order('nome');
-  supervisoras = data || [];
-  const sel = document.getElementById('filtro-sup');
-  data.forEach(s => {
-    const opt = document.createElement('option');
-    opt.value = s.id;
-    opt.textContent = s.nome;
-    sel.appendChild(opt);
+  const {data}=await db.from('supervisoras').select('*').eq('ativo',true).order('nome');
+  supervisoras=data||[];
+  ['filtro-sup','rota-sup','met-sup'].forEach(selId=>{
+    const sel=document.getElementById(selId);
+    data.forEach(s=>{const opt=document.createElement('option');opt.value=s.id;opt.textContent=s.nome;sel.appendChild(opt);});
   });
 }
 
@@ -209,313 +232,348 @@ async function carregarSupervisoras() {
 // VISITAS
 // ==============================
 function filtrarStatus(status) {
-  statusFiltro = status;
-  document.querySelectorAll('.chip').forEach(c => c.classList.toggle('active', c.dataset.status === status));
+  statusFiltro=status;
+  document.querySelectorAll('.chip').forEach(c=>c.classList.toggle('active',c.dataset.status===status));
   carregarVisitas();
 }
 
 async function carregarVisitas() {
-  const el = document.getElementById('lista-visitas-coord');
-  el.innerHTML = '<div class="loader"><div class="spinner"></div><p>Carregando...</p></div>';
-
-  const data = document.getElementById('filtro-data').value;
-  const supId = document.getElementById('filtro-sup').value;
-
-  let q = db.from('visitas')
-    .select('*, lojas(nome, cidade, estado), supervisoras(nome)')
-    .order('hora_inicio', { ascending: false });
-
-  if (data) q = q.eq('data_visita', data);
-  if (supId) q = q.eq('supervisora_id', supId);
-  if (statusFiltro) q = q.eq('status', statusFiltro);
-
-  const { data: visitas } = await q;
-
-  if (!visitas || visitas.length === 0) {
-    el.innerHTML = `<div class="empty"><div class="empty-icon">🔍</div><p>Nenhuma visita encontrada</p></div>`;
-    return;
-  }
-
-  el.innerHTML = visitas.map(v => `
+  const el=document.getElementById('lista-visitas-coord');
+  el.innerHTML='<div class="loader"><div class="spinner"></div></div>';
+  const data=document.getElementById('filtro-data').value;
+  const supId=document.getElementById('filtro-sup').value;
+  let q=db.from('visitas').select('*,lojas(nome,cidade,estado),supervisoras(nome)').order('hora_inicio',{ascending:false});
+  if(data) q=q.eq('data_visita',data);
+  if(supId) q=q.eq('supervisora_id',supId);
+  if(statusFiltro) q=q.eq('status',statusFiltro);
+  const {data:visitas}=await q;
+  if(!visitas||visitas.length===0){el.innerHTML='<div class="empty"><div class="empty-icon">🔍</div><p>Nenhuma visita encontrada</p></div>';return;}
+  el.innerHTML=visitas.map(v=>`
     <div class="visita-card" onclick="verDetalhes('${v.id}')">
       <div style="display:flex;justify-content:space-between;align-items:flex-start;">
         <div>
-          <div class="visita-card-loja">${v.lojas?.nome || '—'}</div>
-          <div class="visita-card-info">${v.lojas?.cidade}/${v.lojas?.estado} · ${v.supervisoras?.nome || ''}</div>
+          <div class="visita-card-loja">${v.lojas?.nome||'—'}</div>
+          <div class="visita-card-info">${v.lojas?.cidade}/${v.lojas?.estado} · ${v.supervisoras?.nome||''}</div>
           <div class="visita-card-info">${formatData(v.data_visita)} às ${formatHora(v.hora_inicio)}</div>
         </div>
-        <span style="font-size:28px;">${ENERGIA_INFO[v.energia_time]?.emoji || '—'}</span>
+        <span style="font-size:28px;">${ENERGIA_INFO[v.energia_time]?.emoji||'—'}</span>
       </div>
-      <span class="visita-card-status ${v.status === 'aberta' ? 'status-aberta' : 'status-encerrada'}">
-        ${v.status === 'aberta' ? '● Em andamento' : '✓ Encerrada'}
-      </span>
-    </div>
-  `).join('');
+      <span class="visita-card-status ${v.status==='aberta'?'status-aberta':'status-encerrada'}">${v.status==='aberta'?'● Em andamento':'✓ Encerrada'}</span>
+    </div>`).join('');
 }
 
 async function verDetalhes(visitaId) {
-  const { data: v } = await db.from('visitas').select('*, lojas(*), supervisoras(*)').eq('id', visitaId).single();
-  const { data: regs } = await db.from('registros_visita').select('*').eq('visita_id', visitaId).order('created_at');
-  const { data: checks } = await db.from('checklist_respostas')
-    .select('*, checklist_itens(pergunta), checklist_templates(titulo)')
-    .eq('visita_id', visitaId);
+  const {data:v}=await db.from('visitas').select('*,lojas(*),supervisoras(*)').eq('id',visitaId).single();
+  const {data:regs}=await db.from('registros_visita').select('*').eq('visita_id',visitaId).order('created_at');
+  const {data:revisoes}=await db.from('plano_acao_revisao').select('*,registros_visita(descricao)').eq('visita_revisao_id',visitaId);
+  const info=ENERGIA_INFO[v.energia_time];
+  const catGroups={};
+  (regs||[]).forEach(r=>{if(!catGroups[r.categoria])catGroups[r.categoria]=[];catGroups[r.categoria].push(r);});
 
-  const info = ENERGIA_INFO[v.energia_time];
-  const catGroups = {};
-  (regs || []).forEach(r => { if (!catGroups[r.categoria]) catGroups[r.categoria] = []; catGroups[r.categoria].push(r); });
-
-  document.getElementById('modal-visita-titulo').textContent = `${v.lojas?.nome} · ${formatData(v.data_visita)}`;
-
-  let html = `
+  document.getElementById('modal-visita-titulo').textContent=`${v.lojas?.nome} · ${formatData(v.data_visita)}`;
+  let html=`
     <div style="display:flex;align-items:center;gap:10px;padding:12px;background:var(--bg);border-radius:10px;margin-bottom:14px;">
       <span style="font-size:32px;">${info?.emoji}</span>
-      <div>
-        <div style="font-size:12px;color:var(--text-light);">Energia ao chegar</div>
-        <strong style="color:${info?.cor}">${info?.label}</strong>
-      </div>
+      <div><div style="font-size:12px;color:var(--text-light);">Energia ao chegar</div><strong style="color:${info?.cor}">${info?.label}</strong></div>
     </div>
-    <div style="font-size:13px;color:var(--text-light);margin-bottom:4px;">
+    <div style="font-size:13px;color:var(--text-light);margin-bottom:12px;">
       <strong>Supervisora:</strong> ${v.supervisoras?.nome}<br>
-      <strong>Loja:</strong> ${v.lojas?.nome} · ${v.lojas?.cidade}/${v.lojas?.estado}<br>
-      <strong>Início:</strong> ${formatHora(v.hora_inicio)}
-      ${v.hora_fim ? ` · <strong>Fim:</strong> ${formatHora(v.hora_fim)}` : ''}
-      ${v.email_gerente ? `<br><strong>Email gerente:</strong> ${v.email_gerente}` : ''}
-    </div>
-    <hr class="divider">
-  `;
+      <strong>Início:</strong> ${formatHora(v.hora_inicio)}${v.hora_fim?` · <strong>Fim:</strong> ${formatHora(v.hora_fim)}`:''}
+    </div>`;
 
-  if (Object.keys(catGroups).length === 0) {
-    html += '<p style="color:var(--text-light);font-size:14px;margin-bottom:12px;">Nenhum registro nesta visita.</p>';
+  // Revisão plano de ação anterior
+  if(revisoes&&revisoes.length>0){
+    html+=`<div style="background:#fff3cd;border-radius:10px;padding:10px 12px;margin-bottom:12px;">
+      <div style="font-size:12px;font-weight:700;color:#856404;margin-bottom:6px;">🎯 REVISÃO DO PLANO ANTERIOR</div>
+      ${revisoes.map(r=>{
+        const ic=r.status==='concluido'?'✅':r.status==='andamento'?'🔄':'❌';
+        return `<div style="font-size:13px;padding:4px 0;">${ic} ${r.registros_visita?.descricao||'—'}</div>`;
+      }).join('')}
+    </div>`;
+  }
+
+  html+='<hr class="divider">';
+  if(Object.keys(catGroups).length===0){
+    html+='<p style="color:var(--text-light);">Nenhum registro nesta visita.</p>';
   } else {
-    Object.entries(catGroups).forEach(([cat, items]) => {
-      html += `<div style="font-size:13px;font-weight:700;color:var(--sfera-dark);margin:10px 0 6px;">${CAT_INFO[cat]}</div>`;
-      items.forEach(r => {
-        html += `<div style="padding:8px 10px;background:var(--bg);border-radius:8px;font-size:14px;margin-bottom:6px;">• ${r.descricao}</div>`;
+    Object.entries(catGroups).forEach(([cat,items])=>{
+      html+=`<div style="font-size:12px;font-weight:700;color:var(--sfera-dark);margin:10px 0 6px;text-transform:uppercase;">${CAT_INFO[cat]||cat}</div>`;
+      items.forEach(r=>{
+        html+=`<div style="padding:8px 10px;background:var(--bg);border-radius:8px;font-size:14px;margin-bottom:6px;">• ${r.descricao}`;
+        if(r.media_url) html+=` <a href="${r.media_url}" target="_blank" style="color:var(--sfera);">📎 Anexo</a>`;
+        html+='</div>';
       });
     });
   }
+  if(v.observacao_geral) html+=`<hr class="divider"><p style="font-size:14px;"><strong>Obs:</strong> ${v.observacao_geral}</p>`;
 
-  if (checks && checks.length > 0) {
-    html += `<hr class="divider"><div class="card-title" style="margin-bottom:8px;">☑️ Checklists</div>`;
-    const porTemplate = {};
-    checks.forEach(c => {
-      const t = c.checklist_templates?.titulo || 'Checklist';
-      if (!porTemplate[t]) porTemplate[t] = [];
-      porTemplate[t].push(c);
+  document.getElementById('modal-visita-body').innerHTML=html;
+  document.getElementById('modal-visita').style.display='';
+}
+function fecharModal(){document.getElementById('modal-visita').style.display='none';}
+
+// ==============================
+// ROTA
+// ==============================
+async function carregarRotas() {
+  const el=document.getElementById('lista-rotas');
+  el.innerHTML='<div class="loader"><div class="spinner"></div></div>';
+  const data=document.getElementById('rota-data').value;
+  const supIdFiltro=document.getElementById('rota-sup').value;
+
+  // Carregar tipo de dia das supervisoras
+  let qDias=db.from('dias_supervisora').select('*,supervisoras(nome,nome_curto,endereco_residencial,cidade_residencial)').eq('data',data);
+  if(supIdFiltro) qDias=qDias.eq('supervisora_id',supIdFiltro);
+  const {data:dias}=await qDias;
+
+  // Carregar visitas do dia
+  let qVis=db.from('visitas').select('*,lojas(nome,cidade,estado,codigo)').eq('data_visita',data).eq('status','encerrada').order('hora_inicio');
+  if(supIdFiltro) qVis=qVis.eq('supervisora_id',supIdFiltro);
+  const {data:visitas}=await qVis;
+
+  // Agrupar visitas por supervisora
+  const porSup={};
+  (visitas||[]).forEach(v=>{
+    if(!porSup[v.supervisora_id]) porSup[v.supervisora_id]=[];
+    porSup[v.supervisora_id].push(v);
+  });
+
+  // Supervisoras sem visitas mas com tipo de dia registrado
+  const supsSemVisita=(dias||[]).filter(d=>!porSup[d.supervisora_id]);
+
+  let html='';
+
+  // Supervisoras com visitas
+  for(const [supId,visits] of Object.entries(porSup)) {
+    const sup=supervisoras.find(s=>s.id===supId);
+    if(!sup) continue;
+    const diaInfo=(dias||[]).find(d=>d.supervisora_id===supId);
+    const homeCoordsKey=sup.nome_curto;
+    const homeCoords=HOMES[homeCoordsKey];
+
+    // Calcular km total
+    let kmTotal=0;
+    const pontos=[];
+    if(homeCoords) pontos.push({...homeCoords,tipo:'home'});
+    visits.forEach(v=>{
+      const c=LOJA_COORDS[v.lojas?.codigo];
+      if(c) pontos.push({...c,tipo:'loja',nome:v.lojas?.nome,hora:formatHora(v.hora_inicio)});
     });
-    Object.entries(porTemplate).forEach(([titulo, items]) => {
-      html += `<div style="font-weight:700;margin-bottom:6px;">${titulo}</div>`;
-      items.forEach(c => {
-        const icone = c.resposta === 'sim' ? '✅' : c.resposta === 'nao' ? '❌' : c.resposta === 'parcial' ? '⚠️' : '—';
-        html += `<div style="display:flex;gap:8px;padding:6px 0;border-bottom:1px solid var(--border);font-size:13px;">
-          <span>${icone}</span><span>${c.checklist_itens?.pergunta}</span></div>`;
-      });
-    });
+    if(homeCoords&&pontos.length>1) pontos.push({...homeCoords,tipo:'home-ret',nome:'Casa (retorno)'});
+
+    for(let i=0;i<pontos.length-1;i++) {
+      kmTotal+=haversine(pontos[i].lat,pontos[i].lng,pontos[i+1].lat,pontos[i+1].lng)*1.35;
+    }
+
+    // Google Maps URL
+    const mapsUrl=gerarMapsUrl(sup,visits);
+
+    const tipoBadge=diaInfo?`<span class="tipo-dia-badge ${TIPO_DIA[diaInfo.tipo]?.badge}">${TIPO_DIA[diaInfo.tipo]?.label}</span>`:'';
+
+    html+=`<div class="card" style="margin-bottom:14px;">
+      <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:10px;">
+        <div>
+          <div class="sup-nome">${sup.nome}</div>
+          <div class="sup-info">${sup.endereco_residencial||'Endereço não cadastrado'}</div>
+          <div style="margin-top:6px;">${tipoBadge}</div>
+        </div>
+        <span class="km-badge">~${kmTotal.toFixed(0)} km</span>
+      </div>
+      <div style="margin-bottom:12px;">
+        <div class="rota-loja"><div class="rota-home">🏠</div><div><strong>${homeCoords?.nome||'Casa'}</strong><div style="font-size:11px;color:var(--text-light);">${sup.cidade_residencial||''}</div></div></div>
+        ${visits.map((v,i)=>`
+          <div class="rota-loja">
+            <div class="rota-num">${i+1}</div>
+            <div style="flex:1;"><strong>${v.lojas?.nome}</strong><div style="font-size:11px;color:var(--text-light);">${v.lojas?.cidade} · ${formatHora(v.hora_inicio)}${v.hora_fim?' → '+formatHora(v.hora_fim):''}</div></div>
+            <span style="font-size:18px;">${ENERGIA_INFO[v.energia_time]?.emoji||''}</span>
+          </div>`).join('')}
+        ${homeCoords?`<div class="rota-loja"><div class="rota-home">🏠</div><div><strong>Retorno para casa</strong></div></div>`:''}
+      </div>
+      <a href="${mapsUrl}" target="_blank" class="btn btn-secondary btn-full btn-sm">🗺️ Ver rota no Google Maps</a>
+    </div>`;
   }
 
-  if (v.observacao_geral) {
-    html += `<hr class="divider"><div class="card-title" style="margin-bottom:6px;">💬 Observação</div>
-      <p style="font-size:14px;">${v.observacao_geral}</p>`;
-  }
+  // Supervisoras sem visitas mas com tipo de dia
+  supsSemVisita.forEach(d=>{
+    const sup=supervisoras.find(s=>s.id===d.supervisora_id);
+    if(!sup) return;
+    html+=`<div class="card" style="margin-bottom:14px;">
+      <div class="sup-nome">${sup.nome}</div>
+      <div class="sup-info">${d.supervisoras?.endereco_residencial||''}</div>
+      <div style="margin-top:8px;">
+        <span class="tipo-dia-badge ${TIPO_DIA[d.tipo]?.badge}">${TIPO_DIA[d.tipo]?.label}</span>
+        ${d.descricao?`<div style="font-size:13px;color:var(--text-light);margin-top:6px;">${d.descricao}</div>`:''}
+      </div>
+    </div>`;
+  });
 
-  document.getElementById('modal-visita-body').innerHTML = html;
-  document.getElementById('modal-visita').style.display = '';
+  if(!html) html='<div class="empty"><div class="empty-icon">🗺️</div><p>Nenhuma rota encontrada para esta data</p></div>';
+  el.innerHTML=html;
 }
 
-function fecharModal() { document.getElementById('modal-visita').style.display = 'none'; }
+function gerarMapsUrl(sup,visits) {
+  const homeAddr=encodeURIComponent((sup.endereco_residencial||'')+(sup.cidade_residencial?', '+sup.cidade_residencial:''));
+  const waypoints=visits.map(v=>encodeURIComponent((v.lojas?.endereco||v.lojas?.nome||'')+', '+(v.lojas?.cidade||'')+', '+(v.lojas?.estado||''))).join('|');
+  return `https://www.google.com/maps/dir/${homeAddr}/${waypoints}/${homeAddr}`;
+}
+
+function haversine(lat1,lon1,lat2,lon2) {
+  const R=6371,dLat=(lat2-lat1)*Math.PI/180,dLon=(lon2-lon1)*Math.PI/180;
+  const a=Math.sin(dLat/2)**2+Math.cos(lat1*Math.PI/180)*Math.cos(lat2*Math.PI/180)*Math.sin(dLon/2)**2;
+  return R*2*Math.atan2(Math.sqrt(a),Math.sqrt(1-a));
+}
 
 // ==============================
 // MÉTRICAS
 // ==============================
 async function carregarMetricas() {
-  const mes = document.getElementById('met-mes').value;
-  const ano = 2026;
-  const inicio = `${ano}-${String(mes).padStart(2,'0')}-01`;
-  const fim = `${ano}-${String(mes).padStart(2,'0')}-31`;
+  const mes=document.getElementById('met-mes').value;
+  const supId=document.getElementById('met-sup').value;
+  const ano=2026;
+  const inicio=`${ano}-${String(mes).padStart(2,'0')}-01`;
+  const fim=`${ano}-${String(mes).padStart(2,'0')}-31`;
 
-  const { data: visitas } = await db.from('visitas')
-    .select('*, supervisoras(nome), lojas(nome)')
-    .gte('data_visita', inicio).lte('data_visita', fim);
+  let qVis=db.from('visitas').select('*,supervisoras(nome,nome_curto),lojas(nome)').gte('data_visita',inicio).lte('data_visita',fim);
+  if(supId) qVis=qVis.eq('supervisora_id',supId);
+  const {data:visitas}=await qVis;
 
-  const { data: regs } = await db.from('registros_visita')
-    .select('categoria, visita_id')
-    .in('visita_id', (visitas || []).map(v => v.id));
+  let qRegs=db.from('registros_visita').select('categoria,visita_id').in('visita_id',(visitas||[]).map(v=>v.id));
+  const {data:regs}=await qRegs;
 
-  const total = visitas?.length || 0;
-  const encerradas = visitas?.filter(v => v.status === 'encerrada').length || 0;
-  const mediaEnergia = total > 0 ? (visitas.reduce((s,v) => s + (v.energia_time||0), 0) / total).toFixed(1) : '—';
-  const totalRegs = regs?.length || 0;
+  const {data:dias}=await db.from('dias_supervisora').select('tipo,supervisora_id,supervisoras(nome)').gte('data',inicio).lte('data',fim);
 
-  document.getElementById('metrics-gerais').innerHTML = `
+  const total=visitas?.length||0;
+  const encerradas=visitas?.filter(v=>v.status==='encerrada').length||0;
+  const mediaE=total>0?(visitas.reduce((s,v)=>s+(v.energia_time||0),0)/total).toFixed(1):'—';
+  const totalR=regs?.length||0;
+
+  document.getElementById('metrics-gerais').innerHTML=`
     <div class="metric-card"><div class="metric-num">${total}</div><div class="metric-label">Visitas realizadas</div></div>
     <div class="metric-card"><div class="metric-num">${encerradas}</div><div class="metric-label">Visitas encerradas</div></div>
-    <div class="metric-card"><div class="metric-num">${mediaEnergia}</div><div class="metric-label">Energia média</div></div>
-    <div class="metric-card"><div class="metric-num">${totalRegs}</div><div class="metric-label">Total de registros</div></div>
-  `;
+    <div class="metric-card"><div class="metric-num">${mediaE}</div><div class="metric-label">Energia média</div></div>
+    <div class="metric-card"><div class="metric-num">${totalR}</div><div class="metric-label">Total de registros</div></div>`;
 
-  // Energia por supervisora
-  const porSup = {};
-  (visitas || []).forEach(v => {
-    const n = v.supervisoras?.nome || 'Desconhecido';
-    if (!porSup[n]) porSup[n] = { total: 0, soma: 0, visitas: 0 };
+  const porSup={};
+  (visitas||[]).forEach(v=>{
+    const n=v.supervisoras?.nome||'?';
+    if(!porSup[n]) porSup[n]={visitas:0,soma:0,total:0};
     porSup[n].visitas++;
-    if (v.energia_time) { porSup[n].soma += v.energia_time; porSup[n].total++; }
+    if(v.energia_time){porSup[n].soma+=v.energia_time;porSup[n].total++;}
   });
-  document.getElementById('chart-energia').innerHTML = Object.entries(porSup).map(([nome, d]) => {
-    const media = d.total > 0 ? (d.soma / d.total).toFixed(1) : '—';
-    const pct = d.total > 0 ? ((d.soma / d.total) / 5 * 100) : 0;
-    const cor = pct >= 70 ? '#28a745' : pct >= 50 ? '#ffc107' : '#dc3545';
-    return `
-      <div style="margin-bottom:12px;">
-        <div style="display:flex;justify-content:space-between;font-size:13px;margin-bottom:4px;">
-          <span><strong>${nome.split(' ')[1] || nome}</strong></span>
-          <span style="color:${cor};font-weight:700;">${media} ★ · ${d.visitas} visita${d.visitas !== 1?'s':''}</span>
-        </div>
-        <div style="background:var(--border);border-radius:10px;height:8px;overflow:hidden;">
-          <div style="width:${pct}%;background:${cor};height:100%;border-radius:10px;transition:width 0.5s;"></div>
-        </div>
-      </div>`;
-  }).join('') || '<p style="color:var(--text-light);">Sem dados</p>';
 
-  // Visitas por supervisora
-  document.getElementById('chart-visitas-sup').innerHTML = Object.entries(porSup)
-    .sort((a,b) => b[1].visitas - a[1].visitas)
-    .map(([nome, d]) => {
-      const max = Math.max(...Object.values(porSup).map(x => x.visitas));
-      const pct = (d.visitas / max * 100);
-      return `
-        <div style="margin-bottom:12px;">
-          <div style="display:flex;justify-content:space-between;font-size:13px;margin-bottom:4px;">
-            <span><strong>${nome.split(' ')[1] || nome}</strong></span>
-            <strong>${d.visitas} visita${d.visitas !== 1?'s':''}</strong>
-          </div>
-          <div style="background:var(--border);border-radius:10px;height:10px;overflow:hidden;">
-            <div style="width:${pct}%;background:var(--sfera);height:100%;border-radius:10px;"></div>
-          </div>
-        </div>`;
-    }).join('') || '<p style="color:var(--text-light);">Sem dados</p>';
+  const barHtml=(entries,getValue,getLabel,cor)=>entries.sort((a,b)=>getValue(b[1])-getValue(a[1])).map(([nome,d])=>{
+    const v=getValue(d),max=Math.max(...entries.map(([,x])=>getValue(x)),1),pct=v/max*100;
+    return `<div style="margin-bottom:12px;">
+      <div style="display:flex;justify-content:space-between;font-size:13px;margin-bottom:4px;">
+        <span><strong>${nome.split(' ')[1]||nome}</strong></span><span style="font-weight:700;color:${cor};">${getLabel(d,v)}</span>
+      </div>
+      <div style="background:var(--border);border-radius:10px;height:8px;overflow:hidden;">
+        <div style="width:${pct}%;background:${cor};height:100%;border-radius:10px;"></div>
+      </div></div>`;
+  }).join('')||'<p style="color:var(--text-light);">Sem dados</p>';
 
-  // Categorias
-  const porCat = {};
-  (regs || []).forEach(r => { porCat[r.categoria] = (porCat[r.categoria] || 0) + 1; });
-  const maxCat = Math.max(...Object.values(porCat), 1);
-  document.getElementById('chart-categorias').innerHTML = Object.entries(porCat)
-    .sort((a,b) => b[1] - a[1])
-    .map(([cat, n]) => `
-      <div style="margin-bottom:10px;">
-        <div style="display:flex;justify-content:space-between;font-size:13px;margin-bottom:4px;">
-          <span>${CAT_INFO[cat] || cat}</span><strong>${n}</strong>
-        </div>
-        <div style="background:var(--border);border-radius:10px;height:8px;overflow:hidden;">
-          <div style="width:${n/maxCat*100}%;background:var(--sfera);height:100%;border-radius:10px;"></div>
-        </div>
-      </div>`).join('') || '<p style="color:var(--text-light);">Sem registros</p>';
+  document.getElementById('chart-visitas-sup').innerHTML=barHtml(Object.entries(porSup),d=>d.visitas,(d,v)=>`${v} visita${v!==1?'s':''}`,`var(--sfera)`);
 
-  // Energia por loja
-  const porLoja = {};
-  (visitas || []).forEach(v => {
-    const n = v.lojas?.nome || '—';
-    if (!porLoja[n]) porLoja[n] = { soma: 0, total: 0 };
-    if (v.energia_time) { porLoja[n].soma += v.energia_time; porLoja[n].total++; }
-  });
-  document.getElementById('chart-energia-loja').innerHTML = Object.entries(porLoja)
-    .filter(([,d]) => d.total > 0)
-    .map(([nome, d]) => {
-      const media = (d.soma / d.total).toFixed(1);
-      const pct = (d.soma / d.total) / 5 * 100;
-      const cor = pct >= 70 ? '#28a745' : pct >= 50 ? '#ffc107' : '#dc3545';
-      const emoji = ENERGIA_INFO[Math.round(d.soma / d.total)]?.emoji || '—';
-      return `
-        <div style="display:flex;align-items:center;gap:10px;padding:8px 0;border-bottom:1px solid var(--border);">
-          <span style="font-size:20px;">${emoji}</span>
-          <div style="flex:1;">
-            <div style="font-size:13px;font-weight:700;">${nome}</div>
-            <div style="background:var(--border);border-radius:10px;height:6px;margin-top:4px;overflow:hidden;">
-              <div style="width:${pct}%;background:${cor};height:100%;border-radius:10px;"></div>
-            </div>
-          </div>
-          <span style="font-weight:800;color:${cor};font-size:14px;">${media}</span>
-        </div>`;
-    }).join('') || '<p style="color:var(--text-light);">Sem dados</p>';
+  const energiaSup=Object.entries(porSup).filter(([,d])=>d.total>0).map(([n,d])=>[n,{...d,media:d.soma/d.total}]);
+  document.getElementById('chart-energia').innerHTML=energiaSup.sort((a,b)=>b[1].media-a[1].media).map(([nome,d])=>{
+    const pct=d.media/5*100,cor=pct>=70?'#28a745':pct>=50?'#ffc107':'#dc3545';
+    return `<div style="margin-bottom:12px;">
+      <div style="display:flex;justify-content:space-between;font-size:13px;margin-bottom:4px;">
+        <span><strong>${nome.split(' ')[1]||nome}</strong></span><span style="color:${cor};font-weight:700;">${d.media.toFixed(1)} ★</span>
+      </div>
+      <div style="background:var(--border);border-radius:10px;height:8px;overflow:hidden;">
+        <div style="width:${pct}%;background:${cor};height:100%;border-radius:10px;"></div>
+      </div></div>`;
+  }).join('')||'<p style="color:var(--text-light);">Sem dados</p>';
+
+  const porCat={};
+  (regs||[]).forEach(r=>{porCat[r.categoria]=(porCat[r.categoria]||0)+1;});
+  const maxC=Math.max(...Object.values(porCat),1);
+  document.getElementById('chart-categorias').innerHTML=Object.entries(porCat).sort((a,b)=>b[1]-a[1]).map(([cat,n])=>`
+    <div style="margin-bottom:10px;">
+      <div style="display:flex;justify-content:space-between;font-size:13px;margin-bottom:4px;">
+        <span>${CAT_INFO[cat]||cat}</span><strong>${n}</strong>
+      </div>
+      <div style="background:var(--border);border-radius:10px;height:8px;overflow:hidden;">
+        <div style="width:${n/maxC*100}%;background:var(--sfera);height:100%;border-radius:10px;"></div>
+      </div></div>`).join('')||'<p style="color:var(--text-light);">Sem registros</p>';
+
+  const porLoja={};
+  (visitas||[]).forEach(v=>{const n=v.lojas?.nome||'—';if(!porLoja[n])porLoja[n]={soma:0,total:0};if(v.energia_time){porLoja[n].soma+=v.energia_time;porLoja[n].total++;}});
+  document.getElementById('chart-energia-loja').innerHTML=Object.entries(porLoja).filter(([,d])=>d.total>0).map(([nome,d])=>{
+    const m=(d.soma/d.total).toFixed(1),pct=d.soma/d.total/5*100,cor=pct>=70?'#28a745':pct>=50?'#ffc107':'#dc3545';
+    const em=ENERGIA_INFO[Math.round(d.soma/d.total)]?.emoji||'—';
+    return `<div style="display:flex;align-items:center;gap:10px;padding:8px 0;border-bottom:1px solid var(--border);">
+      <span style="font-size:20px;">${em}</span>
+      <div style="flex:1;"><div style="font-size:13px;font-weight:700;">${nome}</div>
+        <div style="background:var(--border);border-radius:10px;height:6px;margin-top:4px;overflow:hidden;">
+          <div style="width:${pct}%;background:${cor};height:100%;border-radius:10px;"></div></div></div>
+      <span style="font-weight:800;color:${cor};">${m}</span></div>`;
+  }).join('')||'<p style="color:var(--text-light);">Sem dados</p>';
+
+  // Tipo de dia
+  const porTipo={visitas:0,escritorio:0,demanda:0};
+  (dias||[]).forEach(d=>{if(porTipo[d.tipo]!==undefined)porTipo[d.tipo]++;});
+  const totalDias=Object.values(porTipo).reduce((a,b)=>a+b,0)||1;
+  document.getElementById('chart-tipo-dia').innerHTML=Object.entries(porTipo).map(([tipo,n])=>`
+    <div style="display:flex;align-items:center;gap:12px;padding:8px 0;border-bottom:1px solid var(--border);">
+      <span style="font-size:20px;">${tipo==='visitas'?'🏪':tipo==='escritorio'?'🏢':'📋'}</span>
+      <div style="flex:1;">
+        <div style="font-size:13px;font-weight:700;">${TIPO_DIA[tipo]?.label.split(' ').slice(1).join(' ')}</div>
+        <div style="background:var(--border);border-radius:10px;height:6px;margin-top:4px;overflow:hidden;">
+          <div style="width:${n/totalDias*100}%;background:var(--sfera);height:100%;border-radius:10px;"></div></div>
+      </div><strong>${n} dia${n!==1?'s':''}</strong></div>`).join('');
 }
 
 // ==============================
 // CHECKLISTS
 // ==============================
 async function carregarChecklists() {
-  const { data } = await db.from('checklist_templates').select('*, checklist_itens(*)').order('created_at', { ascending: false });
-  const el = document.getElementById('lista-checklists');
-  if (!data || data.length === 0) {
-    el.innerHTML = '<div class="empty"><div class="empty-icon">☑️</div><p>Nenhum checklist criado ainda</p></div>';
-    return;
-  }
-  el.innerHTML = data.map(t => `
+  const {data}=await db.from('checklist_templates').select('*,checklist_itens(*)').order('created_at',{ascending:false});
+  const el=document.getElementById('lista-checklists');
+  if(!data||data.length===0){el.innerHTML='<div class="empty"><div class="empty-icon">☑️</div><p>Nenhum checklist ainda</p></div>';return;}
+  el.innerHTML=data.map(t=>`
     <div class="card" style="margin-bottom:12px;">
       <div style="display:flex;justify-content:space-between;align-items:flex-start;">
-        <div>
-          <div style="font-weight:700;font-size:16px;">${t.titulo}</div>
-          ${t.descricao ? `<div style="font-size:13px;color:var(--text-light);">${t.descricao}</div>` : ''}
-          <div style="font-size:12px;color:var(--sfera-dark);margin-top:4px;font-weight:600;">${t.checklist_itens?.length || 0} itens</div>
-        </div>
+        <div><div style="font-weight:700;font-size:16px;">${t.titulo}</div>
+        <div style="font-size:12px;color:var(--sfera-dark);margin-top:4px;">${t.checklist_itens?.length||0} itens</div></div>
         <button class="btn btn-danger btn-sm" onclick="deletarChecklist('${t.id}')">Excluir</button>
       </div>
       <hr class="divider">
-      ${(t.checklist_itens || []).sort((a,b)=>a.ordem-b.ordem).map((item,i) => `
-        <div style="font-size:13px;padding:5px 0;border-bottom:1px solid var(--border);">${i+1}. ${item.pergunta}</div>
-      `).join('')}
-    </div>
-  `).join('');
+      ${(t.checklist_itens||[]).sort((a,b)=>a.ordem-b.ordem).map((item,i)=>`<div style="font-size:13px;padding:5px 0;border-bottom:1px solid var(--border);">${i+1}. ${item.pergunta}</div>`).join('')}
+    </div>`).join('');
 }
 
-function abrirNovoChecklist() { document.getElementById('modal-novo-cl').style.display = ''; }
-function fecharNovoChecklist() { document.getElementById('modal-novo-cl').style.display = 'none'; }
+function abrirNovoChecklist(){document.getElementById('modal-novo-cl').style.display='';}
+function fecharNovoChecklist(){document.getElementById('modal-novo-cl').style.display='none';}
 
 async function salvarNovoChecklist() {
-  const titulo = document.getElementById('cl-titulo').value.trim();
-  const desc = document.getElementById('cl-desc').value.trim();
-  const itensRaw = document.getElementById('cl-itens').value.trim();
-  if (!titulo || !itensRaw) { showToast('Preencha o título e os itens', 'error'); return; }
-
-  const { data: tmpl } = await db.from('checklist_templates').insert({ titulo, descricao: desc || null }).select().single();
-  const itens = itensRaw.split('\n').map((p,i) => p.trim()).filter(Boolean).map((pergunta, i) => ({
-    template_id: tmpl.id, ordem: i + 1, pergunta
-  }));
+  const titulo=document.getElementById('cl-titulo').value.trim();
+  const itensRaw=document.getElementById('cl-itens').value.trim();
+  if(!titulo||!itensRaw){showToast('Preencha título e itens','error');return;}
+  const {data:tmpl}=await db.from('checklist_templates').insert({titulo}).select().single();
+  const itens=itensRaw.split('\n').filter(Boolean).map((p,i)=>({template_id:tmpl.id,ordem:i+1,pergunta:p.trim()}));
   await db.from('checklist_itens').insert(itens);
-
-  document.getElementById('cl-titulo').value = '';
-  document.getElementById('cl-desc').value = '';
-  document.getElementById('cl-itens').value = '';
+  document.getElementById('cl-titulo').value='';
+  document.getElementById('cl-itens').value='';
   fecharNovoChecklist();
   carregarChecklists();
-  showToast('Checklist criado!', 'success');
+  showToast('Checklist criado!','success');
 }
 
 async function deletarChecklist(id) {
-  if (!confirm('Excluir este checklist?')) return;
-  await db.from('checklist_templates').delete().eq('id', id);
+  if(!confirm('Excluir este checklist?')) return;
+  await db.from('checklist_templates').delete().eq('id',id);
   carregarChecklists();
-  showToast('Checklist excluído');
 }
 
 // ==============================
 // UTILS
 // ==============================
-function formatData(iso) {
-  if (!iso) return '';
-  const [y,m,d] = iso.split('-');
-  return `${d}/${m}/${y}`;
-}
-function formatHora(iso) {
-  if (!iso) return '';
-  return new Date(iso).toLocaleTimeString('pt-BR', { hour:'2-digit', minute:'2-digit' });
-}
-function showToast(msg, tipo = '') {
-  const t = document.getElementById('toast');
-  t.textContent = msg;
-  t.className = 'toast show ' + tipo;
-  setTimeout(() => t.className = 'toast', 2500);
-}
-function logout() { sessionStorage.clear(); window.location.href = 'index.html'; }
+function formatData(iso){if(!iso)return'';const[y,m,d]=iso.split('-');return`${d}/${m}/${y}`;}
+function formatHora(iso){if(!iso)return'';return new Date(iso).toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit'});}
+function showToast(msg,tipo=''){const t=document.getElementById('toast');t.textContent=msg;t.className='toast show '+tipo;setTimeout(()=>t.className='toast',2500);}
+function logout(){sessionStorage.clear();window.location.href='index.html';}
 </script>
 </body>
 </html>
