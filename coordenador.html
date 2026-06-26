@@ -203,7 +203,6 @@ let supervisoras=[];
 window.addEventListener('DOMContentLoaded', async()=>{
   const u=sessionStorage.getItem('usuario');
   if(!u||JSON.parse(u).tipo!=='coordenador'){window.location.href='index.html';return;}
-  document.getElementById('filtro-data').value=new Date().toISOString().split('T')[0];
   document.getElementById('rota-data').value=new Date().toISOString().split('T')[0];
   document.getElementById('met-mes').value=new Date().getMonth()+1;
   await carregarSupervisoras();
