@@ -1335,7 +1335,9 @@ function lerArquivoPrio(file){
         const rows = XLSX.utils.sheet_to_json(wb.Sheets['CONSULTOR'], {header:1, raw:true});
         for(let i=3;i<rows.length;i++){
           const r=rows[i]; if(!r||!r[0]||!r[1]) continue;
-          if(String(r[0]).trim()==='TOTAL') continue;
+          const nome=String(r[0]).trim().toLowerCase();
+          if(nome==='total') continue;
+          if(EXCLUIR_CONSULTORAS.some(ex=>nome.includes(ex))) continue;
           consultor.push(r);
         }
       }
@@ -1366,6 +1368,19 @@ function renderPrioFiles(){
 }
 
 function removerPrioArquivo(i){ prioArquivos.splice(i,1); renderPrioFiles(); }
+
+// Nomes excluídos da análise de consultoras (parcial, lowercase)
+const EXCLUIR_CONSULTORAS = ['douglas pereira rodrigues cairo','isabele araujo adão','isabele araujo adao'];
+
+// KPIs de consultora com metas (colunas 0-based na aba CONSULTOR)
+const CONSUL_KPIS = [
+  {col:14, label:'Boleto Turbinado',   meta:0.31,  dir:'acima',  metaLabel:'≥31%'},
+  {col:16, label:'Boleto Promocional', meta:0.33,  dir:'acima',  metaLabel:'≥33%'},
+  {col:22, label:'Boletos Avulsos',    meta:0.30,  dir:'abaixo', metaLabel:'<30%'},
+  {col:24, label:'Boletos Fidelidade', meta:0.90,  dir:'acima',  metaLabel:'≥90%'},
+  {col:28, label:'Conversão Fluxo',    meta:0.28,  dir:'acima',  metaLabel:'≥28%'},
+  {col:30, label:'Cuidados Faciais',   meta:0.021, dir:'acima',  metaLabel:'≥2,1%'},
+];
 
 // helpers
 function _n(v){ if(v===null||v===undefined||v==='-'||v==='') return null; const f=parseFloat(v); return isFinite(f)?f:null; }
@@ -1432,9 +1447,8 @@ function extrasVsAno(r, header){
   return {alertas, conquistas};
 }
 
-// Consultoras: destaques e detratoras de uma loja
+// Consultoras: análise completa com KPIs vs meta
 function analiseConsultoras(code){
-  const C={receita:2, receitaAno:3, pa:10, paAno:11};
   const linhas=[];
   prioArquivos.forEach(a=>{
     a.consultor.forEach(r=>{ if(String(r[1]).trim()===code) linhas.push(r); });
@@ -1443,16 +1457,29 @@ function analiseConsultoras(code){
   const porNome={};
   linhas.forEach(r=>{
     const nome=String(r[0]).trim();
-    const rec=_n(r[C.receita])||0;
-    if(!porNome[nome] || rec>(_n(porNome[nome][C.receita])||0)) porNome[nome]=r;
+    const rec=_n(r[2])||0;
+    if(!porNome[nome] || rec>(_n(porNome[nome][2])||0)) porNome[nome]=r;
   });
-  const arr=Object.values(porNome).map(r=>({
-    nome:String(r[0]).trim(), receita:_n(r[C.receita])||0, receitaAno:_n(r[C.receitaAno]),
-    pa:_n(r[C.pa]), paAno:_n(r[C.paAno])
-  }));
-  const destaques = arr.filter(c=>c.receitaAno!==null && c.receitaAno>0).sort((a,b)=>b.receitaAno-a.receitaAno).slice(0,3);
-  const detratoras = arr.filter(c=>c.receitaAno!==null && c.receitaAno< -0.10).sort((a,b)=>a.receitaAno-b.receitaAno).slice(0,3);
-  return {destaques, detratoras, total:arr.length};
+  const arr=Object.values(porNome).map(r=>{
+    const nome=String(r[0]).trim();
+    const receita=_n(r[2])||0;
+    const receitaAno=_n(r[3]);
+    // calcular cada KPI vs meta
+    const kpis=CONSUL_KPIS.map(k=>{
+      const val=_n(r[k.col]);
+      let ok=null;
+      if(val!==null){
+        ok = k.dir==='acima' ? val>=k.meta : val<=k.meta;
+      }
+      return {label:k.label, metaLabel:k.metaLabel, val, ok};
+    });
+    const metasOk=kpis.filter(k=>k.ok===true).length;
+    const metasNok=kpis.filter(k=>k.ok===false).length;
+    return {nome, receita, receitaAno, kpis, metasOk, metasNok};
+  });
+  // ordena: mais metas batidas primeiro; entre iguais, maior receita
+  arr.sort((a,b)=> b.metasOk!==a.metasOk ? b.metasOk-a.metasOk : b.receita-a.receita);
+  return {arr, total:arr.length};
 }
 
 function severidade(score){
@@ -1585,23 +1612,30 @@ function abrirPrioLoja(i){
   const c=p.consult;
   if(c.total>0){
     html+=`<div class="card">
-      <div style="font-weight:800;font-size:14px;margin-bottom:10px;">👥 Equipe (${c.total} consultoras)</div>`;
-    if(c.destaques.length>0){
-      html+=`<div style="font-size:12px;font-weight:700;color:#0f5132;margin-bottom:6px;">⭐ Destaques — elogie em público!</div>`;
-      html+=c.destaques.map(d=>`<div style="background:#d1e7dd;border-radius:8px;padding:8px 10px;margin-bottom:6px;">
-        <div style="font-weight:700;font-size:13px;">${d.nome}</div>
-        <div style="font-size:12px;color:#0f5132;">📈 +${_pct(d.receitaAno)} em receita vs ano anterior</div>
-      </div>`).join('');
-    }
-    if(c.detratoras.length>0){
-      html+=`<div style="font-size:12px;font-weight:700;color:#856404;margin:10px 0 6px;">⚠️ Para desenvolver na visita</div>`;
-      html+=c.detratoras.map(d=>`<div style="background:#fff3cd;border-radius:8px;padding:8px 10px;margin-bottom:6px;">
-        <div style="font-weight:700;font-size:13px;">${d.nome}</div>
-        <div style="font-size:12px;color:#856404;">📉 ${_pct(d.receitaAno)} em receita vs ano anterior${d.pa!==null?` · P.A ${d.pa.toFixed(2)}`:''}</div>
-      </div>`).join('');
-    }
-    if(c.destaques.length===0 && c.detratoras.length===0)
-      html+=`<div style="font-size:12px;color:var(--text-light);">Sem variação relevante vs ano anterior.</div>`;
+      <div style="font-weight:800;font-size:14px;margin-bottom:4px;">👥 Equipe — ${c.total} consultora${c.total!==1?'s':''}</div>
+      <div style="font-size:11px;color:var(--text-light);margin-bottom:12px;">Excluídos: coordenador e suporte. Ordenado por metas atingidas.</div>`;
+    html+=c.arr.map(d=>{
+      const recTag=d.receitaAno!==null
+        ? `<span style="font-size:11px;font-weight:700;color:${d.receitaAno>=0?'#0f5132':'#842029'};">${d.receitaAno>=0?'📈 +':'📉 '}${_pct(d.receitaAno)} vs ano</span>`
+        : '';
+      const kpiPills=d.kpis.map(k=>{
+        if(k.val===null) return `<span style="background:#e9ecef;color:#6c757d;border-radius:20px;padding:2px 7px;font-size:10px;font-weight:600;">${k.label}<br><span style="font-size:9px;">— · ${k.metaLabel}</span></span>`;
+        const bg=k.ok?'#d1e7dd':'#f8d7da';
+        const cor=k.ok?'#0f5132':'#842029';
+        const icone=k.ok?'✅':'❌';
+        return `<span style="background:${bg};color:${cor};border-radius:20px;padding:3px 7px;font-size:10px;font-weight:700;display:inline-block;line-height:1.4;">${icone} ${k.label}<br><span style="font-size:9px;">${_pct(k.val)} · meta ${k.metaLabel}</span></span>`;
+      }).join(' ');
+      const totalMetas=d.kpis.filter(k=>k.val!==null).length;
+      const barCor=d.metasOk===totalMetas?'#198754':d.metasOk>=totalMetas/2?'#fd7e14':'#dc3545';
+      return `<div style="border:1px solid var(--border);border-radius:10px;padding:10px 12px;margin-bottom:10px;">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;">
+          <div style="font-weight:800;font-size:13px;">${d.nome}</div>
+          <div style="display:flex;gap:6px;align-items:center;">${recTag}</div>
+        </div>
+        <div style="font-size:11px;color:${barCor};font-weight:700;margin-bottom:6px;">${d.metasOk} de ${totalMetas} metas atingidas</div>
+        <div style="display:flex;flex-wrap:wrap;gap:4px;">${kpiPills}</div>
+      </div>`;
+    }).join('');
     html+=`</div>`;
   }
 
