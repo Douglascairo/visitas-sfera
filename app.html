@@ -1099,6 +1099,8 @@ function atualizarProgressoCl(){
 
 async function salvarChecklist() {
   if(!checklistAtual||!visitaAtual){fecharChecklist();return;}
+  const btnSalvar=document.querySelector('#modal-checklist .btn-primary');
+  if(btnSalvar){ btnSalvar.disabled=true; btnSalvar.textContent='⏳ Salvando...'; }
   clUploadFalhou=false;
   const itens=(checklistAtual.checklist_itens||[]).sort((a,b)=>a.ordem-b.ordem);
   const inserts=[];
