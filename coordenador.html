@@ -112,8 +112,19 @@
 
   <!-- ======== TAB: CHECKLISTS ======== -->
   <div id="tab-checklists" style="display:none">
-    <button class="btn btn-primary btn-full" onclick="abrirNovoChecklist()" style="margin-bottom:16px;">+ Novo Checklist</button>
+    <div style="display:flex;gap:8px;margin-bottom:8px;flex-wrap:wrap;">
+      <select class="form-control" id="cl-filtro-mes" style="flex:1;" onchange="carregarChecklists()">
+        <option value="6">Junho 2026</option>
+        <option value="5">Maio 2026</option>
+        <option value="4">Abril 2026</option>
+        <option value="3">Março 2026</option>
+      </select>
+      <select class="form-control" id="cl-filtro-sup" style="flex:1;" onchange="carregarChecklists()">
+        <option value="">Todas as supervisoras</option>
+      </select>
+    </div>
     <div id="lista-checklists"><div class="loader"><div class="spinner"></div></div></div>
+    <button class="btn btn-secondary btn-full" onclick="abrirNovoChecklist()" style="margin-top:12px;font-size:12px;">⚙️ Gerenciar templates</button>
   </div>
 
 </div>
@@ -127,6 +138,15 @@
       <button class="btn btn-secondary btn-full" onclick="fecharModal()" style="margin-top:12px;">Fechar</button>
     </div>
   </div>
+</div>
+
+<!-- MODAL: Ver Checklist Coordenador -->
+<div id="modal-cl-coord" style="display:none;position:fixed;inset:0;background:#fff;z-index:300;overflow-y:auto;">
+  <div style="position:sticky;top:0;background:#fff;border-bottom:1px solid var(--border);padding:14px 16px;display:flex;justify-content:space-between;align-items:center;z-index:10;">
+    <div style="font-weight:800;font-size:16px;">📋 Checklist</div>
+    <button onclick="document.getElementById('modal-cl-coord').style.display='none'" style="background:none;border:none;font-size:24px;cursor:pointer;">✕</button>
+  </div>
+  <div id="modal-cl-coord-body" style="padding:16px;"></div>
 </div>
 
 <!-- MODAL: Novo Checklist -->
@@ -242,7 +262,7 @@ function mudarTab(tab) {
 async function carregarSupervisoras() {
   const {data}=await db.from('supervisoras').select('*').eq('ativo',true).order('nome');
   supervisoras=data||[];
-  ['filtro-sup','rota-sup','met-sup'].forEach(selId=>{
+  ['filtro-sup','rota-sup','met-sup','cl-filtro-sup'].forEach(selId=>{
     const sel=document.getElementById(selId);
     data.forEach(s=>{const opt=document.createElement('option');opt.value=s.id;opt.textContent=s.nome;sel.appendChild(opt);});
   });
@@ -620,19 +640,142 @@ async function carregarMetricas() {
 // CHECKLISTS
 // ==============================
 async function carregarChecklists() {
-  const {data}=await db.from('checklist_templates').select('*,checklist_itens(*)').order('created_at',{ascending:false});
   const el=document.getElementById('lista-checklists');
-  if(!data||data.length===0){el.innerHTML='<div class="empty"><div class="empty-icon">☑️</div><p>Nenhum checklist ainda</p></div>';return;}
-  el.innerHTML=data.map(t=>`
-    <div class="card" style="margin-bottom:12px;">
+  el.innerHTML='<div class="loader"><div class="spinner"></div></div>';
+  const mes=parseInt(document.getElementById('cl-filtro-mes').value);
+  const supId=document.getElementById('cl-filtro-sup').value;
+  const ano=2026;
+  const inicio=`${ano}-${String(mes).padStart(2,'0')}-01`;
+  const ultimoDia=new Date(ano,mes,0).getDate();
+  const fim=`${ano}-${String(mes).padStart(2,'0')}-${ultimoDia}`;
+
+  // Buscar visitas do período
+  let qVis=db.from('visitas').select('id,data_visita,supervisora_id,loja_id,supervisoras(nome),lojas(nome)').gte('data_visita',inicio).lte('data_visita',fim);
+  if(supId) qVis=qVis.eq('supervisora_id',supId);
+  const {data:visitas}=await qVis;
+  const ids=(visitas||[]).map(v=>v.id);
+
+  if(ids.length===0){el.innerHTML='<div class="empty"><div class="empty-icon">☑️</div><p>Nenhum checklist no período</p></div>';return;}
+
+  // Buscar respostas de checklist dessas visitas
+  const {data:resps}=await db.from('checklist_respostas').select('visita_id,template_id').in('visita_id',ids);
+
+  // Buscar templates
+  const {data:templates}=await db.from('checklist_templates').select('id,titulo');
+  const tmplMap={};(templates||[]).forEach(t=>tmplMap[t.id]=t.titulo);
+
+  // Agrupar por visita+template
+  const grupos={};
+  (resps||[]).forEach(r=>{
+    const key=`${r.visita_id}__${r.template_id}`;
+    if(!grupos[key]) grupos[key]={visita_id:r.visita_id,template_id:r.template_id};
+  });
+
+  const visMap={};(visitas||[]).forEach(v=>visMap[v.id]=v);
+  const lista=Object.values(grupos).map(g=>({...g,visita:visMap[g.visita_id]}))
+    .filter(g=>g.visita)
+    .sort((a,b)=>new Date(b.visita.data_visita)-new Date(a.visita.data_visita));
+
+  if(lista.length===0){el.innerHTML='<div class="empty"><div class="empty-icon">☑️</div><p>Nenhum checklist preenchido no período</p></div>';return;}
+
+  el.innerHTML=lista.map((g,i)=>{
+    const v=g.visita;
+    const data=formatData(v.data_visita);
+    const sup=v.supervisoras?.nome?.split(' ')[1]||v.supervisoras?.nome||'—';
+    const loja=v.lojas?.nome||'—';
+    const titulo=tmplMap[g.template_id]||'Checklist';
+    return `<div class="card" style="margin-bottom:10px;cursor:pointer;" onclick="verChecklistCoord('${g.visita_id}','${g.template_id}')">
       <div style="display:flex;justify-content:space-between;align-items:flex-start;">
-        <div><div style="font-weight:700;font-size:16px;">${t.titulo}</div>
-        <div style="font-size:12px;color:var(--sfera-dark);margin-top:4px;">${t.checklist_itens?.length||0} itens</div></div>
-        <button class="btn btn-danger btn-sm" onclick="deletarChecklist('${t.id}')">Excluir</button>
+        <div style="flex:1;">
+          <div style="font-weight:800;font-size:14px;">${loja}</div>
+          <div style="font-size:12px;color:var(--text-light);margin-top:2px;">${titulo}</div>
+        </div>
+        <div style="text-align:right;flex-shrink:0;">
+          <div style="font-size:12px;font-weight:700;color:var(--sfera-dark);">${data}</div>
+          <div style="font-size:11px;color:var(--text-light);">${sup}</div>
+        </div>
       </div>
-      <hr class="divider">
-      ${(t.checklist_itens||[]).sort((a,b)=>a.ordem-b.ordem).map((item,i)=>`<div style="font-size:13px;padding:5px 0;border-bottom:1px solid var(--border);">${i+1}. ${item.pergunta}</div>`).join('')}
-    </div>`).join('');
+      <div style="margin-top:8px;font-size:11px;color:var(--sfera);font-weight:700;">Ver respostas →</div>
+    </div>`;
+  }).join('');
+}
+
+async function verChecklistCoord(visitaId, templateId){
+  const modal=document.getElementById('modal-cl-coord');
+  const body=document.getElementById('modal-cl-coord-body');
+  modal.style.display='';
+  body.innerHTML='<div class="loader"><div class="spinner"></div><p>Carregando...</p></div>';
+
+  const [{data:resps},{data:itens},{data:visita}]=await Promise.all([
+    db.from('checklist_respostas').select('*').eq('visita_id',visitaId).eq('template_id',templateId),
+    db.from('checklist_itens').select('*').eq('template_id',templateId).order('ordem'),
+    db.from('visitas').select('*,supervisoras(nome),lojas(nome)').eq('id',visitaId).single()
+  ]);
+
+  const CL_CORES={pessimo:'#dc3545',ruim:'#fd7e14',regular:'#ffc107',bom:'#0d6efd',otimo:'#198754',na:'#6c757d'};
+  const CL_LABELS={pessimo:'Péssimo',ruim:'Ruim',regular:'Regular',bom:'Bom',otimo:'Ótimo',na:'N/A'};
+  const CL_EMOJIS={pessimo:'🔴',ruim:'🟠',regular:'🟡',bom:'🔵',otimo:'🟢',na:'⬜'};
+  const respMap={};(resps||[]).forEach(r=>respMap[r.item_id]=r);
+
+  const loja=visita?.lojas?.nome||'—';
+  const sup=visita?.supervisoras?.nome||'—';
+  const data=formatData(visita?.data_visita);
+
+  // Agrupar por seção
+  const secoes={};
+  (itens||[]).forEach(item=>{
+    const s=item.secao||'Geral';
+    if(!secoes[s])secoes[s]=[];
+    secoes[s].push(item);
+  });
+
+  // Resumo por nível
+  const contagem={pessimo:0,ruim:0,regular:0,bom:0,otimo:0,na:0,sem:0};
+  (resps||[]).forEach(r=>{if(r.avaliacao)contagem[r.avaliacao]=(contagem[r.avaliacao]||0)+1;else contagem.sem++;});
+  const chamadosAbertos=(resps||[]).filter(r=>r.chamado_numero);
+  const precisaChamado=(resps||[]).filter(r=>r.precisa_chamado);
+
+  let html=`
+    <div style="background:var(--sfera-light);border-radius:10px;padding:12px;margin-bottom:16px;">
+      <div style="font-weight:800;font-size:15px;">${loja}</div>
+      <div style="font-size:12px;color:var(--text-light);">${sup} · ${data}</div>
+    </div>
+    <div style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:16px;">
+      ${Object.entries(contagem).filter(([k,v])=>v>0&&k!=='sem').map(([k,v])=>`
+        <span style="background:${CL_CORES[k]}22;color:${CL_CORES[k]};border-radius:20px;padding:4px 10px;font-size:12px;font-weight:700;">${CL_EMOJIS[k]} ${CL_LABELS[k]}: ${v}</span>`).join('')}
+    </div>`;
+
+  if(chamadosAbertos.length>0){
+    html+=`<div class="card" style="border-left:4px solid #0d6efd;margin-bottom:12px;">
+      <div style="font-weight:800;font-size:13px;margin-bottom:8px;">🎫 Chamados abertos (${chamadosAbertos.length})</div>
+      ${chamadosAbertos.map(r=>{const it=itens?.find(i=>i.id===r.item_id);return`<div style="font-size:12px;padding:4px 0;border-bottom:1px solid var(--border);">Nº ${r.chamado_numero} · ${it?.pergunta||'—'}</div>`;}).join('')}
+    </div>`;
+  }
+  if(precisaChamado.length>0){
+    html+=`<div class="card" style="border-left:4px solid #ffc107;margin-bottom:12px;">
+      <div style="font-weight:800;font-size:13px;margin-bottom:8px;">⚠️ Gerente precisa abrir chamado (${precisaChamado.length})</div>
+      ${precisaChamado.map(r=>{const it=itens?.find(i=>i.id===r.item_id);return`<div style="font-size:12px;padding:4px 0;border-bottom:1px solid var(--border);">• ${it?.pergunta||'—'}</div>`;}).join('')}
+    </div>`;
+  }
+
+  // Itens por seção
+  Object.entries(secoes).forEach(([sec,items])=>{
+    html+=`<div style="font-size:11px;font-weight:800;color:var(--sfera-dark);text-transform:uppercase;letter-spacing:1px;margin:14px 0 6px;">${sec}</div>`;
+    items.forEach(item=>{
+      const r=respMap[item.id];
+      const av=r?.avaliacao;
+      const cor=av?CL_CORES[av]:'#adb5bd';
+      const label=av?`${CL_EMOJIS[av]} ${CL_LABELS[av]}`:'— Sem resposta';
+      html+=`<div style="border:1.5px solid ${cor}33;border-left:4px solid ${cor};border-radius:8px;padding:8px 10px;margin-bottom:6px;">
+        <div style="font-size:12px;font-weight:600;margin-bottom:4px;">${item.ordem}. ${item.pergunta}</div>
+        <div style="font-size:12px;font-weight:700;color:${cor};">${label}</div>
+        ${r?.observacao?`<div style="font-size:11px;color:var(--text-light);margin-top:4px;">💬 ${r.observacao}</div>`:''}
+        ${r?.media_url?`<a href="${r.media_url}" target="_blank"><img src="${r.media_url}" style="width:60px;height:60px;object-fit:cover;border-radius:6px;margin-top:6px;"></a>`:''}
+      </div>`;
+    });
+  });
+
+  body.innerHTML=html;
 }
 
 function abrirNovoChecklist(){document.getElementById('modal-novo-cl').style.display='';}
