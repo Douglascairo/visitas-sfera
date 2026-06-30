@@ -65,9 +65,18 @@
 
   <!-- ======== TAB: ROTA ======== -->
   <div id="tab-rota" style="display:none">
-    <div style="display:flex;gap:8px;margin-bottom:16px;flex-wrap:wrap;">
-      <input type="date" id="rota-data" class="form-control" style="flex:1;" onchange="carregarRotas()">
-      <select class="form-control" id="rota-sup" style="flex:1;" onchange="carregarRotas()">
+    <div style="display:flex;gap:8px;margin-bottom:8px;flex-wrap:wrap;">
+      <div style="flex:1;min-width:130px;">
+        <label style="font-size:11px;font-weight:700;color:var(--text-light);display:block;margin-bottom:4px;">DE</label>
+        <input type="date" id="rota-data-de" class="form-control" onchange="carregarRotas()">
+      </div>
+      <div style="flex:1;min-width:130px;">
+        <label style="font-size:11px;font-weight:700;color:var(--text-light);display:block;margin-bottom:4px;">ATÉ</label>
+        <input type="date" id="rota-data-ate" class="form-control" onchange="carregarRotas()">
+      </div>
+    </div>
+    <div style="margin-bottom:12px;">
+      <select class="form-control" id="rota-sup" onchange="carregarRotas()">
         <option value="">Todas as supervisoras</option>
       </select>
     </div>
@@ -206,7 +215,9 @@ let supervisoras=[];
 window.addEventListener('DOMContentLoaded', async()=>{
   const u=sessionStorage.getItem('usuario');
   if(!u||JSON.parse(u).tipo!=='coordenador'){window.location.href='index.html';return;}
-  document.getElementById('rota-data').value=new Date().toISOString().split('T')[0];
+  const hoje=new Date().toISOString().split('T')[0];
+  document.getElementById('rota-data-de').value=hoje;
+  document.getElementById('rota-data-ate').value=hoje;
   document.getElementById('met-mes').value=new Date().getMonth()+1;
   await carregarSupervisoras();
   await carregarVisitas();
@@ -364,16 +375,18 @@ function fecharModal(){document.getElementById('modal-visita').style.display='no
 async function carregarRotas() {
   const el=document.getElementById('lista-rotas');
   el.innerHTML='<div class="loader"><div class="spinner"></div></div>';
-  const data=document.getElementById('rota-data').value;
+  const de=document.getElementById('rota-data-de').value;
+  const ate=document.getElementById('rota-data-ate').value;
   const supIdFiltro=document.getElementById('rota-sup').value;
+  if(!de||!ate){ el.innerHTML='<div class="empty"><div class="empty-icon">📅</div><p>Selecione o período</p></div>'; return; }
 
-  // Carregar tipo de dia das supervisoras
-  let qDias=db.from('dias_supervisora').select('*,supervisoras(nome,nome_curto,endereco_residencial,cidade_residencial)').eq('data',data);
+  // Carregar tipo de dia das supervisoras no período
+  let qDias=db.from('dias_supervisora').select('*,supervisoras(nome,nome_curto,endereco_residencial,cidade_residencial)').gte('data',de).lte('data',ate);
   if(supIdFiltro) qDias=qDias.eq('supervisora_id',supIdFiltro);
   const {data:dias}=await qDias;
 
-  // Carregar visitas do dia
-  let qVis=db.from('visitas').select('*,lojas(nome,cidade,estado,codigo)').eq('data_visita',data).eq('status','encerrada').order('hora_inicio');
+  // Carregar visitas do período
+  let qVis=db.from('visitas').select('*,lojas(nome,cidade,estado,codigo)').gte('data_visita',de).lte('data_visita',ate).eq('status','encerrada').order('hora_inicio');
   if(supIdFiltro) qVis=qVis.eq('supervisora_id',supIdFiltro);
   const {data:visitas}=await qVis;
 
@@ -507,18 +520,28 @@ async function carregarMetricas() {
     regs=regsData||[];
   }
 
+  // Checklists realizados no período (combinações únicas visita+template)
+  let totalCL=0;
+  if(ids.length>0){
+    const {data:clData}=await db.from('checklist_respostas').select('visita_id,template_id').in('visita_id',ids);
+    const uniq=new Set((clData||[]).map(r=>`${r.visita_id}_${r.template_id}`));
+    totalCL=uniq.size;
+  }
+
   const {data:dias}=await db.from('dias_supervisora').select('tipo,supervisora_id,supervisoras(nome)').gte('data',inicio).lte('data',fim);
 
   const total=visitas?.length||0;
   const encerradas=visitas?.filter(v=>v.status==='encerrada').length||0;
-  const mediaE=total>0?(visitas.reduce((s,v)=>s+(v.energia_time||0),0)/total).toFixed(1):'—';
+  const comE=visitas?.filter(v=>v.energia_time>0)||[];
+  const mediaE=comE.length>0?(comE.reduce((s,v)=>s+(v.energia_time||0),0)/comE.length).toFixed(1):'—';
   const totalR=regs?.length||0;
 
   document.getElementById('metrics-gerais').innerHTML=`
     <div class="metric-card"><div class="metric-num">${total}</div><div class="metric-label">Visitas realizadas</div></div>
     <div class="metric-card"><div class="metric-num">${encerradas}</div><div class="metric-label">Visitas encerradas</div></div>
     <div class="metric-card"><div class="metric-num">${mediaE}</div><div class="metric-label">Energia média</div></div>
-    <div class="metric-card"><div class="metric-num">${totalR}</div><div class="metric-label">Total de registros</div></div>`;
+    <div class="metric-card"><div class="metric-num">${totalCL}</div><div class="metric-label">Checklists feitos</div></div>
+    <div class="metric-card" style="grid-column:span 2"><div class="metric-num">${totalR}</div><div class="metric-label">Total de registros</div></div>`;
 
   const porSup={};
   (visitas||[]).forEach(v=>{
