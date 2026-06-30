@@ -502,11 +502,12 @@ function haversine(lat1,lon1,lat2,lon2) {
 // MÉTRICAS
 // ==============================
 async function carregarMetricas() {
-  const mes=document.getElementById('met-mes').value;
+  const mes=parseInt(document.getElementById('met-mes').value);
   const supId=document.getElementById('met-sup').value;
   const ano=2026;
   const inicio=`${ano}-${String(mes).padStart(2,'0')}-01`;
-  const fim=`${ano}-${String(mes).padStart(2,'0')}-31`;
+  const ultimoDia=new Date(ano,mes,0).getDate(); // último dia real do mês
+  const fim=`${ano}-${String(mes).padStart(2,'0')}-${ultimoDia}`;
 
   let qVis=db.from('visitas').select('*,supervisoras(nome,nome_curto),lojas(nome)').gte('data_visita',inicio).lte('data_visita',fim);
   if(supId) qVis=qVis.eq('supervisora_id',supId);
