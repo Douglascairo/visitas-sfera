@@ -1182,12 +1182,28 @@ function atualizarProgressoCl(){
   document.getElementById('cl-progresso').textContent=`${resp}/${total} respondidos`;
 }
 
+// Upload com timeout de 20s por foto
+async function uploadFotoComTimeout(path, file){
+  return new Promise(resolve=>{
+    const timer=setTimeout(()=>resolve({data:null,error:'timeout'}), 20000);
+    db.storage.from('visitas-midias').upload(path,file).then(res=>{
+      clearTimeout(timer); resolve(res);
+    }).catch(err=>{ clearTimeout(timer); resolve({data:null,error:err}); });
+  });
+}
+
 async function salvarChecklist() {
   if(!checklistAtual||!visitaAtual){fecharChecklist();return;}
   const btnSalvar=document.querySelector('#modal-checklist .btn-primary');
-  if(btnSalvar){ btnSalvar.disabled=true; btnSalvar.textContent='⏳ Salvando...'; }
+  const setBtnStatus=(txt)=>{ if(btnSalvar){ btnSalvar.disabled=true; btnSalvar.textContent=txt; } };
+  setBtnStatus('⏳ Preparando...');
   clUploadFalhou=false;
   const itens=(checklistAtual.checklist_itens||[]).sort((a,b)=>a.ordem-b.ordem);
+
+  // Contar fotos para mostrar progresso
+  const fotosItens=itens.filter(item=>clMediaFiles[item.id]);
+  let fotoIdx=0;
+
   const inserts=[];
   for(const item of itens){
     const r=checklistRespostas[item.id]||{};
@@ -1195,27 +1211,30 @@ async function salvarChecklist() {
     const chamadoNum=document.getElementById(`chamado-${item.id}`)?.value||'';
     let mediaUrl=null;
     if(clMediaFiles[item.id]){
+      fotoIdx++;
+      setBtnStatus(`📷 Foto ${fotoIdx}/${fotosItens.length}...`);
       const f=clMediaFiles[item.id];
       const path=`checklist/${visitaAtual.id}/${item.id}_${Date.now()}_${f.name}`;
-      const {data:up,error:upErr}=await db.storage.from('visitas-midias').upload(path,f);
-      if(upErr){ console.error('Upload falhou:',upErr); clUploadFalhou=true; }
+      const {data:up,error:upErr}=await uploadFotoComTimeout(path,f);
+      if(upErr){ console.warn('Upload falhou/timeout:',upErr); clUploadFalhou=true; }
       if(up){const {data:pub}=db.storage.from('visitas-midias').getPublicUrl(path);mediaUrl=pub?.publicUrl||null;}
     }
     inserts.push({
-      // campos para o DB
       _db:{visita_id:visitaAtual.id,template_id:checklistAtual.id,item_id:item.id,resposta:'na',avaliacao:r.avaliacao||null,observacao:obs||null,media_url:mediaUrl,chamado_numero:chamadoNum||null,precisa_chamado:r.precisaChamado||false},
-      // campos extras só para o relatório (não vão ao DB)
       item_id:item.id, pergunta_texto:item.pergunta, secao:item.secao||'Geral',
       avaliacao:r.avaliacao||null, observacao:obs||null, media_url:mediaUrl,
       chamado_numero:chamadoNum||null, precisa_chamado:r.precisaChamado||false,
       permite_chamado:item.permite_chamado||false
     });
   }
+
+  setBtnStatus('💾 Salvando respostas...');
   const {error}=await db.from('checklist_respostas').insert(inserts.map(i=>i._db));
   if(error){
-    const btnSalvar2=document.querySelector('#modal-checklist .btn-primary');
-    if(btnSalvar2){btnSalvar2.disabled=false;btnSalvar2.textContent='✓ Salvar Checklist';}
-    showToast('Erro ao salvar','error');console.error(error);return;
+    if(btnSalvar){btnSalvar.disabled=false;btnSalvar.textContent='✓ Salvar Checklist';}
+    showToast('Erro ao salvar: '+error.message,'error');
+    console.error('Erro checklist_respostas:',error);
+    return;
   }
   limparRascunho(checklistAtual.id);
   fecharChecklist();
