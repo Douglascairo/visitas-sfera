@@ -956,6 +956,27 @@ const CL_CORES={pessimo:'#dc3545',ruim:'#fd7e14',regular:'#ffc107',bom:'#0d6efd'
 const CL_LABELS={pessimo:'Péssimo',ruim:'Ruim',regular:'Regular',bom:'Bom',otimo:'Ótimo'};
 const CL_EMOJIS={pessimo:'🔴',ruim:'🟠',regular:'🟡',bom:'🔵',otimo:'🟢'};
 
+function _clDraftKey(templateId){ return `cl_draft_${visitaAtual?.id}_${templateId}`; }
+
+function autoSalvarRascunho(){
+  if(!checklistAtual||!visitaAtual) return;
+  // Captura obs e chamados do DOM no momento atual
+  const obs={}, chamados={}, precisaChamado={};
+  (checklistAtual.checklist_itens||[]).forEach(item=>{
+    const o=document.getElementById(`obs-${item.id}`)?.value||'';
+    const c=document.getElementById(`chamado-${item.id}`)?.value||'';
+    if(o) obs[item.id]=o;
+    if(c) chamados[item.id]=c;
+    if(checklistRespostas[item.id]?.precisaChamado) precisaChamado[item.id]=true;
+  });
+  const draft={respostas:checklistRespostas, obs, chamados, precisaChamado, ts:Date.now()};
+  try{ localStorage.setItem(_clDraftKey(checklistAtual.id), JSON.stringify(draft)); }catch(e){}
+}
+
+function limparRascunho(templateId){
+  try{ localStorage.removeItem(_clDraftKey(templateId)); }catch(e){}
+}
+
 async function abrirChecklist(template) {
   checklistAtual=template; checklistRespostas={}; clMediaFiles={}; clHistorico={}; clFiltroSoChamados=false;
   const btn=document.getElementById('btn-filtro-chamado');
@@ -1040,8 +1061,44 @@ async function abrirChecklist(template) {
   });
 
   document.getElementById('modal-cl-itens').innerHTML=html;
+
+  // Restaurar rascunho salvo (se existir)
+  let temRascunho=false;
+  try{
+    const saved=localStorage.getItem(_clDraftKey(template.id));
+    if(saved){
+      const draft=JSON.parse(saved);
+      // Restaurar avaliações
+      Object.entries(draft.respostas||{}).forEach(([itemId,r])=>{
+        if(r.avaliacao) avaliarItem(itemId, r.avaliacao);
+        if(r.precisaChamado){ checklistRespostas[itemId]=checklistRespostas[itemId]||{}; checklistRespostas[itemId].precisaChamado=true; }
+      });
+      // Restaurar precisaChamado (botões)
+      Object.keys(draft.precisaChamado||{}).forEach(itemId=>{
+        if(!checklistRespostas[itemId])checklistRespostas[itemId]={};
+        checklistRespostas[itemId].precisaChamado=true;
+        const btn=document.getElementById(`btn-abrir-${itemId}`);
+        if(btn){ btn.style.background='#ffc107'; btn.style.fontWeight='800'; btn.textContent='✅ Gerente abre'; }
+      });
+      // Restaurar observações e chamados
+      Object.entries(draft.obs||{}).forEach(([itemId,v])=>{ const el=document.getElementById(`obs-${itemId}`); if(el) el.value=v; });
+      Object.entries(draft.chamados||{}).forEach(([itemId,v])=>{ const el=document.getElementById(`chamado-${itemId}`); if(el) el.value=v; });
+      temRascunho=Object.keys(draft.respostas||{}).length>0;
+    }
+  }catch(e){}
+
+  // Auto-save nas observações e chamados (debounce)
+  let _clSaveTimer=null;
+  document.getElementById('modal-cl-itens').addEventListener('input', ()=>{
+    clearTimeout(_clSaveTimer); _clSaveTimer=setTimeout(autoSalvarRascunho, 800);
+  });
+
   atualizarProgressoCl();
   document.getElementById('modal-checklist').scrollTop=0;
+
+  if(temRascunho){
+    showToast('▶️ Continuando de onde você parou!','');
+  }
 }
 
 function avaliarItem(itemId,av){
@@ -1071,6 +1128,7 @@ function avaliarItem(itemId,av){
     if(badge) badge.style.display='none';
   }
   atualizarProgressoCl();
+  autoSalvarRascunho();
 }
 
 function marcarAbrirChamado(itemId){
@@ -1081,6 +1139,7 @@ function marcarAbrirChamado(itemId){
   btn.style.background=marcado?'#ffc107':'#fff3cd';
   btn.style.fontWeight=marcado?'800':'';
   btn.textContent=marcado?'✅ Gerente abre':'📋 Gerente abre';
+  autoSalvarRascunho();
 }
 
 function previewClFoto(itemId){
@@ -1127,7 +1186,12 @@ async function salvarChecklist() {
     });
   }
   const {error}=await db.from('checklist_respostas').insert(inserts.map(i=>i._db));
-  if(error){showToast('Erro ao salvar','error');console.error(error);return;}
+  if(error){
+    const btnSalvar2=document.querySelector('#modal-checklist .btn-primary');
+    if(btnSalvar2){btnSalvar2.disabled=false;btnSalvar2.textContent='✓ Salvar Checklist';}
+    showToast('Erro ao salvar','error');console.error(error);return;
+  }
+  limparRascunho(checklistAtual.id);
   fecharChecklist();
   if(clUploadFalhou){ showToast('Checklist salvo, mas as fotos falharam (bucket ausente)','error'); }
   mostrarRelatorioChecklist(inserts);
