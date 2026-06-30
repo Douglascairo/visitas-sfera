@@ -1022,28 +1022,34 @@ async function abrirChecklist(template) {
           ${temHistCritico?`<span id="badge-hist-${item.id}" style="display:none;margin-left:6px;background:#ffc107;color:#000;font-size:10px;font-weight:800;padding:2px 6px;border-radius:10px;">⚠️ REINCIDENTE</span>`:''}
         </div>
         ${alertaHtml}
-        <!-- Avaliação: linha 1 = críticos, linha 2 = positivos -->
+        <!-- Avaliação: linha 1 = críticos, linha 2 = positivos + N/A -->
         <div class="cl-aval-grid">
           ${['pessimo','ruim','regular'].map(av=>`<button id="av-${av}-${item.id}" class="cl-aval-btn" onclick="avaliarItem('${item.id}','${av}')"
             style="border-color:${CL_CORES[av]};color:${CL_CORES[av]};">
             <span class="cl-dot">${CL_EMOJIS[av]}</span>${CL_LABELS[av]}
           </button>`).join('')}
         </div>
-        <div class="cl-aval-grid-2">
+        <div class="cl-aval-grid" style="grid-template-columns:1fr 1fr 1fr;">
           ${['bom','otimo'].map(av=>`<button id="av-${av}-${item.id}" class="cl-aval-btn" onclick="avaliarItem('${item.id}','${av}')"
             style="border-color:${CL_CORES[av]};color:${CL_CORES[av]};">
             <span class="cl-dot">${CL_EMOJIS[av]}</span>${CL_LABELS[av]}
           </button>`).join('')}
+          <button id="av-na-${item.id}" class="cl-aval-btn" onclick="avaliarItem('${item.id}','na')"
+            style="border-color:#adb5bd;color:#6c757d;">
+            <span class="cl-dot">⬜</span>N/A
+          </button>
         </div>
         ${alertaHtml?`<div id="alerta-hist-wrap-${item.id}" style="display:none;">${alertaHtml}</div>`:''}
         <!-- Observação -->
         <textarea id="obs-${item.id}" placeholder="Observação (opcional)..." rows="2"
           style="width:100%;border:1.5px solid var(--border);border-radius:8px;padding:8px;font-size:13px;resize:none;box-sizing:border-box;font-family:inherit;margin-bottom:8px;"></textarea>
-        <!-- Foto -->
+        <!-- Foto: câmera ao vivo + opção de galeria -->
         <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px;">
-          <input type="file" id="foto-${item.id}" accept="image/*,video/*" capture="environment" style="display:none" onchange="previewClFoto('${item.id}')">
-          <button type="button" class="btn btn-secondary btn-sm" onclick="document.getElementById('foto-${item.id}').click()">📷 Foto</button>
-          <span id="foto-label-${item.id}" style="font-size:12px;color:var(--text-light);"></span>
+          <input type="file" id="foto-${item.id}" accept="image/*" capture="environment" style="display:none" onchange="previewClFoto('${item.id}')">
+          <input type="file" id="foto-gal-${item.id}" accept="image/*" style="display:none" onchange="previewClFotoGal('${item.id}')">
+          <button type="button" class="btn btn-secondary btn-sm" onclick="document.getElementById('foto-${item.id}').click()">📷 Tirar foto</button>
+          <button type="button" class="btn btn-secondary btn-sm" onclick="document.getElementById('foto-gal-${item.id}').click()">🖼️ Galeria</button>
+          <span id="foto-label-${item.id}" style="font-size:12px;color:var(--text-light);flex:1;"></span>
         </div>
         ${item.permite_chamado?`
         <div style="border-top:1px dashed var(--border);padding-top:8px;margin-top:4px;">
@@ -1102,30 +1108,43 @@ async function abrirChecklist(template) {
 }
 
 function avaliarItem(itemId,av){
-  ['pessimo','ruim','regular','bom','otimo'].forEach(a=>{
+  ['pessimo','ruim','regular','bom','otimo','na'].forEach(a=>{
     const b=document.getElementById(`av-${a}-${itemId}`);
     if(!b)return;
-    b.style.background=a===av?CL_CORES[a]:'#fff';
-    b.style.color=a===av?'#fff':CL_CORES[a];
+    if(a==='na'){
+      b.style.background=a===av?'#6c757d':'#fff';
+      b.style.color=a===av?'#fff':'#6c757d';
+    } else {
+      b.style.background=a===av?CL_CORES[a]:'#fff';
+      b.style.color=a===av?'#fff':CL_CORES[a];
+    }
   });
   if(!checklistRespostas[itemId])checklistRespostas[itemId]={};
   checklistRespostas[itemId].avaliacao=av;
 
-  // Alerta de reincidência em tempo real
-  const hist=clHistorico[itemId]||[];
-  const histCriticos=hist.filter(h=>CL_NIVEIS_CRITICOS.has(h));
-  const isCritico=CL_NIVEIS_CRITICOS.has(av);
   const wrap=document.getElementById(`item-wrap-${itemId}`);
-  const alertaWrap=document.getElementById(`alerta-hist-wrap-${itemId}`);
-  const badge=document.getElementById(`badge-hist-${itemId}`);
-  if(isCritico && histCriticos.length>0){
-    if(wrap) wrap.style.border='2px solid #ffc107';
-    if(alertaWrap) alertaWrap.style.display='';
-    if(badge) badge.style.display='inline';
-  } else {
-    if(wrap) wrap.style.border=isCritico?`2px solid ${CL_CORES[av]}`:'1.5px solid var(--border)';
+  if(av==='na'){
+    if(wrap) wrap.style.border='1.5px solid #adb5bd';
+    const alertaWrap=document.getElementById(`alerta-hist-wrap-${itemId}`);
+    const badge=document.getElementById(`badge-hist-${itemId}`);
     if(alertaWrap) alertaWrap.style.display='none';
     if(badge) badge.style.display='none';
+  } else {
+    // Alerta de reincidência em tempo real
+    const hist=clHistorico[itemId]||[];
+    const histCriticos=hist.filter(h=>CL_NIVEIS_CRITICOS.has(h));
+    const isCritico=CL_NIVEIS_CRITICOS.has(av);
+    const alertaWrap=document.getElementById(`alerta-hist-wrap-${itemId}`);
+    const badge=document.getElementById(`badge-hist-${itemId}`);
+    if(isCritico && histCriticos.length>0){
+      if(wrap) wrap.style.border='2px solid #ffc107';
+      if(alertaWrap) alertaWrap.style.display='';
+      if(badge) badge.style.display='inline';
+    } else {
+      if(wrap) wrap.style.border=isCritico?`2px solid ${CL_CORES[av]}`:'1.5px solid var(--border)';
+      if(alertaWrap) alertaWrap.style.display='none';
+      if(badge) badge.style.display='none';
+    }
   }
   atualizarProgressoCl();
   autoSalvarRascunho();
@@ -1146,7 +1165,14 @@ function previewClFoto(itemId){
   const f=document.getElementById(`foto-${itemId}`).files[0];
   if(!f)return;
   clMediaFiles[itemId]=f;
-  document.getElementById(`foto-label-${itemId}`).textContent=f.name;
+  document.getElementById(`foto-label-${itemId}`).textContent='📷 '+f.name;
+}
+
+function previewClFotoGal(itemId){
+  const f=document.getElementById(`foto-gal-${itemId}`).files[0];
+  if(!f)return;
+  clMediaFiles[itemId]=f;
+  document.getElementById(`foto-label-${itemId}`).textContent='🖼️ '+f.name;
 }
 
 function atualizarProgressoCl(){
