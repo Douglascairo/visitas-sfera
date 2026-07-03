@@ -139,6 +139,18 @@
       </div>
     </div>
 
+    <!-- Histórico de Checklists -->
+    <div class="card" style="background:linear-gradient(135deg,#1a5c2e 0%,#28a745 100%);color:white;cursor:pointer;border:none;" onclick="irHistoricoChecklist()">
+      <div style="display:flex;align-items:center;gap:14px;">
+        <div style="font-size:34px;">📋</div>
+        <div style="flex:1;">
+          <div style="font-size:15px;font-weight:800;">Histórico de Checklists</div>
+          <div style="font-size:12px;opacity:0.9;margin-top:2px;">Veja a evolução de cada loja — médias e tendências por pergunta</div>
+        </div>
+        <div style="font-size:22px;">→</div>
+      </div>
+    </div>
+
     <!-- Prioridade de rota -->
     <div class="card" style="background:linear-gradient(135deg,#042C53 0%,#1BA8D9 100%);color:white;cursor:pointer;border:none;" onclick="irPrioridade()">
       <div style="display:flex;align-items:center;gap:14px;">
@@ -218,6 +230,24 @@
 
     <div id="prio-loading" style="display:none;" class="loader"><div class="spinner"></div><p style="font-size:13px;">Analisando indicadores...</p></div>
     <div id="prio-resultado"></div>
+  </div>
+
+  <!-- TELA: HISTÓRICO DE CHECKLISTS -->
+  <div id="tela-historico-cl" style="display:none">
+    <div style="display:flex;align-items:center;gap:10px;margin-bottom:16px;">
+      <button onclick="irHome()" style="background:none;border:none;font-size:22px;cursor:pointer;padding:4px;">←</button>
+      <div style="font-size:18px;font-weight:800;">📋 Histórico de Checklists</div>
+    </div>
+    <div id="hist-cl-lista"><div class="loader"><div class="spinner"></div><p>Carregando...</p></div></div>
+  </div>
+
+  <!-- MODAL: Histórico detalhe loja -->
+  <div id="modal-hist-cl" style="display:none;position:fixed;inset:0;background:#fff;z-index:210;overflow-y:auto;">
+    <div style="position:sticky;top:0;background:#fff;border-bottom:1.5px solid var(--border);z-index:10;padding:14px 16px;display:flex;align-items:center;justify-content:space-between;">
+      <div id="modal-hist-cl-titulo" style="font-weight:800;font-size:16px;"></div>
+      <button onclick="document.getElementById('modal-hist-cl').style.display='none'" style="background:none;border:none;font-size:24px;cursor:pointer;padding:4px;">✕</button>
+    </div>
+    <div id="modal-hist-cl-body" style="padding:16px;"></div>
   </div>
 
   <!-- MODAL: Detalhe loja prioridade -->
@@ -541,11 +571,191 @@ window.addEventListener('DOMContentLoaded', async () => {
 // NAVEGAÇÃO
 // ==============================
 function mostrarTela(id) {
-  ['tela-home','tela-selecionar-loja','tela-prioridade','tela-plano-revisao','tela-energia','tela-visita','tela-encerrar','tela-encerrada']
+  ['tela-home','tela-selecionar-loja','tela-prioridade','tela-historico-cl','tela-plano-revisao','tela-energia','tela-visita','tela-encerrar','tela-encerrada']
     .forEach(t => document.getElementById(t).style.display = t===id ? '':'none');
   window.scrollTo(0,0);
 }
 function irPrioridade() { mostrarTela('tela-prioridade'); }
+
+// ==============================
+// HISTÓRICO DE CHECKLISTS
+// ==============================
+const CL_SCORE={pessimo:1,ruim:2,regular:3,bom:4,otimo:5};
+const CL_CORES_H={pessimo:'#dc3545',ruim:'#fd7e14',regular:'#ffc107',bom:'#0d6efd',otimo:'#198754',na:'#adb5bd'};
+const CL_LABELS_H={pessimo:'Péssimo',ruim:'Ruim',regular:'Regular',bom:'Bom',otimo:'Ótimo',na:'N/A'};
+const CL_EMOJIS_H={pessimo:'🔴',ruim:'🟠',regular:'🟡',bom:'🔵',otimo:'🟢',na:'⬜'};
+
+async function irHistoricoChecklist(){
+  mostrarTela('tela-historico-cl');
+  const el=document.getElementById('hist-cl-lista');
+  el.innerHTML='<div class="loader"><div class="spinner"></div><p>Carregando...</p></div>';
+
+  // Buscar todas as visitas da supervisora
+  const {data:visitas}=await db.from('visitas').select('id,loja_id,data_visita,lojas(nome,cidade)').eq('supervisora_id',usuario.id).order('data_visita',{ascending:false});
+  if(!visitas||visitas.length===0){el.innerHTML='<div class="empty"><div class="empty-icon">📋</div><p>Nenhum checklist realizado ainda</p></div>';return;}
+
+  const visIds=visitas.map(v=>v.id);
+  // Buscar respostas de checklist
+  const {data:resps}=await db.from('checklist_respostas').select('visita_id,template_id,item_id,avaliacao').in('visita_id',visIds);
+  if(!resps||resps.length===0){el.innerHTML='<div class="empty"><div class="empty-icon">📋</div><p>Nenhum checklist preenchido ainda</p></div>';return;}
+
+  // Buscar templates
+  const {data:templates}=await db.from('checklist_templates').select('id,titulo');
+  const tmplMap={};(templates||[]).forEach(t=>tmplMap[t.id]=t.titulo);
+
+  // Buscar itens
+  const tmplIds=[...new Set(resps.map(r=>r.template_id))];
+  const {data:itens}=await db.from('checklist_itens').select('id,template_id,ordem,pergunta,secao').in('template_id',tmplIds).order('ordem');
+
+  // Mapear visita → loja
+  const visMap={};visitas.forEach(v=>visMap[v.id]=v);
+
+  // Agrupar por loja → por template → por visita (execuções únicas)
+  const porLoja={};
+  resps.forEach(r=>{
+    const v=visMap[r.visita_id]; if(!v) return;
+    const lojaId=v.loja_id;
+    if(!porLoja[lojaId]) porLoja[lojaId]={loja:v.lojas,execucoes:{}};
+    const key=`${r.visita_id}__${r.template_id}`;
+    if(!porLoja[lojaId].execucoes[key]) porLoja[lojaId].execucoes[key]={visita_id:r.visita_id,template_id:r.template_id,data:v.data_visita,resps:{}};
+    porLoja[lojaId].execucoes[key].resps[r.item_id]=r.avaliacao;
+  });
+
+  const lojasSorted=Object.entries(porLoja).sort((a,b)=>Object.keys(b[1].execucoes).length-Object.keys(a[1].execucoes).length);
+
+  if(lojasSorted.length===0){el.innerHTML='<div class="empty"><div class="empty-icon">📋</div><p>Nenhum checklist ainda</p></div>';return;}
+
+  el.innerHTML=lojasSorted.map(([lojaId,dados])=>{
+    const execs=Object.values(dados.execucoes).sort((a,b)=>new Date(b.data)-new Date(a.data));
+    const nExecs=execs.length;
+
+    // Calcular média geral (média das médias por execução)
+    const mediasExec=execs.map(ex=>{
+      const vals=Object.values(ex.resps).map(av=>CL_SCORE[av]).filter(Boolean);
+      return vals.length>0?vals.reduce((a,b)=>a+b,0)/vals.length:null;
+    }).filter(v=>v!==null);
+    const mediaGeral=mediasExec.length>0?(mediasExec.reduce((a,b)=>a+b,0)/mediasExec.length):0;
+    const corMedia=mediaGeral>=4?'#198754':mediaGeral>=3?'#ffc107':'#dc3545';
+    const estrelas=mediaGeral>=4.5?'⭐⭐⭐':mediaGeral>=3.5?'⭐⭐':mediaGeral>=2.5?'⭐':'';
+
+    // Última data
+    const ultimaData=execs[0]?.data?new Date(execs[0].data).toLocaleDateString('pt-BR'):'—';
+
+    return `<div class="card" style="margin-bottom:12px;cursor:pointer;" onclick="verHistoricoLoja('${lojaId}')">
+      <div style="display:flex;justify-content:space-between;align-items:flex-start;">
+        <div style="flex:1;">
+          <div style="font-weight:800;font-size:15px;">${dados.loja?.nome||'—'}</div>
+          <div style="font-size:12px;color:var(--text-light);margin-top:2px;">${dados.loja?.cidade||''}</div>
+        </div>
+        <div style="text-align:right;flex-shrink:0;margin-left:12px;">
+          <div style="font-size:22px;font-weight:900;color:${corMedia};">${mediaGeral.toFixed(1)}</div>
+          <div style="font-size:10px;color:var(--text-light);">média geral</div>
+        </div>
+      </div>
+      <div style="display:flex;gap:10px;margin-top:10px;align-items:center;">
+        <span style="background:var(--sfera-light);color:var(--sfera-dark);border-radius:20px;padding:3px 10px;font-size:12px;font-weight:700;">🗓 ${nExecs} checklist${nExecs!==1?'s':''}</span>
+        <span style="font-size:12px;color:var(--text-light);">Último: ${ultimaData}</span>
+        ${estrelas?`<span style="font-size:13px;">${estrelas}</span>`:''}
+      </div>
+      <div style="margin-top:8px;font-size:11px;color:var(--sfera);font-weight:700;">Ver detalhes por pergunta →</div>
+    </div>`;
+  }).join('');
+
+  // Guardar dados para o modal
+  window._histClDados={porLoja, visMap, itens, tmplMap};
+}
+
+function verHistoricoLoja(lojaId){
+  const {porLoja,itens,tmplMap}=window._histClDados;
+  const dados=porLoja[lojaId]; if(!dados) return;
+  const execs=Object.values(dados.execucoes).sort((a,b)=>new Date(b.data)-new Date(a.data));
+
+  document.getElementById('modal-hist-cl-titulo').textContent=dados.loja?.nome||'Loja';
+
+  // Agrupar itens por seção e calcular média por item
+  const itensPorId={};(itens||[]).forEach(i=>itensPorId[i.id]=i);
+  const secoes={};
+  (itens||[]).forEach(item=>{
+    const s=item.secao||'Geral';
+    if(!secoes[s])secoes[s]=[];
+    // Para cada item, pegar todas as avaliações em todas as execuções desta loja
+    const avaliacoes=execs.map(ex=>ex.resps[item.id]).filter(av=>av&&av!=='na');
+    const scores=avaliacoes.map(av=>CL_SCORE[av]).filter(Boolean);
+    const media=scores.length>0?scores.reduce((a,b)=>a+b,0)/scores.length:null;
+    // Distribuição
+    const dist={pessimo:0,ruim:0,regular:0,bom:0,otimo:0};
+    avaliacoes.forEach(av=>{if(dist[av]!==undefined)dist[av]++;});
+    // Tendência: comparar último vs penúltimo
+    let tendencia=null;
+    if(execs.length>=2){
+      const ult=CL_SCORE[execs[0].resps[item.id]];
+      const pen=CL_SCORE[execs[1].resps[item.id]];
+      if(ult&&pen) tendencia=ult>pen?'up':ult<pen?'down':'eq';
+    }
+    secoes[s].push({...item,media,dist,avaliacoes,tendencia,nResps:scores.length});
+  });
+
+  let html=`
+    <div style="background:var(--sfera-light);border-radius:10px;padding:10px 14px;margin-bottom:16px;display:flex;gap:16px;align-items:center;">
+      <div><div style="font-size:22px;font-weight:900;color:var(--sfera-dark);">${execs.length}</div><div style="font-size:11px;color:var(--text-light);">checklists</div></div>
+      <div style="flex:1;">
+        <div style="font-size:12px;color:var(--text-light);margin-bottom:4px;">Realizados em:</div>
+        ${execs.slice(0,5).map(ex=>`<span style="font-size:11px;background:#fff;border:1px solid var(--border);border-radius:12px;padding:2px 8px;margin-right:4px;">${new Date(ex.data).toLocaleDateString('pt-BR')}</span>`).join('')}
+        ${execs.length>5?`<span style="font-size:11px;color:var(--text-light);">+${execs.length-5}</span>`:''}
+      </div>
+    </div>`;
+
+  Object.entries(secoes).forEach(([sec,items])=>{
+    // Média da seção
+    const mediaSec=items.filter(i=>i.media!==null).map(i=>i.media);
+    const mediaSecVal=mediaSec.length>0?mediaSec.reduce((a,b)=>a+b,0)/mediaSec.length:null;
+    const corSec=mediaSecVal>=4?'#198754':mediaSecVal>=3?'#fd7e14':'#dc3545';
+
+    html+=`<div style="background:var(--bg);border-radius:10px;padding:10px 12px;margin-bottom:14px;">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;">
+        <div style="font-size:12px;font-weight:800;color:var(--sfera-dark);text-transform:uppercase;letter-spacing:0.5px;">${sec}</div>
+        ${mediaSecVal!==null?`<span style="font-size:13px;font-weight:800;color:${corSec};">Média ${mediaSecVal.toFixed(1)}</span>`:''}
+      </div>`;
+
+    items.forEach(item=>{
+      if(item.media===null){
+        html+=`<div style="padding:8px 0;border-bottom:1px solid var(--border);opacity:0.5;">
+          <div style="font-size:12px;">${item.ordem}. ${item.pergunta}</div>
+          <div style="font-size:11px;color:var(--text-light);">Sem respostas registradas</div>
+        </div>`;
+        return;
+      }
+      const cor=item.media>=4?'#198754':item.media>=3?'#fd7e14':'#dc3545';
+      const tendIcon=item.tendencia==='up'?'↑':item.tendencia==='down'?'↓':item.tendencia==='eq'?'→':'';
+      const tendCor=item.tendencia==='up'?'#198754':item.tendencia==='down'?'#dc3545':'#6c757d';
+      // Barra de distribuição
+      const total=item.nResps||1;
+      const barDist=['pessimo','ruim','regular','bom','otimo'].map(av=>item.dist[av]>0
+        ?`<div title="${CL_LABELS_H[av]}: ${item.dist[av]}x" style="flex:${item.dist[av]};background:${CL_CORES_H[av]};height:6px;"></div>`:''
+      ).join('');
+
+      html+=`<div style="padding:8px 0;border-bottom:1px solid var(--border);">
+        <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:8px;">
+          <div style="font-size:12px;font-weight:600;flex:1;line-height:1.4;">${item.ordem}. ${item.pergunta}</div>
+          <div style="flex-shrink:0;text-align:right;">
+            <span style="font-size:16px;font-weight:900;color:${cor};">${item.media.toFixed(1)}</span>
+            ${tendIcon?`<span style="font-size:14px;color:${tendCor};margin-left:3px;">${tendIcon}</span>`:''}
+          </div>
+        </div>
+        <div style="display:flex;border-radius:4px;overflow:hidden;margin-top:6px;height:6px;background:var(--border);">${barDist}</div>
+        <div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:4px;">
+          ${['pessimo','ruim','regular','bom','otimo'].filter(av=>item.dist[av]>0).map(av=>`<span style="font-size:10px;color:${CL_CORES_H[av]};">${CL_EMOJIS_H[av]}×${item.dist[av]}</span>`).join('')}
+          <span style="font-size:10px;color:var(--text-light);">${item.nResps} resp.</span>
+        </div>
+      </div>`;
+    });
+    html+='</div>';
+  });
+
+  document.getElementById('modal-hist-cl-body').innerHTML=html;
+  document.getElementById('modal-hist-cl').style.display='';
+  document.getElementById('modal-hist-cl').scrollTop=0;
+}
 function irHome() { mostrarTela('tela-home'); carregarVisitasHoje(); carregarHistorico(tabHistAtual); }
 function voltarLoja() { mostrarTela('tela-selecionar-loja'); }
 function voltarParaPlanoOuLoja() { planosAnteriores.length>0 ? mostrarTela('tela-plano-revisao') : mostrarTela('tela-selecionar-loja'); }
@@ -1442,8 +1652,10 @@ function lerArquivoPrio(file){
       }
       // CONSULTOR
       const consultor=[];
+      let headerCONSUL=[];
       if(wb.Sheets['CONSULTOR']){
         const rows = XLSX.utils.sheet_to_json(wb.Sheets['CONSULTOR'], {header:1, raw:true});
+        headerCONSUL = rows[0]||[];
         for(let i=3;i<rows.length;i++){
           const r=rows[i]; if(!r||!r[0]||!r[1]) continue;
           const nome=String(r[0]).trim().toLowerCase();
@@ -1452,7 +1664,7 @@ function lerArquivoPrio(file){
           consultor.push(r);
         }
       }
-      prioArquivos.push({nome:file.name, periodo, dias, pdv, consultor, headerPDV});
+      prioArquivos.push({nome:file.name, periodo, dias, pdv, consultor, headerPDV, headerCONSUL});
       renderPrioFiles();
     }catch(err){
       console.error(err);
@@ -1482,6 +1694,12 @@ function removerPrioArquivo(i){ prioArquivos.splice(i,1); renderPrioFiles(); }
 
 // Nomes excluídos da análise de consultoras (parcial, lowercase)
 const EXCLUIR_CONSULTORAS = ['douglas pereira rodrigues cairo','isabele araujo adão','isabele araujo adao'];
+
+// KPIs da loja — colunas 0-based na aba PDV (valores absolutos)
+const LOJA_KPIS = [
+  {col:7,  label:'TKM',  meta:160, dir:'acima', metaLabel:'≥R$160', fmt:'currency'},
+  {col:13, label:'P.A.', meta:2.5, dir:'acima', metaLabel:'≥2,5',   fmt:'decimal1'},
+];
 
 // KPIs de consultora com metas (colunas 0-based na aba CONSULTOR)
 const CONSUL_KPIS = [
@@ -1541,29 +1759,56 @@ function reasonsPDV(r){
   return {alertas, conquistas};
 }
 
+// Indicadores onde subir é RUIM (meta = ficar abaixo)
+const EXTRAS_INVERTIDOS = ['avulso','boleto 1','boletos 1','desconto'];
+
 // Varre TODAS as colunas "Vs. Período Anterior" para alertas/conquistas extras
 function extrasVsAno(r, header){
   const coreVsAno = new Set([PDV_COLS.receitaAno,PDV_COLS.fluxoAno,PDV_COLS.ticketAno,PDV_COLS.pecasAno,PDV_COLS.paAno]);
   const alertas=[], conquistas=[];
   for(let g=0; (1+3*g)<r.length; g++){
     const vIdx=1+3*g, perIdx=3+3*g;
-    if(coreVsAno.has(perIdx)) continue;            // já tratados no core
+    if(coreVsAno.has(perIdx)) continue;
     const nome = header[vIdx] ? String(header[vIdx]).trim() : null;
     if(!nome || nome==='-') continue;
     const v=_n(r[perIdx]);
-    if(v===null || Math.abs(v)<0.01) continue;     // ignora ~0
-    if(v<0) alertas.push(`${nome}: <strong>${_pct(v)}</strong>`);
-    else conquistas.push(`${nome}: <strong>+${_pct(v)}</strong>`);
+    if(v===null || Math.abs(v)<0.01) continue;
+    const nomeLow=nome.toLowerCase();
+    const invertido=EXTRAS_INVERTIDOS.some(k=>nomeLow.includes(k));
+    const eBom = invertido ? v<0 : v>0;
+    if(eBom) conquistas.push(`${nome}: <strong>${v>0?'+':''}${_pct(v)}</strong>`);
+    else alertas.push(`${nome}: <strong>${v>0?'+':''}${_pct(v)}</strong>`);
   }
   return {alertas, conquistas};
+}
+
+// Encontra coluna no header da aba CONSULTOR por palavra-chave (case-insensitive)
+function _findCol(header, ...keywords){
+  if(!header) return null;
+  for(let i=0;i<header.length;i++){
+    const h=String(header[i]||'').toLowerCase();
+    if(keywords.some(k=>h.includes(k))) return i;
+  }
+  return null;
 }
 
 // Consultoras: análise completa com KPIs vs meta
 function analiseConsultoras(code){
   const linhas=[];
+  let header=[];
   prioArquivos.forEach(a=>{
     a.consultor.forEach(r=>{ if(String(r[1]).trim()===code) linhas.push(r); });
+    if(a.headerCONSUL && a.headerCONSUL.length>header.length) header=a.headerCONSUL;
   });
+
+  // KPIs extras dinâmicos: TKM e PA (busca pelo header)
+  const colTKM = _findCol(header,'ticket médio','tkm','ticket medio');
+  const colPA  = _findCol(header,'p.a.','i.p.b','itens/boleto','itens por boleto','p.a ','ipa ');
+  const extraKpis=[];
+  if(colTKM!==null) extraKpis.push({col:colTKM, label:'TKM', meta:160, dir:'acima', metaLabel:'≥R$160', fmt:'currency'});
+  if(colPA!==null)  extraKpis.push({col:colPA,  label:'P.A.', meta:2.5, dir:'acima', metaLabel:'≥2,5', fmt:'decimal1'});
+  const todosKpis=[...CONSUL_KPIS, ...extraKpis];
+
   // dedup por nome (mantém a de maior receita)
   const porNome={};
   linhas.forEach(r=>{
@@ -1576,7 +1821,7 @@ function analiseConsultoras(code){
     const receita=_n(r[2])||0;
     const receitaAno=_n(r[3]);
     // calcular cada KPI vs meta
-    const kpis=CONSUL_KPIS.map(k=>{
+    const kpis=todosKpis.map(k=>{
       const val=_n(r[k.col]);
       let ok=null;
       if(val!==null){
@@ -1634,7 +1879,7 @@ function analisarPerformance(){
         loja, code, score, sev:severidade(score),
         alertas:core.alertas, conquistas:core.conquistas,
         extrasAlertas:extras.alertas, extrasConquistas:extras.conquistas,
-        consult,
+        consult, pdvRow:rPrincipal,
         temLongo:!!rLongo, temCurto:!!rCurto, sLongo, sCurto
       };
     }).filter(Boolean).sort((a,b)=>b.score-a.score);
@@ -1701,6 +1946,27 @@ function abrirPrioLoja(i){
       <span style="font-size:12px;color:var(--text-light);">cód ${p.code}</span>
     </div>`;
 
+  // KPIs da loja (TKM e PA)
+  if(p.pdvRow){
+    const _fmtL=(k,v)=>{
+      if(k.fmt==='currency') return `R$${v.toFixed(0).replace(/\B(?=(\d{3})+(?!\d))/g,'.')}`;
+      if(k.fmt==='decimal1') return v.toFixed(1).replace('.',',');
+      return _pct(v);
+    };
+    const lojaKpiPills=LOJA_KPIS.map(k=>{
+      const val=_n(p.pdvRow[k.col]);
+      if(val===null) return `<span style="background:#e9ecef;color:#6c757d;border-radius:20px;padding:3px 8px;font-size:11px;font-weight:600;">${k.label}<br><span style="font-size:10px;">— · ${k.metaLabel}</span></span>`;
+      const ok=k.dir==='acima'?val>=k.meta:val<=k.meta;
+      const bg=ok?'#d1e7dd':'#f8d7da';
+      const cor=ok?'#0f5132':'#842029';
+      return `<span style="background:${bg};color:${cor};border-radius:20px;padding:4px 10px;font-size:11px;font-weight:700;display:inline-block;line-height:1.5;">${ok?'✅':'❌'} ${k.label}<br><span style="font-size:10px;">${_fmtL(k,val)} · meta ${k.metaLabel}</span></span>`;
+    }).join(' ');
+    html+=`<div class="card" style="border-left:4px solid var(--sfera);">
+      <div style="font-weight:800;font-size:14px;margin-bottom:10px;">🏪 Indicadores da loja</div>
+      <div style="display:flex;flex-wrap:wrap;gap:6px;">${lojaKpiPills}</div>
+    </div>`;
+  }
+
   // Alertas
   const todosAlertas=[...p.alertas, ...p.extrasAlertas];
   if(todosAlertas.length>0){
@@ -1729,12 +1995,17 @@ function abrirPrioLoja(i){
       const recTag=d.receitaAno!==null
         ? `<span style="font-size:11px;font-weight:700;color:${d.receitaAno>=0?'#0f5132':'#842029'};">${d.receitaAno>=0?'📈 +':'📉 '}${_pct(d.receitaAno)} vs ano</span>`
         : '';
+      const _fmtKpi=(k)=>{
+        if(k.fmt==='currency') return `R$${k.val.toFixed(0).replace(/\B(?=(\d{3})+(?!\d))/g,'.')}`;
+        if(k.fmt==='decimal1') return k.val.toFixed(1).replace('.',',');
+        return _pct(k.val);
+      };
       const kpiPills=d.kpis.map(k=>{
         if(k.val===null) return `<span style="background:#e9ecef;color:#6c757d;border-radius:20px;padding:2px 7px;font-size:10px;font-weight:600;">${k.label}<br><span style="font-size:9px;">— · ${k.metaLabel}</span></span>`;
         const bg=k.ok?'#d1e7dd':'#f8d7da';
         const cor=k.ok?'#0f5132':'#842029';
         const icone=k.ok?'✅':'❌';
-        return `<span style="background:${bg};color:${cor};border-radius:20px;padding:3px 7px;font-size:10px;font-weight:700;display:inline-block;line-height:1.4;">${icone} ${k.label}<br><span style="font-size:9px;">${_pct(k.val)} · meta ${k.metaLabel}</span></span>`;
+        return `<span style="background:${bg};color:${cor};border-radius:20px;padding:3px 7px;font-size:10px;font-weight:700;display:inline-block;line-height:1.4;">${icone} ${k.label}<br><span style="font-size:9px;">${_fmtKpi(k)} · meta ${k.metaLabel}</span></span>`;
       }).join(' ');
       const totalMetas=d.kpis.filter(k=>k.val!==null).length;
       const barCor=d.metasOk===totalMetas?'#198754':d.metasOk>=totalMetas/2?'#fd7e14':'#dc3545';
