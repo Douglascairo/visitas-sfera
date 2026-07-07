@@ -1782,6 +1782,241 @@ function extrasVsAno(r, header){
   return {alertas, conquistas};
 }
 
+// Encontra coluna de VALOR ABSOLUTO no header PDV (padrão tripla: valor, %meta, %ano)
+function _findPDVAbsCol(header, ...keywords){
+  for(let g=0; (1+3*g)<header.length; g++){
+    const vIdx=1+3*g;
+    const h=String(header[vIdx]||'').toLowerCase();
+    if(keywords.some(k=>h.includes(k))) return vIdx;
+  }
+  return null;
+}
+
+// KPIs da loja mapeados dinamicamente pelo header PDV
+const PDV_KPI_DEFS = [
+  {keys:['turbinado'],          label:'Boleto Turbinado',   meta:0.31,  dir:'acima',  metaLabel:'≥31%',    fmt:'pct'},
+  {keys:['promocional','promo'],label:'Boleto Promocional', meta:0.33,  dir:'acima',  metaLabel:'≥33%',    fmt:'pct'},
+  {keys:['avulso','boleto 1'],  label:'Boletos Avulsos',    meta:0.30,  dir:'abaixo', metaLabel:'<30%',    fmt:'pct'},
+  {keys:['fidelidade'],         label:'Boletos Fidelidade', meta:0.90,  dir:'acima',  metaLabel:'≥90%',    fmt:'pct'},
+  {keys:['conv','fluxo'],       label:'Conversão Fluxo',    meta:0.28,  dir:'acima',  metaLabel:'≥28%',    fmt:'pct'},
+  {keys:['facial'],             label:'Cuidados Faciais',   meta:0.021, dir:'acima',  metaLabel:'≥2,1%',   fmt:'pct'},
+  {col:7,                       label:'TKM',                meta:160,   dir:'acima',  metaLabel:'≥R$160',  fmt:'currency'},
+  {col:13,                      label:'P.A.',               meta:2.5,   dir:'acima',  metaLabel:'≥2,5',    fmt:'decimal1'},
+];
+
+function analiseKpisLoja(pdvRow, headerPDV){
+  if(!pdvRow||!headerPDV) return [];
+  return PDV_KPI_DEFS.map(k=>{
+    const col = k.col!==undefined ? k.col : _findPDVAbsCol(headerPDV,...k.keys);
+    if(col===null) return null;
+    const val=_n(pdvRow[col]);
+    const ok=val===null?null:(k.dir==='acima'?val>=k.meta:val<=k.meta);
+    return {label:k.label, metaLabel:k.metaLabel, val, ok, fmt:k.fmt||'pct'};
+  }).filter(Boolean);
+}
+
+function _fmtKpiVal(k){
+  if(k.val===null) return '—';
+  if(k.fmt==='currency') return `R$${k.val.toFixed(0).replace(/\B(?=(\d{3})+(?!\d))/g,'.')}`;
+  if(k.fmt==='decimal1') return k.val.toFixed(1).replace('.',',');
+  return _pct(k.val);
+}
+
+function _renderKpiPills(kpis, fontSize='10px'){
+  return kpis.map(k=>{
+    if(k.val===null) return `<span style="background:#e9ecef;color:#6c757d;border-radius:20px;padding:3px 8px;font-size:${fontSize};font-weight:600;display:inline-block;line-height:1.4;">${k.label}<br><span style="font-size:9px;">— · ${k.metaLabel}</span></span>`;
+    const bg=k.ok?'#d1e7dd':'#f8d7da';
+    const cor=k.ok?'#0f5132':'#842029';
+    return `<span style="background:${bg};color:${cor};border-radius:20px;padding:3px 8px;font-size:${fontSize};font-weight:700;display:inline-block;line-height:1.4;">${k.ok?'✅':'❌'} ${k.label}<br><span style="font-size:9px;">${_fmtKpiVal(k)} · meta ${k.metaLabel}</span></span>`;
+  }).join(' ');
+}
+
+// ──────────────────────────────────────────────
+// ANÁLISE NARRATIVA GERAL (todas as lojas)
+// ──────────────────────────────────────────────
+function gerarNarrativaGeral(analise){
+  const total=analise.length;
+  if(total===0) return '';
+
+  // Atingimento de meta PEF
+  const comMeta=analise.filter(p=>_n(p.pdvRow?.[PDV_COLS.receitaMeta])!==null);
+  const acima=comMeta.filter(p=>(_n(p.pdvRow[PDV_COLS.receitaMeta])||0)>=0);
+  const amarelo=comMeta.filter(p=>{ const v=_n(p.pdvRow[PDV_COLS.receitaMeta])||0; return v>=-0.10&&v<0; });
+  const vermelho=comMeta.filter(p=>(_n(p.pdvRow[PDV_COLS.receitaMeta])||0)<-0.10);
+
+  const nomeLoja=p=>p.loja?.nome||`cód ${p.code}`;
+  const metaPct=p=>{ const v=_n(p.pdvRow?.[PDV_COLS.receitaMeta]); return v!==null?_pct(v):'—'; };
+
+  // Melhor e pior
+  const ordenadosMeta=[...comMeta].sort((a,b)=>(_n(b.pdvRow[PDV_COLS.receitaMeta])||0)-(_n(a.pdvRow[PDV_COLS.receitaMeta])||0));
+  const melhor=ordenadosMeta[0], pior=ordenadosMeta[ordenadosMeta.length-1];
+
+  // KPI mais falhado
+  const kpiContagem={};
+  analise.forEach(p=>{
+    if(!p.pdvRow) return;
+    analiseKpisLoja(p.pdvRow,[]).forEach(k=>{
+      if(k.ok===false){ kpiContagem[k.label]=(kpiContagem[k.label]||0)+1; }
+    });
+  });
+  const kpiFalhos=Object.entries(kpiContagem).sort((a,b)=>b[1]-a[1]);
+
+  // Montar HTML
+  let h=`<div style="font-size:13px;line-height:1.7;color:var(--text);">`;
+
+  // Visão geral
+  h+=`<div style="font-weight:800;font-size:14px;color:var(--sfera-dark);margin-bottom:8px;">📊 Visão Geral — Atingimento de Meta</div>`;
+  if(acima.length>0){
+    h+=`<div style="margin-bottom:8px;"><span style="color:#0f5132;font-weight:700;">🟢 Acima da meta (${acima.length}):</span> `;
+    h+=acima.map(p=>`<strong>${nomeLoja(p)}</strong> (${metaPct(p)})`).join(' · ');
+    h+=`</div>`;
+  }
+  if(amarelo.length>0){
+    h+=`<div style="margin-bottom:8px;"><span style="color:#856404;font-weight:700;">🟡 Zona de atenção — próximas da meta (${amarelo.length}):</span> `;
+    h+=amarelo.map(p=>`<strong>${nomeLoja(p)}</strong> (${metaPct(p)})`).join(' · ');
+    h+=` — precisam de ajuste fino de conversão para cruzar a linha.</div>`;
+  }
+  if(vermelho.length>0){
+    h+=`<div style="margin-bottom:8px;"><span style="color:#842029;font-weight:700;">🔴 Abaixo da meta (${vermelho.length}):</span> `;
+    h+=vermelho.map(p=>`<strong>${nomeLoja(p)}</strong> (${metaPct(p)})`).join(' · ');
+    h+=`</div>`;
+  }
+
+  // Destaques
+  if(melhor&&pior&&melhor!==pior){
+    const vM=_n(melhor.pdvRow[PDV_COLS.receitaMeta])||0;
+    const vP=_n(pior.pdvRow[PDV_COLS.receitaMeta])||0;
+    h+=`<div style="background:#f8f9fa;border-radius:8px;padding:10px 12px;margin:10px 0;font-size:12px;">`;
+    h+=`<strong>Maior destaque:</strong> ${nomeLoja(melhor)} com ${vM>=0?'+':''}${_pct(vM)} vs meta`;
+    if(vP<-0.05) h+=` · <strong>Situação mais crítica:</strong> ${nomeLoja(pior)} com ${_pct(vP)} vs meta`;
+    h+=`</div>`;
+  }
+
+  // Análise de KPIs
+  if(kpiFalhos.length>0){
+    h+=`<div style="font-weight:800;font-size:14px;color:var(--sfera-dark);margin:12px 0 8px;">📉 Indicadores com mais falhas</div>`;
+    h+=`<div style="margin-bottom:8px;">`;
+    kpiFalhos.slice(0,4).forEach(([label,cnt])=>{
+      const pct=Math.round(cnt/total*100);
+      const cor=pct>=70?'#842029':pct>=50?'#856404':'#0f5132';
+      h+=`<div style="display:flex;align-items:center;gap:8px;margin-bottom:6px;">
+        <span style="min-width:130px;font-size:12px;font-weight:700;">${label}</span>
+        <div style="flex:1;background:#e9ecef;border-radius:6px;height:8px;overflow:hidden;">
+          <div style="width:${pct}%;background:${cor};height:100%;border-radius:6px;"></div>
+        </div>
+        <span style="font-size:12px;color:${cor};font-weight:700;min-width:40px;">${cnt}/${total}</span>
+      </div>`;
+    });
+    h+=`</div>`;
+
+    const maisFalho=kpiFalhos[0][0];
+    h+=`<div style="background:#fff3cd;border-left:3px solid #ffc107;border-radius:6px;padding:8px 12px;font-size:12px;margin-bottom:10px;">
+      ⚠️ <strong>${maisFalho}</strong> é o indicador mais crítico da rede — ${kpiFalhos[0][1]} de ${total} lojas fora da meta.
+      ${maisFalho.includes('Avulso')||maisFalho.includes('Boleto 1')?'Revisar oferta de boleto avulso e orientar a conversão para fidelidade.':
+        maisFalho.includes('Turbinado')?'Treinar a oferta ativa de turbinado como argumento principal de venda.':
+        maisFalho.includes('Facial')?'Ativar demonstrações e inserção de rotina de cuidados faciais na venda.':
+        maisFalho.includes('Fluxo')?'Plano de captação de clientes: ativações em loja, panfletagem, parcerias locais.':
+        maisFalho.includes('P.A')?'Trabalhar cross-sell e up-sell para aumentar itens por boleto.':
+        maisFalho.includes('TKM')?'Focar em produtos de maior valor percebido e pacotes premium.':
+        'Revisar treinamento de equipe e comunicação no PDV.'}
+    </div>`;
+  }
+
+  // Recomendação de mentoria
+  if(melhor&&pior&&melhor!==pior&&_n(melhor.pdvRow?.[PDV_COLS.receitaMeta])>=0&&_n(pior.pdvRow?.[PDV_COLS.receitaMeta])<-0.1){
+    h+=`<div style="background:#d1e7dd;border-left:3px solid #198754;border-radius:6px;padding:8px 12px;font-size:12px;">
+      💡 <strong>Mentoria sugerida:</strong> A gestão de <strong>${nomeLoja(melhor)}</strong> pode compartilhar boas práticas com <strong>${nomeLoja(pior)}</strong> — há grande gap de desempenho entre as duas.
+    </div>`;
+  }
+
+  h+=`</div>`;
+  return h;
+}
+
+// ──────────────────────────────────────────────
+// ANÁLISE NARRATIVA INDIVIDUAL DA LOJA
+// ──────────────────────────────────────────────
+function gerarNarrativaLoja(p, headerPDV){
+  if(!p.pdvRow) return '';
+  const r=p.pdvRow;
+  const nome=p.loja?.nome||`cód ${p.code}`;
+  const metaV=_n(r[PDV_COLS.receitaMeta]);
+  const anoV=_n(r[PDV_COLS.receitaAno]);
+  const fluxoV=_n(r[PDV_COLS.fluxoAno]);
+  const tkmV=_n(r[PDV_COLS.ticket]);
+  const paV=_n(r[PDV_COLS.pa]);
+  const kpis=analiseKpisLoja(r, headerPDV||[]);
+  const falhos=kpis.filter(k=>k.ok===false);
+  const verdes=kpis.filter(k=>k.ok===true);
+
+  let h=`<div style="font-size:13px;line-height:1.7;color:var(--text);">`;
+
+  // Situação geral
+  const corMeta=metaV===null?'#6c757d':metaV>=0?'#0f5132':metaV>=-0.10?'#856404':'#842029';
+  const emojiMeta=metaV===null?'📊':metaV>=0?'🟢':metaV>=-0.10?'🟡':'🔴';
+  h+=`<div style="font-weight:800;font-size:14px;color:var(--sfera-dark);margin-bottom:8px;">🏪 Situação da loja</div>`;
+  if(metaV!==null) h+=`<div style="margin-bottom:6px;">${emojiMeta} Meta PEF: <strong style="color:${corMeta};">${metaV>=0?'+':''}${_pct(metaV)}</strong>${metaV>=0?' — parabéns, loja acima da meta!':metaV>=-0.10?' — atenção, próxima da meta mas ainda fora. Foco na conversão!':' — situação crítica. Precisa de plano de ação urgente.'}</div>`;
+  if(anoV!==null) h+=`<div style="margin-bottom:6px;">📅 Vs. ano anterior: <strong style="color:${anoV>=0?'#0f5132':'#842029'};">${anoV>=0?'+':''}${_pct(anoV)}</strong>${anoV<0?' — receita caindo em relação ao ano passado. Investigar causas.':' — loja crescendo vs ano anterior, ótimo sinal!'}</div>`;
+  if(fluxoV!==null) h+=`<div style="margin-bottom:6px;">🚶 Fluxo de clientes: <strong style="color:${fluxoV>=0?'#0f5132':'#842029'};">${fluxoV>=0?'+':''}${_pct(fluxoV)}</strong> vs ano${fluxoV<0?' — menos clientes entrando. Avaliar ações de atração.':' — mais clientes na loja, boa oportunidade de conversão!'}</div>`;
+
+  // Cruzamento fluxo x peças
+  const pecasV=_n(r[PDV_COLS.pecasAno]);
+  if(fluxoV!==null&&pecasV!==null&&fluxoV>0&&pecasV<0){
+    h+=`<div style="background:#fff3cd;border-left:3px solid #ffc107;border-radius:6px;padding:8px 12px;font-size:12px;margin-bottom:8px;">
+      ⚠️ <strong>Alerta:</strong> O fluxo subiu (+${_pct(fluxoV).replace('+','')}) mas as peças caíram (${_pct(pecasV)}) — os clientes estão entrando mas a equipe não está convertendo!
+    </div>`;
+  }
+
+  // TKM e PA
+  if(tkmV!==null||paV!==null){
+    h+=`<div style="font-weight:800;font-size:14px;color:var(--sfera-dark);margin:10px 0 6px;">💰 Ticket e P.A.</div>`;
+    if(tkmV!==null){
+      const tkmOk=tkmV>=160;
+      h+=`<div style="margin-bottom:4px;">🎫 TKM: <strong style="color:${tkmOk?'#0f5132':'#842029'};">R$${tkmV.toFixed(0)}</strong>${tkmOk?' ✅ acima da meta R$160':` ❌ abaixo da meta R$160 — gap de R$${(160-tkmV).toFixed(0)} por boleto`}</div>`;
+    }
+    if(paV!==null){
+      const paOk=paV>=2.5;
+      h+=`<div style="margin-bottom:4px;">🛍️ P.A.: <strong style="color:${paOk?'#0f5132':'#842029'};">${paV.toFixed(1).replace('.',',')} itens/boleto</strong>${paOk?' ✅ acima da meta 2,5':` ❌ abaixo da meta 2,5 — cada boleto precisa de +${(2.5-paV).toFixed(1).replace('.',',')} itens em média`}</div>`;
+    }
+  }
+
+  // KPIs em verde e vermelho
+  if(verdes.length>0){
+    h+=`<div style="font-weight:800;font-size:14px;color:#0f5132;margin:10px 0 6px;">✅ O que está funcionando bem (${verdes.length})</div>`;
+    h+=`<div style="margin-bottom:8px;">`+verdes.filter(k=>!['TKM','P.A.'].includes(k.label)).map(k=>`<div style="margin-bottom:3px;font-size:12px;">• <strong>${k.label}:</strong> ${_fmtKpiVal(k)} (meta ${k.metaLabel}) — reforçar para manter!</div>`).join('')+`</div>`;
+  }
+  if(falhos.length>0){
+    h+=`<div style="font-weight:800;font-size:14px;color:#842029;margin:10px 0 6px;">❌ Pontos de melhoria (${falhos.length})</div>`;
+    h+=`<div style="margin-bottom:8px;">`+falhos.filter(k=>!['TKM','P.A.'].includes(k.label)).map(k=>{
+      const gap=k.dir==='acima'?k.meta-k.val:k.val-k.meta;
+      const gapStr=gap!==null?` (falta ${_pct(gap)} para a meta)`:'';
+      const dica=k.label.includes('Turbinado')?'Ativar oferta do turbinado como primeiro argumento de venda.':
+        k.label.includes('Promocional')?'Revisar comunicação promocional no PDV e treinamento de oferta.':
+        k.label.includes('Avulso')?'Converter boletos avulsos em fidelidade — reforçar o argumento de benefícios.':
+        k.label.includes('Fidelidade')?'Oferecer fidelidade em TODOS os atendimentos, sem exceção.':
+        k.label.includes('Fluxo')?'Criar ação de atração: panfletagem, parcerias, ativação em porta de loja.':
+        k.label.includes('Facial')?'Demonstrar rotina de faciais na abordagem — inserir no carrinho de compras.':'Treinar equipe focado neste indicador.';
+      return `<div style="margin-bottom:6px;font-size:12px;background:#f8d7da;border-radius:6px;padding:6px 10px;">❌ <strong>${k.label}:</strong> ${_fmtKpiVal(k)}${gapStr}<br><span style="color:#842029;">→ ${dica}</span></div>`;
+    }).join('')+`</div>`;
+  }
+
+  // Recomendação final
+  const urgencia=p.sev.nivel;
+  h+=`<div style="background:${urgencia==='critica'?'#f8d7da':urgencia==='alta'?'#fff3cd':'#d1e7dd'};border-radius:8px;padding:10px 12px;font-size:12px;margin-top:8px;">`;
+  h+=`<strong>💡 Foco desta visita:</strong> `;
+  if(urgencia==='critica'||urgencia==='alta'){
+    h+=`Situação ${urgencia==='critica'?'crítica':'de alta atenção'}. Priorizar diagnóstico com a gerência, identificar causa-raiz dos principais problemas e construir plano de ação com metas e prazos claros.`;
+  } else if(urgencia==='media'){
+    h+=`Loja em recuperação. Identificar os 1-2 indicadores mais abaixo da meta e criar ação pontual junto com a gerência.`;
+  } else {
+    h+=`Loja saudável! Visita de reconhecimento e reforço das boas práticas. Identificar o que está funcionando para replicar nas demais lojas.`;
+  }
+  h+=`</div>`;
+
+  h+=`</div>`;
+  return h;
+}
+
 // Encontra coluna no header da aba CONSULTOR por palavra-chave (case-insensitive)
 function _findCol(header, ...keywords){
   if(!header) return null;
@@ -1827,7 +2062,7 @@ function analiseConsultoras(code){
       if(val!==null){
         ok = k.dir==='acima' ? val>=k.meta : val<=k.meta;
       }
-      return {label:k.label, metaLabel:k.metaLabel, val, ok};
+      return {label:k.label, metaLabel:k.metaLabel, val, ok, fmt:k.fmt||'pct'};
     });
     const metasOk=kpis.filter(k=>k.ok===true).length;
     const metasNok=kpis.filter(k=>k.ok===false).length;
@@ -1933,6 +2168,17 @@ function renderPrioResultado(fileLongo, fileCurto){
     </div>`;
   }).join('');
 
+  // Análise narrativa geral
+  const narrativaGeral=gerarNarrativaGeral(prioAnalise);
+  if(narrativaGeral){
+    html+=`<details style="margin-top:4px;">
+      <summary style="cursor:pointer;background:var(--sfera-light);border-radius:10px;padding:12px 16px;font-weight:800;font-size:14px;color:var(--sfera-dark);list-style:none;display:flex;align-items:center;gap:8px;">
+        <span>📋 Análise geral da rede</span><span style="margin-left:auto;font-size:12px;color:var(--text-light);">toque para expandir ▾</span>
+      </summary>
+      <div class="card" style="border-top:none;border-radius:0 0 10px 10px;margin-top:-4px;">${narrativaGeral}</div>
+    </details>`;
+  }
+
   html+=`<button class="btn btn-secondary btn-full" style="margin-top:8px;" onclick="resetPrio()">↻ Analisar outros arquivos</button>`;
   el.innerHTML=html;
 }
@@ -1946,25 +2192,34 @@ function abrirPrioLoja(i){
       <span style="font-size:12px;color:var(--text-light);">cód ${p.code}</span>
     </div>`;
 
-  // KPIs da loja (TKM e PA)
+  // KPIs da loja (mesmos indicadores das consultoras)
   if(p.pdvRow){
-    const _fmtL=(k,v)=>{
-      if(k.fmt==='currency') return `R$${v.toFixed(0).replace(/\B(?=(\d{3})+(?!\d))/g,'.')}`;
-      if(k.fmt==='decimal1') return v.toFixed(1).replace('.',',');
-      return _pct(v);
-    };
-    const lojaKpiPills=LOJA_KPIS.map(k=>{
-      const val=_n(p.pdvRow[k.col]);
-      if(val===null) return `<span style="background:#e9ecef;color:#6c757d;border-radius:20px;padding:3px 8px;font-size:11px;font-weight:600;">${k.label}<br><span style="font-size:10px;">— · ${k.metaLabel}</span></span>`;
-      const ok=k.dir==='acima'?val>=k.meta:val<=k.meta;
-      const bg=ok?'#d1e7dd':'#f8d7da';
-      const cor=ok?'#0f5132':'#842029';
-      return `<span style="background:${bg};color:${cor};border-radius:20px;padding:4px 10px;font-size:11px;font-weight:700;display:inline-block;line-height:1.5;">${ok?'✅':'❌'} ${k.label}<br><span style="font-size:10px;">${_fmtL(k,val)} · meta ${k.metaLabel}</span></span>`;
-    }).join(' ');
-    html+=`<div class="card" style="border-left:4px solid var(--sfera);">
-      <div style="font-weight:800;font-size:14px;margin-bottom:10px;">🏪 Indicadores da loja</div>
-      <div style="display:flex;flex-wrap:wrap;gap:6px;">${lojaKpiPills}</div>
-    </div>`;
+    const headerPDV=(prioArquivos[0]?.headerPDV)||[];
+    const lojaKpis=analiseKpisLoja(p.pdvRow, headerPDV);
+    if(lojaKpis.length>0){
+      const okCount=lojaKpis.filter(k=>k.ok===true).length;
+      const total=lojaKpis.filter(k=>k.ok!==null).length;
+      const barCor=okCount===total?'#198754':okCount>=total/2?'#fd7e14':'#dc3545';
+      html+=`<div class="card" style="border-left:4px solid var(--sfera);">
+        <div style="font-weight:800;font-size:14px;margin-bottom:4px;">🏪 Indicadores da loja</div>
+        <div style="font-size:11px;color:${barCor};font-weight:700;margin-bottom:10px;">${okCount} de ${total} metas atingidas</div>
+        <div style="display:flex;flex-wrap:wrap;gap:4px;">${_renderKpiPills(lojaKpis,'10px')}</div>
+      </div>`;
+    }
+  }
+
+  // Análise narrativa individual
+  if(p.pdvRow){
+    const headerPDV=(prioArquivos[0]?.headerPDV)||[];
+    const narrativa=gerarNarrativaLoja(p, headerPDV);
+    if(narrativa){
+      html+=`<details open>
+        <summary style="cursor:pointer;background:#f0f4ff;border-radius:10px;padding:12px 16px;font-weight:800;font-size:14px;color:var(--sfera-dark);list-style:none;display:flex;align-items:center;gap:8px;margin-bottom:4px;">
+          <span>💡 Insights desta visita</span><span style="margin-left:auto;font-size:12px;color:var(--text-light);">▾</span>
+        </summary>
+        <div class="card" style="border-radius:0 0 10px 10px;">${narrativa}</div>
+      </details>`;
+    }
   }
 
   // Alertas
@@ -1995,18 +2250,7 @@ function abrirPrioLoja(i){
       const recTag=d.receitaAno!==null
         ? `<span style="font-size:11px;font-weight:700;color:${d.receitaAno>=0?'#0f5132':'#842029'};">${d.receitaAno>=0?'📈 +':'📉 '}${_pct(d.receitaAno)} vs ano</span>`
         : '';
-      const _fmtKpi=(k)=>{
-        if(k.fmt==='currency') return `R$${k.val.toFixed(0).replace(/\B(?=(\d{3})+(?!\d))/g,'.')}`;
-        if(k.fmt==='decimal1') return k.val.toFixed(1).replace('.',',');
-        return _pct(k.val);
-      };
-      const kpiPills=d.kpis.map(k=>{
-        if(k.val===null) return `<span style="background:#e9ecef;color:#6c757d;border-radius:20px;padding:2px 7px;font-size:10px;font-weight:600;">${k.label}<br><span style="font-size:9px;">— · ${k.metaLabel}</span></span>`;
-        const bg=k.ok?'#d1e7dd':'#f8d7da';
-        const cor=k.ok?'#0f5132':'#842029';
-        const icone=k.ok?'✅':'❌';
-        return `<span style="background:${bg};color:${cor};border-radius:20px;padding:3px 7px;font-size:10px;font-weight:700;display:inline-block;line-height:1.4;">${icone} ${k.label}<br><span style="font-size:9px;">${_fmtKpi(k)} · meta ${k.metaLabel}</span></span>`;
-      }).join(' ');
+      const kpiPills=_renderKpiPills(d.kpis,'10px');
       const totalMetas=d.kpis.filter(k=>k.val!==null).length;
       const barCor=d.metasOk===totalMetas?'#198754':d.metasOk>=totalMetas/2?'#fd7e14':'#dc3545';
       return `<div style="border:1px solid var(--border);border-radius:10px;padding:10px 12px;margin-bottom:10px;">
