@@ -1764,6 +1764,16 @@ const CONSUL_KPIS = [
 
 // helpers
 function _n(v){ if(v===null||v===undefined||v==='-'||v==='') return null; const f=parseFloat(v); return isFinite(f)?f:null; }
+// Parser tolerante p/ valores em R$ / formato BR ("R$ 1.234,56", "1.234,56", número puro)
+function _valorBR(v){
+  if(v===null||v===undefined||v==='') return null;
+  if(typeof v==='number') return isFinite(v)?v:null;
+  let s=String(v).replace(/[^0-9.,-]/g,'');
+  if(s==='') return null;
+  if(s.indexOf(',')>-1) s=s.replace(/\./g,'').replace(',','.'); // 1.234,56 -> 1234.56
+  const f=parseFloat(s);
+  return isFinite(f)?f:null;
+}
 function _pct(v){ return (v*100).toFixed(1).replace('.',',')+'%'; }
 
 // Índices das colunas-chave na aba PDV (0-based)
@@ -2145,12 +2155,13 @@ function analiseConsultoras(code){
   const porNome={};
   linhas.forEach(r=>{
     const nome=String(r[0]).trim();
-    const rec=_n(r[2])||0;
-    if(!porNome[nome] || rec>(_n(porNome[nome][2])||0)) porNome[nome]=r;
+    const rec=_valorBR(r[2])||0;
+    if(!porNome[nome] || rec>(_valorBR(porNome[nome][2])||0)) porNome[nome]=r;
   });
   const arr=Object.values(porNome).map(r=>{
     const nome=String(r[0]).trim();
-    const receita=_n(r[2])||0;
+    const receita=_valorBR(r[2])||0;   // coluna C
+    const cupons=_valorBR(r[4])||0;    // coluna E (qtd cupons/atendimentos)
     const receitaAno=_n(r[3]);
     // calcular cada KPI vs meta
     const kpis=todosKpis.map(k=>{
@@ -2164,7 +2175,7 @@ function analiseConsultoras(code){
     });
     const metasOk=kpis.filter(k=>k.ok===true).length;
     const metasNok=kpis.filter(k=>k.ok===false).length;
-    return {nome, receita, receitaAno, kpis, metasOk, metasNok};
+    return {nome, receita, cupons, receitaAno, kpis, metasOk, metasNok};
   });
   // ordena: mais metas batidas primeiro; entre iguais, maior receita
   arr.sort((a,b)=> b.metasOk!==a.metasOk ? b.metasOk-a.metasOk : b.receita-a.receita);
@@ -2294,8 +2305,11 @@ function renderRankingEquipe(c){
   const rank=[...c.arr].filter(d=>d.receita>0).sort((a,b)=>b.receita-a.receita);
   if(rank.length===0) return '';
   const total=c.somaReceita||rank.reduce((s,d)=>s+d.receita,0);
+  const totalCupons=rank.reduce((s,d)=>s+(d.cupons||0),0);
   const mediaPart=100/rank.length; // participação média se fosse tudo igual
   const part=d=>total>0?(d.receita/total*100):0;
+  const partCup=d=>totalCupons>0?(d.cupons/totalCupons*100):0;
+  const ticket=d=>d.cupons>0?d.receita/d.cupons:null;
 
   const primeiro=rank[0], ultimo=rank[rank.length-1];
   const pPrim=part(primeiro), pUlt=part(ultimo);
@@ -2307,11 +2321,14 @@ function renderRankingEquipe(c){
     const medalha=idx===0?'🥇':idx===1?'🥈':idx===2?'🥉':`${idx+1}º`;
     const acimaMedia=pct>=mediaPart;
     const cor=idx===0?'#198754':acimaMedia?'#0d6efd':'#842029';
+    const tk=ticket(d);
+    const extra=d.cupons>0?`${d.cupons.toFixed(0)} cupons${tk?` · TM ${_fmtR$(tk)}`:''}`:'';
     return `<div style="margin-bottom:8px;">
       <div style="display:flex;justify-content:space-between;font-size:12px;margin-bottom:3px;">
         <span><strong>${medalha}</strong> ${d.nome}</span>
         <span style="font-weight:700;color:${cor};">${pct.toFixed(1).replace('.',',')}% · ${_fmtR$(d.receita)}</span>
       </div>
+      ${extra?`<div style="font-size:10px;color:var(--text-light);margin-bottom:2px;">${extra}</div>`:''}
       <div style="background:var(--border);border-radius:8px;height:7px;overflow:hidden;">
         <div style="width:${Math.max(pct,2)}%;background:${cor};height:100%;border-radius:8px;"></div>
       </div>
@@ -2319,13 +2336,28 @@ function renderRankingEquipe(c){
   }).join('');
   h+=`<div style="font-size:10px;color:var(--text-light);margin:2px 0 12px;">Participação média por consultora seria ${mediaPart.toFixed(1).replace('.',',')}% (equipe de ${rank.length}). Acima disso = puxa a loja; abaixo = precisa de apoio.</div>`;
 
+  // Diagnóstico técnica × volume da líder (compara % receita vs % cupons)
+  const pPrimCup=partCup(primeiro);
+  let diagLider='';
+  if(totalCupons>0 && pPrimCup>0){
+    if(pPrim - pPrimCup >= 5){
+      diagLider=`Ela vende por <strong>TÉCNICA/ticket</strong>: faz ${pPrimCup.toFixed(0)}% dos atendimentos mas gera ${pPrim.toFixed(0)}% da receita — valor por cupom acima da média. Replicar: como ela agrega itens e sobe o ticket?`;
+    } else if(pPrimCup - pPrim >= 5){
+      diagLider=`Ela lidera por <strong>VOLUME</strong>: concentra ${pPrimCup.toFixed(0)}% dos atendimentos. Verifique a <strong>escala</strong> — ela está sozinha nos horários de pico? A liderança pode ser de exposição ao fluxo, não só de performance.`;
+    } else {
+      diagLider=`Receita e atendimentos equilibrados (${pPrim.toFixed(0)}% receita × ${pPrimCup.toFixed(0)}% cupons) — desempenho consistente. Replicar a rotina de abordagem dela.`;
+    }
+  } else {
+    diagLider=`Cheque se ela atende sozinha nos horários de pico (a participação pode refletir escala, não só performance) e quais argumentos/combos ela usa.`;
+  }
+
   // Análise da líder
   h+=`<div style="background:#d1e7dd;border-radius:8px;padding:10px 12px;font-size:12px;margin-bottom:8px;">
     <div style="font-weight:800;color:#0f5132;margin-bottom:4px;">🥇 ${primeiro.nome} lidera com ${pPrim.toFixed(1).replace('.',',')}% da receita (${_fmtR$(primeiro.receita)})</div>
-    <div style="color:#0f5132;">Investigue para <strong>replicar</strong> na equipe:</div>
+    <div style="color:#0f5132;margin-bottom:4px;">${diagLider}</div>
+    <div style="color:#0f5132;">Para <strong>replicar</strong> na equipe:</div>
     <ul style="margin:4px 0 0 16px;padding:0;color:#0f5132;">
-      <li>Ela vende por <strong>técnica</strong> ou por <strong>volume de atendimento</strong>? Cheque se atende sozinha nos horários de pico (a participação pode refletir escala, não só performance).</li>
-      <li>Quais argumentos, combos e rotina de abordagem ela usa? Transforme em <strong>treinamento</strong> para as demais.</li>
+      <li>Transforme os argumentos, combos e rotina de abordagem dela em <strong>treinamento</strong>.</li>
       <li>Está com <strong>${primeiro.metasOk}/${primeiro.kpis.filter(k=>k.val!==null).length} metas</strong> — use como referência e reconheça publicamente.</li>
     </ul>
   </div>`;
@@ -2334,8 +2366,21 @@ function renderRankingEquipe(c){
   if(rank.length>=2 && primeiro!==ultimo){
     const disp=(pPrim-pUlt).toFixed(1).replace('.',',');
     const razao=pUlt>0?(pPrim/pUlt).toFixed(1).replace('.',','):'—';
+    // Pista pelos cupons: pouco atendimento (fluxo/escala) vs muito atendimento com ticket baixo (conversão de valor)
+    const pUltCup=partCup(ultimo), tkUlt=ticket(ultimo), tkPrim=ticket(primeiro);
+    let pistaUlt='';
+    if(totalCupons>0 && pUltCup>0){
+      if(pUltCup < mediaPart-3){
+        pistaUlt=`Faz só <strong>${pUltCup.toFixed(0)}% dos atendimentos</strong> — pode ser <strong>escala/fluxo</strong> (horários fracos) ou pouca proatividade em abordar. Priorize investigar escala e postura no salão.`;
+      } else if(tkUlt && tkPrim && tkUlt < tkPrim*0.8){
+        pistaUlt=`Atende bastante (${pUltCup.toFixed(0)}% dos cupons) mas com <strong>ticket baixo (${_fmtR$(tkUlt)})</strong> vs a líder (${_fmtR$(tkPrim)}) — o problema é <strong>conversão de valor</strong>: agregar itens, oferecer combos e faciais.`;
+      } else {
+        pistaUlt=`Volume de atendimento na média — a diferença está no <strong>valor gerado por venda</strong>. Foque em técnica de agregação.`;
+      }
+    }
     h+=`<div style="background:#f8d7da;border-radius:8px;padding:10px 12px;font-size:12px;">
       <div style="font-weight:800;color:#842029;margin-bottom:4px;">⚠️ ${ultimo.nome} está por último com ${pUlt.toFixed(1).replace('.',',')}% (${_fmtR$(ultimo.receita)})</div>
+      ${pistaUlt?`<div style="color:#842029;margin-bottom:4px;">${pistaUlt}</div>`:''}
       <div style="color:#842029;">Disparidade de <strong>${disp} pontos</strong> vs a líder${razao!=='—'?` (a líder vende ~${razao}x mais)`:''}. Sonde a causa-raiz com perguntas:</div>
       <ul style="margin:4px 0 0 16px;padding:0;color:#842029;">
         <li><strong>Tempo de casa:</strong> é novata ou recém-integrada? Precisa de padrinho/acompanhamento no salão?</li>
