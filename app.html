@@ -1858,20 +1858,49 @@ const PDV_KPI_DEFS = [
 
 function analiseKpisLoja(pdvRow, headerPDV){
   if(!pdvRow||!headerPDV) return [];
-  return PDV_KPI_DEFS.map(k=>{
+  const base = PDV_KPI_DEFS.map(k=>{
     const col = k.col!==undefined ? k.col : _findPDVAbsCol(headerPDV,...k.keys);
     if(col===null) return null;
     const val=_n(pdvRow[col]);
     const ok=val===null?null:(k.dir==='acima'?val>=k.meta:val<=k.meta);
     return {label:k.label, metaLabel:k.metaLabel, val, ok, fmt:k.fmt||'pct'};
   }).filter(Boolean);
+  // Extras IAF (aparecem só se a coluna existir no arquivo)
+  const extras = IAF_EXTRAS.map(def=>{
+    const col=_findPDVAbsCol(headerPDV,...def.keys);
+    if(col===null) return null;
+    return _mkKpi(_n(pdvRow[col]), def);
+  }).filter(Boolean);
+  return [...base, ...extras];
 }
 
 function _fmtKpiVal(k){
   if(k.val===null) return '—';
   if(k.fmt==='currency') return `R$${k.val.toFixed(0).replace(/\B(?=(\d{3})+(?!\d))/g,'.')}`;
   if(k.fmt==='decimal1') return k.val.toFixed(1).replace('.',',');
+  if(k.fmt==='int')      return k.val.toFixed(0);
+  if(k.fmt==='min')      return `${k.val.toFixed(0)} min`;
   return _pct(k.val);
+}
+
+// Metas IAF oficiais Sfera — indicadores extras buscados por nome no cabeçalho.
+// Aparecem automaticamente quando a coluna existe no arquivo (loja=PDV, consultora=CONSULTOR).
+const IAF_EXTRAS = [
+  {keys:['nps'],                                     label:'NPS',                 meta:0.89, dir:'acima',  fmt:'pct', metaLabel:'≥89%'},
+  {keys:['resgate'],                                 label:'Resgate',             meta:0.52, dir:'acima',  fmt:'pct', metaLabel:'≥52%'},
+  {keys:['id cliente','id de cliente','identificad'],label:'ID Cliente',          meta:1.15, dir:'acima',  fmt:'pct', metaLabel:'≥115%'},
+  {keys:['serviço','servico'],                       label:'Serviços',            meta:35,   dir:'acima',  fmt:'int', metaLabel:'≥35'},
+  {keys:['loja digital'],                            label:'Loja Digital',        meta:7,    dir:'abaixo', fmt:'min', metaLabel:'≤7 min'},
+  {keys:['desafio'],                                 label:'Desafios Fidelidade', meta:0.20, dir:'acima',  fmt:'pct', metaLabel:'≥20%'},
+  {keys:['boleto médio','boleto medio'],             label:'Boleto Médio',        meta:0.05, dir:'acima',  fmt:'pct', metaLabel:'>5%'},
+];
+
+// Monta objeto KPI, normalizando escala de % (aceita 0.31 ou 31)
+function _mkKpi(raw, def){
+  let val = raw;
+  if(val!==null && def.fmt==='pct' && Math.abs(val)>1.5) val=val/100;
+  const ok = val===null ? null : (def.dir==='acima' ? val>=def.meta : val<=def.meta);
+  return {label:def.label, metaLabel:def.metaLabel, val, ok, fmt:def.fmt};
 }
 
 function _renderKpiPills(kpis, fontSize='10px'){
@@ -2094,6 +2123,11 @@ function analiseConsultoras(code){
   const extraKpis=[];
   if(colTKM!==null) extraKpis.push({col:colTKM, label:'TKM', meta:160, dir:'acima', metaLabel:'≥R$160', fmt:'currency'});
   if(colPA!==null)  extraKpis.push({col:colPA,  label:'P.A.', meta:2.5, dir:'acima', metaLabel:'≥2,5', fmt:'decimal1'});
+  // Extras IAF na consultora (aparecem só se a coluna existir no CONSULTOR)
+  IAF_EXTRAS.forEach(def=>{
+    const c=_findCol(header,...def.keys);
+    if(c!==null) extraKpis.push({col:c, iaf:def});
+  });
   const todosKpis=[...CONSUL_KPIS, ...extraKpis];
 
   // dedup por nome (mantém a de maior receita)
@@ -2109,6 +2143,7 @@ function analiseConsultoras(code){
     const receitaAno=_n(r[3]);
     // calcular cada KPI vs meta
     const kpis=todosKpis.map(k=>{
+      if(k.iaf) return _mkKpi(_n(r[k.col]), k.iaf);
       const val=_n(r[k.col]);
       let ok=null;
       if(val!==null){
