@@ -11,6 +11,8 @@
   <link rel="stylesheet" href="css/style.css">
   <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
   <style>
+    .btn-mic.rec-on { background:#dc3545 !important; color:#fff !important; border-color:#dc3545 !important; animation:micpulse 1s infinite; }
+    @keyframes micpulse { 0%,100%{ box-shadow:0 0 0 0 rgba(220,53,69,.5);} 50%{ box-shadow:0 0 0 6px rgba(220,53,69,0);} }
     .prio-card { border-radius:14px; padding:14px; margin-bottom:12px; box-shadow:var(--shadow); background:white; border-left:5px solid var(--border); }
     .prio-rank { font-size:22px; font-weight:900; color:var(--text-light); min-width:34px; }
     .sev-badge { display:inline-block; padding:4px 12px; border-radius:20px; font-size:11px; font-weight:800; text-transform:uppercase; letter-spacing:0.5px; }
@@ -362,7 +364,8 @@
 
       <div id="form-registro" style="display:none;margin-top:14px;">
         <div style="font-size:13px;font-weight:700;color:var(--sfera-dark);margin-bottom:8px;" id="cat-label"></div>
-        <textarea class="form-control" id="registro-texto" placeholder="Descreva o que foi tratado..."></textarea>
+        <textarea class="form-control" id="registro-texto" placeholder="Descreva o que foi tratado... (ou toque no 🎤 e fale)"></textarea>
+        <button type="button" class="btn btn-secondary btn-sm btn-mic" style="margin-top:6px;" data-label="🎤 Falar" onclick="ditarPara('registro-texto',this)">🎤 Falar</button>
 
         <!-- Upload de mídia -->
         <div style="margin-top:10px;">
@@ -435,7 +438,8 @@
 
     <div class="card">
       <div class="card-title">💬 Observação geral (opcional)</div>
-      <textarea class="form-control" id="obs-geral" placeholder="Alguma observação final..."></textarea>
+      <textarea class="form-control" id="obs-geral" placeholder="Alguma observação final... (ou toque no 🎤 e fale)"></textarea>
+      <button type="button" class="btn btn-secondary btn-sm btn-mic" style="margin-top:6px;" data-label="🎤 Falar" onclick="ditarPara('obs-geral',this)">🎤 Falar</button>
     </div>
 
     <div style="display:flex;gap:10px;margin-bottom:20px;">
@@ -1303,7 +1307,8 @@ async function abrirChecklist(template) {
         ${alertaHtml?`<div id="alerta-hist-wrap-${item.id}" style="display:none;">${alertaHtml}</div>`:''}
         <!-- Observação -->
         <textarea id="obs-${item.id}" placeholder="Observação (opcional)..." rows="2"
-          style="width:100%;border:1.5px solid var(--border);border-radius:8px;padding:8px;font-size:13px;resize:none;box-sizing:border-box;font-family:inherit;margin-bottom:8px;"></textarea>
+          style="width:100%;border:1.5px solid var(--border);border-radius:8px;padding:8px;font-size:13px;resize:none;box-sizing:border-box;font-family:inherit;margin-bottom:6px;"></textarea>
+        <button type="button" class="btn btn-secondary btn-sm btn-mic" style="margin-bottom:8px;" data-label="🎤 Falar" onclick="ditarPara('obs-${item.id}',this)">🎤 Falar</button>
         <!-- Foto: câmera ao vivo + opção de galeria -->
         <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px;">
           <input type="file" id="foto-${item.id}" accept="image/*" capture="environment" style="display:none" onchange="previewClFoto('${item.id}')">
@@ -2588,6 +2593,33 @@ async function enviarEmailResumo(emailGerente,obs) {
 // ==============================
 function formatData(iso){if(!iso)return'';const[y,m,d]=iso.split('-');return`${d}/${m}/${y}`;}
 function formatHora(iso){if(!iso)return'';return new Date(iso).toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit'});}
+// ===== Ditado por voz (Web Speech API, pt-BR) =====
+let _recAtivo=null;
+function ditarPara(id, btn){
+  const SR=window.SpeechRecognition||window.webkitSpeechRecognition;
+  if(!SR){ showToast('Ditado por voz não suportado. Use o Chrome (Android).','error'); return; }
+  if(_recAtivo){ _recAtivo.stop(); return; }           // já gravando → para
+  const campo=document.getElementById(id); if(!campo) return;
+  const rec=new SR(); rec.lang='pt-BR'; rec.continuous=true; rec.interimResults=true;
+  const base=campo.value?campo.value.replace(/\s+$/,'')+' ':''; let finalT='';
+  const label=btn.dataset.label||btn.innerHTML; btn.dataset.label=label;
+  btn.classList.add('rec-on'); btn.innerHTML='⏹️ Parar';
+  rec.onresult=e=>{
+    let interim='';
+    for(let i=e.resultIndex;i<e.results.length;i++){
+      const t=e.results[i][0].transcript;
+      if(e.results[i].isFinal) finalT+=t+' '; else interim+=t;
+    }
+    campo.value=base+finalT+interim;
+    if(campo.tagName==='TEXTAREA'){ campo.style.height='auto'; campo.style.height=campo.scrollHeight+'px'; }
+    campo.dispatchEvent(new Event('input',{bubbles:true}));   // dispara autosave do rascunho
+  };
+  rec.onerror=e=>{ if(e.error!=='no-speech'&&e.error!=='aborted') showToast('Erro no ditado: '+e.error,'error'); };
+  rec.onend=()=>{ btn.classList.remove('rec-on'); btn.innerHTML=label; _recAtivo=null; };
+  _recAtivo=rec;
+  try{ rec.start(); showToast('🎤 Pode falar...'); }catch(err){ rec.onend(); }
+}
+
 function showToast(msg,tipo=''){const t=document.getElementById('toast');t.textContent=msg;t.className='toast show '+tipo;setTimeout(()=>t.className='toast',2500);}
 function logout(){sessionStorage.clear();window.location.href='index.html';}
 </script>
