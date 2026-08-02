@@ -802,11 +802,28 @@ async function salvarTipoDia() {
 }
 
 // ==============================
+// CACHE local p/ reduzir requests/egress do Supabase (dados de referência)
+function cacheGet(chave, ttlMin){
+  try{
+    const raw=localStorage.getItem('cache_'+chave);
+    if(!raw) return null;
+    const {t,v}=JSON.parse(raw);
+    if(Date.now()-t > ttlMin*60000){ localStorage.removeItem('cache_'+chave); return null; }
+    return v;
+  }catch(e){ return null; }
+}
+function cacheSet(chave, valor){
+  try{ localStorage.setItem('cache_'+chave, JSON.stringify({t:Date.now(), v:valor})); }catch(e){}
+}
+
 // LOJAS
 // ==============================
 async function carregarLojas() {
+  const cache=cacheGet('lojas_'+usuario.id, 360); // 6h
+  if(cache){ lojas=cache; return; }
   const {data} = await db.from('lojas').select('*').eq('supervisora_id',usuario.id).eq('ativo',true).order('nome');
   lojas = data || [];
+  if(lojas.length) cacheSet('lojas_'+usuario.id, lojas);
 }
 
 // ==============================
@@ -1062,11 +1079,40 @@ function previewMedia() {
   }
 }
 
+// Comprime imagem antes de subir: redimensiona p/ máx 1280px e JPEG ~0.7.
+// Reduz o tamanho em ~90%, economizando storage e egress do Supabase.
+// Arquivos que não são imagem (vídeo/pdf) passam direto.
+function comprimirImagem(file, maxLado=1280, qualidade=0.7){
+  return new Promise(resolve=>{
+    if(!file || !file.type.startsWith('image/')) return resolve(file);
+    const img=new Image();
+    const url=URL.createObjectURL(file);
+    img.onload=()=>{
+      URL.revokeObjectURL(url);
+      let {width:w,height:h}=img;
+      if(w>maxLado||h>maxLado){
+        if(w>=h){ h=Math.round(h*maxLado/w); w=maxLado; }
+        else    { w=Math.round(w*maxLado/h); h=maxLado; }
+      }
+      const canvas=document.createElement('canvas');
+      canvas.width=w; canvas.height=h;
+      canvas.getContext('2d').drawImage(img,0,0,w,h);
+      canvas.toBlob(blob=>{
+        if(!blob||blob.size>=file.size) return resolve(file); // se não ajudou, mantém original
+        resolve(new File([blob], (file.name||'foto').replace(/\.[^.]+$/,'')+'.jpg', {type:'image/jpeg'}));
+      }, 'image/jpeg', qualidade);
+    };
+    img.onerror=()=>{ URL.revokeObjectURL(url); resolve(file); };
+    img.src=url;
+  });
+}
+
 async function uploadMedia() {
   if(!mediaFile) return null;
-  const ext=mediaFile.name.split('.').pop();
+  const arquivo=await comprimirImagem(mediaFile);
+  const ext=arquivo.name.split('.').pop();
   const path=`${usuario.id}/${visitaAtual.id}/${Date.now()}.${ext}`;
-  const {data,error}=await db.storage.from('visitas-midias').upload(path,mediaFile,{upsert:true});
+  const {data,error}=await db.storage.from('visitas-midias').upload(path,arquivo,{upsert:true});
   if(error){console.log('Erro upload:',error);return null;}
   const {data:urlData}=db.storage.from('visitas-midias').getPublicUrl(path);
   return urlData.publicUrl;
@@ -1120,7 +1166,12 @@ function renderRegistros() {
 // CHECKLISTS
 // ==============================
 async function carregarTemplates() {
-  const {data}=await db.from('checklist_templates').select('*,checklist_itens(*)').eq('ativo',true);
+  let data=cacheGet('templates', 720); // 12h — o checklist quase nunca muda
+  if(!data){
+    const res=await db.from('checklist_templates').select('*,checklist_itens(*)').eq('ativo',true);
+    data=res.data;
+    if(data&&data.length) cacheSet('templates', data);
+  }
   const el=document.getElementById('lista-templates-check');
   if(!data||data.length===0){el.innerHTML='<p style="color:var(--text-light);font-size:13px;">Nenhum checklist disponível. Execute o SQL do arquivo supabase_checklist.sql no Supabase.</p>';return;}
   el.innerHTML=data.map(t=>{
@@ -1423,7 +1474,7 @@ async function salvarChecklist() {
     if(clMediaFiles[item.id]){
       fotoIdx++;
       setBtnStatus(`📷 Foto ${fotoIdx}/${fotosItens.length}...`);
-      const f=clMediaFiles[item.id];
+      const f=await comprimirImagem(clMediaFiles[item.id]);
       const path=`checklist/${visitaAtual.id}/${item.id}_${Date.now()}_${f.name}`;
       const {data:up,error:upErr}=await uploadFotoComTimeout(path,f);
       if(upErr){ console.warn('Upload falhou/timeout:',upErr); clUploadFalhou=true; }
