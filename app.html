@@ -1756,7 +1756,7 @@ const LOJA_KPIS = [
 const CONSUL_KPIS = [
   {col:14, label:'Boleto Turbinado',   meta:0.31,  dir:'acima',  metaLabel:'≥31%'},
   {col:16, label:'Boleto Promocional', meta:0.33,  dir:'acima',  metaLabel:'≥33%'},
-  {col:22, label:'Boletos Avulsos',    meta:0.30,  dir:'abaixo', metaLabel:'<30%'},
+  {col:22, label:'B1',                 meta:0.30,  dir:'abaixo', metaLabel:'<30%'},
   {col:24, label:'Boletos Fidelidade', meta:0.90,  dir:'acima',  metaLabel:'≥90%'},
   {col:28, label:'Conversão Fluxo',    meta:0.28,  dir:'acima',  metaLabel:'≥28%'},
   {col:30, label:'Cuidados Faciais',   meta:0.021, dir:'acima',  metaLabel:'≥2,1%'},
@@ -1848,7 +1848,7 @@ function _findPDVAbsCol(header, ...keywords){
 const PDV_KPI_DEFS = [
   {keys:['turbinado'],          label:'Boleto Turbinado',   meta:0.31,  dir:'acima',  metaLabel:'≥31%',    fmt:'pct'},
   {keys:['promocional'],        label:'Boleto Promocional', meta:0.33,  dir:'acima',  metaLabel:'≥33%',    fmt:'pct'},
-  {keys:['avulso','boleto 1'],  label:'Boletos Avulsos',    meta:0.30,  dir:'abaixo', metaLabel:'<30%',    fmt:'pct'},
+  {col:31,                      label:'B1',                 meta:0.30,  dir:'abaixo', metaLabel:'<30%',    fmt:'pct'},
   {keys:['fidelidade'],         label:'Boletos Fidelidade', meta:0.90,  dir:'acima',  metaLabel:'≥90%',    fmt:'pct'},
   {keys:['convers'],            label:'Conversão Fluxo',    meta:0.28,  dir:'acima',  metaLabel:'≥28%',    fmt:'pct'},
   {keys:['facia','cuidado','iaf'], label:'Cuidados Faciais', meta:0.021, dir:'acima', metaLabel:'≥2,1%',  fmt:'pct'},
