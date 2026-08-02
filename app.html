@@ -1833,12 +1833,13 @@ function extrasVsAno(r, header){
   return {alertas, conquistas};
 }
 
-// Encontra coluna de VALOR ABSOLUTO no header PDV (padrão tripla: valor, %meta, %ano)
+// Encontra a coluna cujo cabeçalho casa com a palavra-chave (varre TODAS as colunas).
+// O nome do indicador fica na coluna de VALOR; as colunas seguintes (%meta/%ano)
+// costumam ter rótulos genéricos, então o 1º match é a coluna de valor.
 function _findPDVAbsCol(header, ...keywords){
-  for(let g=0; (1+3*g)<header.length; g++){
-    const vIdx=1+3*g;
-    const h=String(header[vIdx]||'').toLowerCase();
-    if(keywords.some(k=>h.includes(k))) return vIdx;
+  for(let i=0;i<header.length;i++){
+    const h=String(header[i]||'').toLowerCase();
+    if(h && keywords.some(k=>h.includes(k))) return i;
   }
   return null;
 }
@@ -1846,11 +1847,11 @@ function _findPDVAbsCol(header, ...keywords){
 // KPIs da loja mapeados dinamicamente pelo header PDV
 const PDV_KPI_DEFS = [
   {keys:['turbinado'],          label:'Boleto Turbinado',   meta:0.31,  dir:'acima',  metaLabel:'≥31%',    fmt:'pct'},
-  {keys:['promocional','promo'],label:'Boleto Promocional', meta:0.33,  dir:'acima',  metaLabel:'≥33%',    fmt:'pct'},
+  {keys:['promocional'],        label:'Boleto Promocional', meta:0.33,  dir:'acima',  metaLabel:'≥33%',    fmt:'pct'},
   {keys:['avulso','boleto 1'],  label:'Boletos Avulsos',    meta:0.30,  dir:'abaixo', metaLabel:'<30%',    fmt:'pct'},
   {keys:['fidelidade'],         label:'Boletos Fidelidade', meta:0.90,  dir:'acima',  metaLabel:'≥90%',    fmt:'pct'},
-  {keys:['conv','fluxo'],       label:'Conversão Fluxo',    meta:0.28,  dir:'acima',  metaLabel:'≥28%',    fmt:'pct'},
-  {keys:['facial'],             label:'Cuidados Faciais',   meta:0.021, dir:'acima',  metaLabel:'≥2,1%',   fmt:'pct'},
+  {keys:['convers'],            label:'Conversão Fluxo',    meta:0.28,  dir:'acima',  metaLabel:'≥28%',    fmt:'pct'},
+  {keys:['facia','cuidado','iaf'], label:'Cuidados Faciais', meta:0.021, dir:'acima', metaLabel:'≥2,1%',  fmt:'pct'},
   {col:7,                       label:'TKM',                meta:160,   dir:'acima',  metaLabel:'≥R$160',  fmt:'currency'},
   {col:13,                      label:'P.A.',               meta:2.5,   dir:'acima',  metaLabel:'≥2,5',    fmt:'decimal1'},
 ];
