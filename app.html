@@ -1863,7 +1863,7 @@ function analiseKpisLoja(pdvRow, headerPDV){
     if(col===null) return null;
     const val=_n(pdvRow[col]);
     const ok=val===null?null:(k.dir==='acima'?val>=k.meta:val<=k.meta);
-    return {label:k.label, metaLabel:k.metaLabel, val, ok, fmt:k.fmt||'pct'};
+    return {label:k.label, metaLabel:k.metaLabel, val, ok, fmt:k.fmt||'pct', meta:k.meta, dir:k.dir};
   }).filter(Boolean);
   // Extras IAF (aparecem só se a coluna existir no arquivo)
   const extras = IAF_EXTRAS.map(def=>{
@@ -1900,7 +1900,40 @@ function _mkKpi(raw, def){
   let val = raw;
   if(val!==null && def.fmt==='pct' && Math.abs(val)>1.5) val=val/100;
   const ok = val===null ? null : (def.dir==='acima' ? val>=def.meta : val<=def.meta);
-  return {label:def.label, metaLabel:def.metaLabel, val, ok, fmt:def.fmt};
+  return {label:def.label, metaLabel:def.metaLabel, val, ok, fmt:def.fmt, meta:def.meta, dir:def.dir};
+}
+
+// Formata quanto falta para a meta, respeitando o tipo do indicador
+function _fmtGap(k){
+  if(k.val===null || k.meta===undefined || k.meta===null) return '';
+  const gap = k.dir==='abaixo' ? k.val-k.meta : k.meta-k.val;
+  if(gap<=0) return '';
+  if(k.fmt==='currency') return ` · faltam R$${gap.toFixed(0)} p/ meta`;
+  if(k.fmt==='decimal1') return ` · faltam ${gap.toFixed(1).replace('.',',')} p/ meta`;
+  if(k.fmt==='int')      return ` · faltam ${gap.toFixed(0)} p/ meta`;
+  if(k.fmt==='min')      return ` · ${gap.toFixed(0)} min acima do limite`;
+  return ` · faltam ${_pct(gap)} p/ meta`;
+}
+
+// Dica de ação por indicador
+function _dicaKpi(label){
+  const l=label.toLowerCase();
+  if(l.includes('turbinado'))   return 'Ativar oferta do turbinado como primeiro argumento de venda.';
+  if(l.includes('promocional')) return 'Revisar comunicação promocional no PDV e treinamento de oferta.';
+  if(l.includes('b1')||l.includes('avulso')) return 'Reduzir boletos de 1 item — trabalhar cross-sell para elevar o P.A.';
+  if(l.includes('fidelidade'))  return 'Oferecer fidelidade em TODOS os atendimentos, sem exceção.';
+  if(l.includes('fluxo'))       return 'Criar ação de atração: panfletagem, parcerias, ativação em porta de loja.';
+  if(l.includes('facia')||l.includes('skin')) return 'Demonstrar rotina de faciais na abordagem — inserir no carrinho.';
+  if(l.includes('nps'))         return 'Reforçar experiência e pós-venda para elevar a satisfação.';
+  if(l.includes('resgate'))     return 'Estimular resgate de pontos fidelidade no caixa.';
+  if(l.includes('id cliente'))  return 'Identificar o cliente em todos os boletos (CPF/telefone).';
+  if(l.includes('serviço')||l.includes('servico')) return 'Impulsionar serviços de loja (make, brinde, personalização).';
+  if(l.includes('loja digital'))return 'Reduzir o tempo de 1ª resposta no atendimento digital.';
+  if(l.includes('desafio'))     return 'Engajar a equipe nos desafios de fidelidade do ciclo.';
+  if(l.includes('boleto médio')||l.includes('boleto medio')) return 'Aumentar o valor médio do boleto vs ano anterior.';
+  if(l.includes('tkm'))         return 'Focar produtos de maior valor e combos premium.';
+  if(l.includes('p.a'))         return 'Trabalhar cross-sell e up-sell para aumentar itens por boleto.';
+  return 'Treinar a equipe com foco neste indicador.';
 }
 
 function _renderKpiPills(kpis, fontSize='10px'){
@@ -2026,10 +2059,6 @@ function gerarNarrativaLoja(p, headerPDV){
   const fluxoV=_n(r[PDV_COLS.fluxoAno]);
   const tkmV=_n(r[PDV_COLS.ticket]);
   const paV=_n(r[PDV_COLS.pa]);
-  const kpis=analiseKpisLoja(r, headerPDV||[]);
-  const falhos=kpis.filter(k=>k.ok===false);
-  const verdes=kpis.filter(k=>k.ok===true);
-
   let h=`<div style="font-size:13px;line-height:1.7;color:var(--text);">`;
 
   // Situação geral
@@ -2061,25 +2090,7 @@ function gerarNarrativaLoja(p, headerPDV){
     }
   }
 
-  // KPIs em verde e vermelho
-  if(verdes.length>0){
-    h+=`<div style="font-weight:800;font-size:14px;color:#0f5132;margin:10px 0 6px;">✅ O que está funcionando bem (${verdes.length})</div>`;
-    h+=`<div style="margin-bottom:8px;">`+verdes.filter(k=>!['TKM','P.A.'].includes(k.label)).map(k=>`<div style="margin-bottom:3px;font-size:12px;">• <strong>${k.label}:</strong> ${_fmtKpiVal(k)} (meta ${k.metaLabel}) — reforçar para manter!</div>`).join('')+`</div>`;
-  }
-  if(falhos.length>0){
-    h+=`<div style="font-weight:800;font-size:14px;color:#842029;margin:10px 0 6px;">❌ Pontos de melhoria (${falhos.length})</div>`;
-    h+=`<div style="margin-bottom:8px;">`+falhos.filter(k=>!['TKM','P.A.'].includes(k.label)).map(k=>{
-      const gap=k.dir==='acima'?k.meta-k.val:k.val-k.meta;
-      const gapStr=gap!==null?` (falta ${_pct(gap)} para a meta)`:'';
-      const dica=k.label.includes('Turbinado')?'Ativar oferta do turbinado como primeiro argumento de venda.':
-        k.label.includes('Promocional')?'Revisar comunicação promocional no PDV e treinamento de oferta.':
-        k.label.includes('Avulso')?'Converter boletos avulsos em fidelidade — reforçar o argumento de benefícios.':
-        k.label.includes('Fidelidade')?'Oferecer fidelidade em TODOS os atendimentos, sem exceção.':
-        k.label.includes('Fluxo')?'Criar ação de atração: panfletagem, parcerias, ativação em porta de loja.':
-        k.label.includes('Facial')?'Demonstrar rotina de faciais na abordagem — inserir no carrinho de compras.':'Treinar equipe focado neste indicador.';
-      return `<div style="margin-bottom:6px;font-size:12px;background:#f8d7da;border-radius:6px;padding:6px 10px;">❌ <strong>${k.label}:</strong> ${_fmtKpiVal(k)}${gapStr}<br><span style="color:#842029;">→ ${dica}</span></div>`;
-    }).join('')+`</div>`;
-  }
+  // (as listas verde/vermelho por meta IAF viram os cards "Pontos de atenção" e "Para elogiar")
 
   // Recomendação final
   const urgencia=p.sev.nivel;
@@ -2309,22 +2320,29 @@ function abrirPrioLoja(i){
     }
   }
 
-  // Alertas
-  const todosAlertas=[...p.alertas, ...p.extrasAlertas];
-  if(todosAlertas.length>0){
-    html+=`<div class="card" style="border-left:4px solid #dc3545;">
-      <div style="font-weight:800;font-size:14px;color:#842029;margin-bottom:8px;">🔴 Pontos de atenção (${todosAlertas.length})</div>
-      ${todosAlertas.map(a=>`<div class="alerta-linha"><span>${a}</span></div>`).join('')}
-    </div>`;
-  }
+  // Pontos de atenção / Para elogiar — comparados à META IAF
+  if(p.pdvRow){
+    const headerPDV=(prioArquivos[0]?.headerPDV)||[];
+    const kpis=analiseKpisLoja(p.pdvRow, headerPDV);
+    const abaixo=kpis.filter(k=>k.ok===false);
+    const acima =kpis.filter(k=>k.ok===true);
 
-  // Conquistas
-  const todasConquistas=[...p.conquistas, ...p.extrasConquistas];
-  if(todasConquistas.length>0){
-    html+=`<div class="card" style="border-left:4px solid #28a745;">
-      <div style="font-weight:800;font-size:14px;color:#0f5132;margin-bottom:8px;">🟢 Para elogiar e comemorar (${todasConquistas.length})</div>
-      ${todasConquistas.map(a=>`<div class="alerta-linha" style="color:#0f5132;"><span>${a}</span></div>`).join('')}
-    </div>`;
+    if(abaixo.length>0){
+      html+=`<div class="card" style="border-left:4px solid #dc3545;">
+        <div style="font-weight:800;font-size:14px;color:#842029;margin-bottom:8px;">🔴 Pontos de atenção vs meta IAF (${abaixo.length})</div>
+        ${abaixo.map(k=>`<div style="margin-bottom:6px;font-size:12px;background:#f8d7da;border-radius:6px;padding:6px 10px;">
+          ❌ <strong>${k.label}:</strong> ${_fmtKpiVal(k)} <span style="color:#842029;">(meta ${k.metaLabel}${_fmtGap(k)})</span>
+          <br><span style="color:#842029;">→ ${_dicaKpi(k.label)}</span>
+        </div>`).join('')}
+      </div>`;
+    }
+
+    if(acima.length>0){
+      html+=`<div class="card" style="border-left:4px solid #28a745;">
+        <div style="font-weight:800;font-size:14px;color:#0f5132;margin-bottom:8px;">🟢 Para elogiar e comemorar vs meta IAF (${acima.length})</div>
+        ${acima.map(k=>`<div class="alerta-linha" style="color:#0f5132;"><span>✅ <strong>${k.label}:</strong> ${_fmtKpiVal(k)} (meta ${k.metaLabel})</span></div>`).join('')}
+      </div>`;
+    }
   }
 
   // Consultoras
