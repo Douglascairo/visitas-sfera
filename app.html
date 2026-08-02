@@ -2322,7 +2322,8 @@ function renderRankingEquipe(c){
     const acimaMedia=pct>=mediaPart;
     const cor=idx===0?'#198754':acimaMedia?'#0d6efd':'#842029';
     const tk=ticket(d);
-    const extra=d.cupons>0?`${d.cupons.toFixed(0)} cupons${tk?` · TM ${_fmtR$(tk)}`:''}`:'';
+    const pc=partCup(d);
+    const extra=d.cupons>0?`${pc.toFixed(1).replace('.',',')}% dos cupons · ${d.cupons.toFixed(0)} cupons${tk?` · TM ${_fmtR$(tk)}`:''}`:'';
     return `<div style="margin-bottom:8px;">
       <div style="display:flex;justify-content:space-between;font-size:12px;margin-bottom:3px;">
         <span><strong>${medalha}</strong> ${d.nome}</span>
