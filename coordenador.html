@@ -43,6 +43,7 @@
     <button class="tab-btn" onclick="mudarTab('rota')">Rota</button>
     <button class="tab-btn" onclick="mudarTab('metricas')">Métricas</button>
     <button class="tab-btn" onclick="mudarTab('checklists')">Checklists</button>
+    <button class="tab-btn" onclick="mudarTab('demandas')">Demandas</button>
   </div>
 
   <!-- ======== TAB: VISITAS ======== -->
@@ -127,6 +128,24 @@
     </div>
     <div id="lista-checklists"><div class="loader"><div class="spinner"></div></div></div>
     <button class="btn btn-secondary btn-full" onclick="abrirNovoChecklist()" style="margin-top:12px;font-size:12px;">⚙️ Gerenciar templates</button>
+  </div>
+
+  <!-- ======== TAB: DEMANDAS ======== -->
+  <div id="tab-demandas" style="display:none">
+    <div style="display:flex;gap:8px;margin-bottom:8px;flex-wrap:wrap;">
+      <select class="form-control" id="dem-mes" style="flex:1;" onchange="carregarDemandas()">
+        <option value="8" selected>Agosto 2026</option>
+        <option value="7">Julho 2026</option>
+        <option value="6">Junho 2026</option>
+        <option value="5">Maio 2026</option>
+        <option value="4">Abril 2026</option>
+        <option value="3">Março 2026</option>
+      </select>
+      <select class="form-control" id="dem-sup" style="flex:1;" onchange="carregarDemandas()">
+        <option value="">Todas as supervisoras</option>
+      </select>
+    </div>
+    <div id="lista-demandas"><div class="loader"><div class="spinner"></div></div></div>
   </div>
 
 </div>
@@ -249,13 +268,14 @@ window.addEventListener('DOMContentLoaded', async()=>{
 // TABS
 // ==============================
 function mudarTab(tab) {
-  ['visitas','rota','metricas','checklists'].forEach((t,i)=>{
+  ['visitas','rota','metricas','checklists','demandas'].forEach((t,i)=>{
     document.getElementById('tab-'+t).style.display=t===tab?'':'none';
     document.querySelectorAll('.tab-btn')[i].classList.toggle('active',t===tab);
   });
   if(tab==='metricas') carregarMetricas();
   if(tab==='checklists') carregarChecklists();
   if(tab==='rota') carregarRotas();
+  if(tab==='demandas') carregarDemandas();
 }
 
 // ==============================
@@ -264,10 +284,96 @@ function mudarTab(tab) {
 async function carregarSupervisoras() {
   const {data}=await db.from('supervisoras').select('*').eq('ativo',true).order('nome');
   supervisoras=data||[];
-  ['filtro-sup','rota-sup','met-sup','cl-filtro-sup'].forEach(selId=>{
+  ['filtro-sup','rota-sup','met-sup','cl-filtro-sup','dem-sup'].forEach(selId=>{
     const sel=document.getElementById(selId);
     data.forEach(s=>{const opt=document.createElement('option');opt.value=s.id;opt.textContent=s.nome;sel.appendChild(opt);});
   });
+}
+
+// ==============================
+// DEMANDAS
+// ==============================
+const DEMANDA_TIPOS_C = [
+  {id:'reuniao_gerente',   label:'Reunião com gerente',            icon:'🤝'},
+  {id:'checklist_loja',    label:'Checklist de loja',              icon:'📋'},
+  {id:'troca_ciclo',       label:'Checagem de troca de ciclo',     icon:'🔄'},
+  {id:'venda_junto',       label:'Acompanhar vendas no salão',     icon:'🛍️'},
+  {id:'coaching',          label:'Coaching de consultora',         icon:'🎯'},
+  {id:'treinamento_equipe',label:'Treinamento de equipe',          icon:'📚'},
+  {id:'vm_vitrine',        label:'Conferência de VM/vitrine',      icon:'🪟'},
+  {id:'estoque',           label:'Auditoria de estoque',           icon:'📦'},
+  {id:'precificacao',      label:'Conferência de precificação',    icon:'🏷️'},
+  {id:'plano_acao',        label:'Plano de ação',                  icon:'✅'},
+  {id:'chamado',           label:'Abertura/resolução de chamado',  icon:'🔧'},
+  {id:'caixa_cofre',       label:'Conferência de caixa/cofre',     icon:'💰'},
+  {id:'indicadores',       label:'Acompanhar indicadores (GI)',    icon:'📊'},
+  {id:'reuniao_coord',     label:'Reunião com coordenação',        icon:'👥'},
+  {id:'recrutamento',      label:'Recrutamento/entrevista',        icon:'🧑‍💼'},
+  {id:'treino_proprio',    label:'Treinamento próprio',            icon:'🎓'},
+  {id:'rh',                label:'RH / ponto / escala',            icon:'🗓️'},
+];
+const DEMANDA_MAP_C = Object.fromEntries(DEMANDA_TIPOS_C.map(t=>[t.id,t]));
+
+async function carregarDemandas(){
+  const el=document.getElementById('lista-demandas');
+  el.innerHTML='<div class="loader"><div class="spinner"></div></div>';
+  const mes=parseInt(document.getElementById('dem-mes').value);
+  const supId=document.getElementById('dem-sup').value;
+  const ano=2026;
+  const ini=`${ano}-${String(mes).padStart(2,'0')}-01`;
+  const ultimo=new Date(ano,mes,0).getDate();
+  const fim=`${ano}-${String(mes).padStart(2,'0')}-${ultimo}`;
+
+  let q=db.from('demandas_supervisora').select('tipo,loja_id,data,observacao,supervisora_id,supervisoras(nome,nome_curto),lojas(nome)').gte('data',ini).lte('data',fim).order('data',{ascending:false});
+  if(supId) q=q.eq('supervisora_id',supId);
+  const {data,error}=await q;
+  if(error){ el.innerHTML='<p style="color:#dc3545;">Erro ao carregar.</p>'; return; }
+  if(!data||data.length===0){ el.innerHTML='<div class="empty"><div class="empty-icon">📭</div><p>Nenhuma demanda registrada neste período.</p></div>'; return; }
+
+  // Total por tipo
+  const porTipo={};
+  data.forEach(d=>porTipo[d.tipo]=(porTipo[d.tipo]||0)+1);
+  // Total por supervisora × tipo
+  const porSup={};
+  data.forEach(d=>{
+    const n=d.supervisoras?.nome_curto||d.supervisoras?.nome||'?';
+    if(!porSup[n]) porSup[n]={total:0,tipos:{}};
+    porSup[n].total++; porSup[n].tipos[d.tipo]=(porSup[n].tipos[d.tipo]||0)+1;
+  });
+
+  let html='';
+  // Card resumo geral
+  html+=`<div class="card"><div class="card-title">📊 Total por atividade (${data.length} no mês)</div>`;
+  html+=Object.entries(porTipo).sort((a,b)=>b[1]-a[1]).map(([tipo,n])=>{
+    const t=DEMANDA_MAP_C[tipo]||{icon:'•',label:tipo};
+    const max=Math.max(...Object.values(porTipo));
+    return `<div style="margin-bottom:10px;">
+      <div style="display:flex;justify-content:space-between;font-size:13px;margin-bottom:4px;">
+        <span>${t.icon} ${t.label}</span><span style="font-weight:800;color:var(--sfera);">${n}</span>
+      </div>
+      <div style="background:var(--border);border-radius:8px;height:7px;overflow:hidden;">
+        <div style="width:${n/max*100}%;background:var(--sfera);height:100%;border-radius:8px;"></div>
+      </div>
+    </div>`;
+  }).join('')+`</div>`;
+
+  // Card por supervisora
+  html+=`<div class="card"><div class="card-title">👤 Por supervisora</div>`;
+  html+=Object.entries(porSup).sort((a,b)=>b[1].total-a[1].total).map(([nome,d])=>{
+    const detalhes=Object.entries(d.tipos).sort((a,b)=>b[1]-a[1]).map(([tipo,n])=>{
+      const t=DEMANDA_MAP_C[tipo]||{icon:'•',label:tipo};
+      return `<span style="display:inline-block;background:var(--sfera-light);color:var(--sfera-dark);border-radius:12px;padding:2px 8px;font-size:11px;font-weight:600;margin:2px;">${t.icon} ${t.label}: <strong>${n}</strong></span>`;
+    }).join('');
+    return `<div style="border:1px solid var(--border);border-radius:10px;padding:10px 12px;margin-bottom:10px;">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;">
+        <div style="font-weight:800;font-size:14px;">${nome}</div>
+        <div style="font-weight:800;color:var(--sfera);">${d.total}</div>
+      </div>
+      <div style="display:flex;flex-wrap:wrap;gap:2px;">${detalhes}</div>
+    </div>`;
+  }).join('')+`</div>`;
+
+  el.innerHTML=html;
 }
 
 // ==============================

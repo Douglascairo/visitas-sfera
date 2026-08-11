@@ -153,6 +153,18 @@
       </div>
     </div>
 
+    <!-- Registrar demanda -->
+    <div class="card" style="background:linear-gradient(135deg,#5a2d82 0%,#9b59b6 100%);color:white;cursor:pointer;border:none;" onclick="irDemandas()">
+      <div style="display:flex;align-items:center;gap:14px;">
+        <div style="font-size:34px;">➕</div>
+        <div style="flex:1;">
+          <div style="font-size:15px;font-weight:800;">Registrar demanda</div>
+          <div style="font-size:12px;opacity:0.9;margin-top:2px;">Reuniões, checagens de ciclo, treinamentos... contabilize suas atividades do mês</div>
+        </div>
+        <div style="font-size:22px;">→</div>
+      </div>
+    </div>
+
     <!-- Prioridade de rota -->
     <div class="card" style="background:linear-gradient(135deg,#042C53 0%,#1BA8D9 100%);color:white;cursor:pointer;border:none;" onclick="irPrioridade()">
       <div style="display:flex;align-items:center;gap:14px;">
@@ -241,6 +253,48 @@
       <div style="font-size:18px;font-weight:800;">📋 Histórico de Checklists</div>
     </div>
     <div id="hist-cl-lista"><div class="loader"><div class="spinner"></div><p>Carregando...</p></div></div>
+  </div>
+
+  <!-- TELA: REGISTRAR DEMANDA -->
+  <div id="tela-demanda" style="display:none">
+    <div style="display:flex;align-items:center;gap:10px;margin-bottom:16px;">
+      <button onclick="irHome()" style="background:none;border:none;font-size:22px;cursor:pointer;padding:4px;">←</button>
+      <div style="font-size:18px;font-weight:800;">➕ Registrar demanda</div>
+    </div>
+
+    <div class="card">
+      <div style="font-size:13px;font-weight:700;color:var(--sfera-dark);margin-bottom:8px;">1. Qual atividade?</div>
+      <div id="demanda-tipos" style="display:grid;grid-template-columns:1fr 1fr;gap:8px;"></div>
+    </div>
+
+    <div id="demanda-passo2" style="display:none;">
+      <div class="card">
+        <div id="demanda-lojas-wrap">
+          <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;">
+            <div style="font-size:13px;font-weight:700;color:var(--sfera-dark);">2. Em qual(is) loja(s)?</div>
+            <label style="font-size:12px;font-weight:700;color:var(--sfera);cursor:pointer;display:flex;align-items:center;gap:6px;">
+              <input type="checkbox" id="demanda-todas" onchange="toggleTodasLojas()" style="width:16px;height:16px;"> Todas
+            </label>
+          </div>
+          <div id="demanda-lojas" style="display:flex;flex-direction:column;gap:6px;max-height:280px;overflow-y:auto;"></div>
+        </div>
+      </div>
+
+      <div class="card">
+        <div style="font-size:13px;font-weight:700;color:var(--sfera-dark);margin-bottom:8px;">3. Data</div>
+        <input type="date" class="form-control" id="demanda-data">
+        <div style="font-size:13px;font-weight:700;color:var(--sfera-dark);margin:12px 0 8px;">Observação (opcional)</div>
+        <textarea class="form-control" id="demanda-obs" placeholder="Detalhe se quiser... (ou toque no 🎤 e fale)"></textarea>
+        <button type="button" class="btn btn-secondary btn-sm btn-mic" style="margin-top:6px;" data-label="🎤 Falar" onclick="ditarPara('demanda-obs',this)">🎤 Falar</button>
+      </div>
+
+      <button class="btn btn-primary btn-full" onclick="salvarDemanda()" id="btn-salvar-demanda">Salvar demanda</button>
+    </div>
+
+    <div class="card" style="margin-top:16px;">
+      <div style="font-size:13px;font-weight:800;margin-bottom:10px;">📊 Suas demandas neste mês</div>
+      <div id="demanda-resumo"><div class="loader"><div class="spinner"></div></div></div>
+    </div>
   </div>
 
   <!-- MODAL: Histórico detalhe loja -->
@@ -575,11 +629,129 @@ window.addEventListener('DOMContentLoaded', async () => {
 // NAVEGAÇÃO
 // ==============================
 function mostrarTela(id) {
-  ['tela-home','tela-selecionar-loja','tela-prioridade','tela-historico-cl','tela-plano-revisao','tela-energia','tela-visita','tela-encerrar','tela-encerrada']
+  ['tela-home','tela-selecionar-loja','tela-prioridade','tela-historico-cl','tela-demanda','tela-plano-revisao','tela-energia','tela-visita','tela-encerrar','tela-encerrada']
     .forEach(t => document.getElementById(t).style.display = t===id ? '':'none');
   window.scrollTo(0,0);
 }
 function irPrioridade() { mostrarTela('tela-prioridade'); }
+
+// ==============================
+// DEMANDAS DA SUPERVISORA
+// ==============================
+const DEMANDA_TIPOS = [
+  {id:'reuniao_gerente',   label:'Reunião com gerente',            icon:'🤝', loja:true},
+  {id:'checklist_loja',    label:'Checklist de loja',              icon:'📋', loja:true},
+  {id:'troca_ciclo',       label:'Checagem de troca de ciclo',     icon:'🔄', loja:true},
+  {id:'venda_junto',       label:'Acompanhar vendas no salão',     icon:'🛍️', loja:true},
+  {id:'coaching',          label:'Coaching de consultora',         icon:'🎯', loja:true},
+  {id:'treinamento_equipe',label:'Treinamento de equipe',          icon:'📚', loja:true},
+  {id:'vm_vitrine',        label:'Conferência de VM/vitrine',      icon:'🪟', loja:true},
+  {id:'estoque',           label:'Auditoria de estoque',           icon:'📦', loja:true},
+  {id:'precificacao',      label:'Conferência de precificação',    icon:'🏷️', loja:true},
+  {id:'plano_acao',        label:'Plano de ação',                  icon:'✅', loja:true},
+  {id:'chamado',           label:'Abertura/resolução de chamado',  icon:'🔧', loja:true},
+  {id:'caixa_cofre',       label:'Conferência de caixa/cofre',     icon:'💰', loja:true},
+  {id:'indicadores',       label:'Acompanhar indicadores (GI)',    icon:'📊', loja:true},
+  {id:'reuniao_coord',     label:'Reunião com coordenação',        icon:'👥', loja:false},
+  {id:'recrutamento',      label:'Recrutamento/entrevista',        icon:'🧑‍💼', loja:false},
+  {id:'treino_proprio',    label:'Treinamento próprio',            icon:'🎓', loja:false},
+  {id:'rh',                label:'RH / ponto / escala',            icon:'🗓️', loja:false},
+];
+const DEMANDA_MAP = Object.fromEntries(DEMANDA_TIPOS.map(t=>[t.id,t]));
+let demandaTipoAtual = null;
+
+async function irDemandas(){
+  mostrarTela('tela-demanda');
+  if(!lojas.length) await carregarLojas();
+  demandaTipoAtual=null;
+  document.getElementById('demanda-passo2').style.display='none';
+  document.getElementById('demanda-data').value=new Date().toISOString().split('T')[0];
+  document.getElementById('demanda-obs').value='';
+  // botões de tipo
+  document.getElementById('demanda-tipos').innerHTML=DEMANDA_TIPOS.map(t=>
+    `<button type="button" class="cat-btn" id="dtipo-${t.id}" onclick="selecionarTipoDemanda('${t.id}')" style="text-align:left;font-size:12px;line-height:1.25;">
+      <span style="font-size:20px;display:block;margin-bottom:2px;">${t.icon}</span>${t.label}
+    </button>`).join('');
+  carregarResumoDemandas();
+}
+
+function selecionarTipoDemanda(id){
+  demandaTipoAtual=DEMANDA_MAP[id];
+  DEMANDA_TIPOS.forEach(t=>{
+    const b=document.getElementById('dtipo-'+t.id);
+    if(b) b.classList.toggle('active', t.id===id);
+  });
+  document.getElementById('demanda-passo2').style.display='';
+  // mostra/oculta seleção de loja conforme o tipo
+  const wrap=document.getElementById('demanda-lojas-wrap');
+  if(demandaTipoAtual.loja){
+    wrap.style.display='';
+    document.getElementById('demanda-todas').checked=false;
+    document.getElementById('demanda-lojas').innerHTML=lojas.map(l=>
+      `<label style="display:flex;align-items:center;gap:8px;font-size:13px;padding:8px 10px;border:1.5px solid var(--border);border-radius:8px;cursor:pointer;">
+        <input type="checkbox" class="demanda-loja-chk" value="${l.id}" style="width:16px;height:16px;">
+        <span><strong>${l.nome}</strong> <span style="color:var(--text-light);">· ${l.cidade||''}</span></span>
+      </label>`).join('');
+  } else {
+    wrap.style.display='none';
+  }
+  document.getElementById('demanda-passo2').scrollIntoView({behavior:'smooth',block:'nearest'});
+}
+
+function toggleTodasLojas(){
+  const marca=document.getElementById('demanda-todas').checked;
+  document.querySelectorAll('.demanda-loja-chk').forEach(c=>c.checked=marca);
+}
+
+async function salvarDemanda(){
+  if(!demandaTipoAtual){ showToast('Escolha a atividade','error'); return; }
+  const data=document.getElementById('demanda-data').value;
+  if(!data){ showToast('Escolha a data','error'); return; }
+  const obs=document.getElementById('demanda-obs').value.trim()||null;
+
+  let rows=[];
+  if(demandaTipoAtual.loja){
+    const ids=[...document.querySelectorAll('.demanda-loja-chk:checked')].map(c=>c.value);
+    if(ids.length===0){ showToast('Selecione ao menos 1 loja','error'); return; }
+    rows=ids.map(lid=>({supervisora_id:usuario.id, tipo:demandaTipoAtual.id, loja_id:lid, data, observacao:obs}));
+  } else {
+    rows=[{supervisora_id:usuario.id, tipo:demandaTipoAtual.id, loja_id:null, data, observacao:obs}];
+  }
+
+  const btn=document.getElementById('btn-salvar-demanda');
+  btn.disabled=true; btn.textContent='Salvando...';
+  const {error}=await db.from('demandas_supervisora').insert(rows);
+  btn.disabled=false; btn.textContent='Salvar demanda';
+  if(error){ showToast('Erro ao salvar: '+error.message,'error'); return; }
+
+  showToast(`✅ ${rows.length} registro(s) salvo(s)!`);
+  // reset parcial: mantém o tipo, limpa seleção
+  document.getElementById('demanda-obs').value='';
+  document.getElementById('demanda-todas').checked=false;
+  document.querySelectorAll('.demanda-loja-chk').forEach(c=>c.checked=false);
+  carregarResumoDemandas();
+}
+
+async function carregarResumoDemandas(){
+  const el=document.getElementById('demanda-resumo');
+  const hoje=new Date();
+  const ini=`${hoje.getFullYear()}-${String(hoje.getMonth()+1).padStart(2,'0')}-01`;
+  const ultimo=new Date(hoje.getFullYear(),hoje.getMonth()+1,0).getDate();
+  const fim=`${hoje.getFullYear()}-${String(hoje.getMonth()+1).padStart(2,'0')}-${ultimo}`;
+  const {data}=await db.from('demandas_supervisora').select('tipo').eq('supervisora_id',usuario.id).gte('data',ini).lte('data',fim);
+  if(!data||data.length===0){ el.innerHTML='<p style="color:var(--text-light);font-size:13px;">Nenhuma demanda registrada este mês ainda.</p>'; return; }
+  const cont={};
+  data.forEach(d=>cont[d.tipo]=(cont[d.tipo]||0)+1);
+  const linhas=Object.entries(cont).sort((a,b)=>b[1]-a[1]).map(([tipo,n])=>{
+    const t=DEMANDA_MAP[tipo]||{icon:'•',label:tipo};
+    return `<div style="display:flex;align-items:center;gap:8px;padding:6px 0;border-bottom:1px solid var(--border);font-size:13px;">
+      <span style="font-size:16px;">${t.icon}</span>
+      <span style="flex:1;">${t.label}</span>
+      <span style="font-weight:800;color:var(--sfera);">${n}</span>
+    </div>`;
+  }).join('');
+  el.innerHTML=linhas+`<div style="text-align:right;font-size:12px;color:var(--text-light);margin-top:8px;">Total: <strong>${data.length}</strong> demandas no mês</div>`;
+}
 
 // ==============================
 // HISTÓRICO DE CHECKLISTS
