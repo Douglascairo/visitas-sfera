@@ -44,6 +44,7 @@
     <button class="tab-btn" onclick="mudarTab('metricas')">Métricas</button>
     <button class="tab-btn" onclick="mudarTab('checklists')">Checklists</button>
     <button class="tab-btn" onclick="mudarTab('demandas')">Demandas</button>
+    <button class="tab-btn" onclick="mudarTab('planos')">Planos de Ação</button>
   </div>
 
   <!-- ======== TAB: VISITAS ======== -->
@@ -148,6 +149,22 @@
       </select>
     </div>
     <div id="lista-demandas"><div class="loader"><div class="spinner"></div></div></div>
+  </div>
+
+  <!-- ======== TAB: PLANOS DE AÇÃO ======== -->
+  <div id="tab-planos" style="display:none">
+    <div style="margin-bottom:8px;">
+      <select class="form-control" id="planos-sup" onchange="carregarPlanos()">
+        <option value="">Todas as supervisoras</option>
+      </select>
+    </div>
+    <div style="margin-bottom:8px;">
+      <select class="form-control" id="planos-status" onchange="carregarPlanos()">
+        <option value="abertos" selected>Só pendentes + em andamento</option>
+        <option value="todos">Todos (inclui concluídos)</option>
+      </select>
+    </div>
+    <div id="lista-planos"><div class="loader"><div class="spinner"></div></div></div>
   </div>
 
 </div>
@@ -285,7 +302,7 @@ function garantirMesAtual(ids){
 }
 
 function mudarTab(tab) {
-  ['visitas','rota','metricas','checklists','demandas'].forEach((t,i)=>{
+  ['visitas','rota','metricas','checklists','demandas','planos'].forEach((t,i)=>{
     document.getElementById('tab-'+t).style.display=t===tab?'':'none';
     document.querySelectorAll('.tab-btn')[i].classList.toggle('active',t===tab);
   });
@@ -293,6 +310,7 @@ function mudarTab(tab) {
   if(tab==='checklists') carregarChecklists();
   if(tab==='rota') carregarRotas();
   if(tab==='demandas') carregarDemandas();
+  if(tab==='planos') carregarPlanos();
 }
 
 // ==============================
@@ -301,10 +319,92 @@ function mudarTab(tab) {
 async function carregarSupervisoras() {
   const {data}=await db.from('supervisoras').select('*').eq('ativo',true).order('nome');
   supervisoras=data||[];
-  ['filtro-sup','rota-sup','met-sup','cl-filtro-sup','dem-sup'].forEach(selId=>{
+  ['filtro-sup','rota-sup','met-sup','cl-filtro-sup','dem-sup','planos-sup'].forEach(selId=>{
     const sel=document.getElementById(selId);
     data.forEach(s=>{const opt=document.createElement('option');opt.value=s.id;opt.textContent=s.nome;sel.appendChild(opt);});
   });
+}
+
+// ==============================
+// PLANOS DE AÇÃO
+// ==============================
+const PLANO_ST={
+  concluido:{label:'Concluído', icon:'✅', bg:'#d1e7dd', cor:'#0f5132'},
+  andamento:{label:'Em andamento', icon:'🔄', bg:'#fff3cd', cor:'#856404'},
+  pendente:{label:'Pendente', icon:'❌', bg:'#f8d7da', cor:'#842029'},
+};
+async function carregarPlanos(){
+  const el=document.getElementById('lista-planos');
+  el.innerHTML='<div class="loader"><div class="spinner"></div></div>';
+  const supId=document.getElementById('planos-sup').value;
+  const filtro=document.getElementById('planos-status').value;
+
+  // Visitas (para mapear loja/supervisora/data)
+  let qv=db.from('visitas').select('id,data_visita,loja_id,supervisora_id,lojas(nome),supervisoras(nome,nome_curto)');
+  if(supId) qv=qv.eq('supervisora_id',supId);
+  const {data:visitas}=await qv;
+  if(!visitas||visitas.length===0){ el.innerHTML='<div class="empty"><div class="empty-icon">📭</div><p>Sem visitas registradas.</p></div>'; return; }
+  const visMap={}; visitas.forEach(v=>visMap[v.id]=v);
+  const visIds=visitas.map(v=>v.id);
+
+  // Itens de plano de ação
+  const {data:planos}=await db.from('registros_visita').select('*').in('visita_id',visIds).eq('categoria','plano_acao');
+  if(!planos||planos.length===0){ el.innerHTML='<div class="empty"><div class="empty-icon">🎯</div><p>Nenhum plano de ação criado ainda.</p></div>'; return; }
+
+  // Status mais recente de cada item
+  const ids=planos.map(p=>p.id);
+  const {data:revs}=await db.from('plano_acao_revisao').select('registro_original_id,status,created_at').in('registro_original_id',ids).order('created_at',{ascending:true});
+  const statusMap={}; (revs||[]).forEach(r=>statusMap[r.registro_original_id]=r.status);
+
+  // Contadores
+  let cP=0,cA=0,cC=0;
+  planos.forEach(p=>{const st=statusMap[p.id]||'pendente'; if(st==='concluido')cC++; else if(st==='andamento')cA++; else cP++;});
+
+  // Agrupa por loja (respeitando filtro de status)
+  const porLoja={};
+  planos.forEach(p=>{
+    const st=statusMap[p.id]||'pendente';
+    if(filtro==='abertos' && st==='concluido') return;
+    const v=visMap[p.visita_id]; if(!v) return;
+    const loja=v.lojas?.nome||'Loja';
+    if(!porLoja[loja]) porLoja[loja]={sup:v.supervisoras?.nome_curto||v.supervisoras?.nome||'', itens:[]};
+    porLoja[loja].itens.push({desc:p.descricao, data:v.data_visita, status:st});
+  });
+
+  // Resumo
+  let html=`<div class="card"><div class="card-title">🎯 Resumo dos planos de ação</div>
+    <div style="display:flex;gap:8px;text-align:center;">
+      <div style="flex:1;background:#f8d7da;border-radius:10px;padding:10px;"><div style="font-size:22px;font-weight:900;color:#842029;">${cP}</div><div style="font-size:11px;color:#842029;">Pendentes</div></div>
+      <div style="flex:1;background:#fff3cd;border-radius:10px;padding:10px;"><div style="font-size:22px;font-weight:900;color:#856404;">${cA}</div><div style="font-size:11px;color:#856404;">Em andamento</div></div>
+      <div style="flex:1;background:#d1e7dd;border-radius:10px;padding:10px;"><div style="font-size:22px;font-weight:900;color:#0f5132;">${cC}</div><div style="font-size:11px;color:#0f5132;">Concluídos</div></div>
+    </div></div>`;
+
+  const lojasOrd=Object.entries(porLoja).sort((a,b)=>b[1].itens.length-a[1].itens.length);
+  if(lojasOrd.length===0){ html+='<div class="empty"><div class="empty-icon">✅</div><p>Nenhum item em aberto — tudo concluído!</p></div>'; el.innerHTML=html; return; }
+
+  html+=lojasOrd.map(([loja,d])=>{
+    const itens=d.itens.sort((a,b)=>new Date(a.data)-new Date(b.data)).map(it=>{
+      const s=PLANO_ST[it.status]||PLANO_ST.pendente;
+      const dataStr=it.data?it.data.split('-').reverse().join('/'):'';
+      return `<div style="display:flex;align-items:flex-start;gap:8px;padding:8px 0;border-bottom:1px solid var(--border);">
+        <span style="font-size:15px;">${s.icon}</span>
+        <div style="flex:1;">
+          <div style="font-size:13px;">${it.desc}</div>
+          <div style="font-size:11px;color:var(--text-light);">desde ${dataStr}</div>
+        </div>
+        <span style="background:${s.bg};color:${s.cor};border-radius:12px;padding:2px 8px;font-size:10px;font-weight:700;white-space:nowrap;">${s.label}</span>
+      </div>`;
+    }).join('');
+    return `<div class="card">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;">
+        <div style="font-weight:800;font-size:15px;">🏪 ${loja}</div>
+        <div style="font-size:11px;color:var(--text-light);">${d.sup} · ${d.itens.length} item(ns)</div>
+      </div>
+      ${itens}
+    </div>`;
+  }).join('');
+
+  el.innerHTML=html;
 }
 
 // ==============================
