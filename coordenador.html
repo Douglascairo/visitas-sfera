@@ -90,7 +90,8 @@
   <div id="tab-metricas" style="display:none">
     <div style="display:flex;gap:8px;margin-bottom:16px;flex-wrap:wrap;">
       <select class="form-control" id="met-mes" style="flex:1;" onchange="carregarMetricas()">
-        <option value="7" selected>Julho 2026</option>
+        <option value="8" selected>Agosto 2026</option>
+        <option value="7">Julho 2026</option>
         <option value="6">Junho 2026</option>
         <option value="5">Maio 2026</option>
         <option value="4">Abril 2026</option>
@@ -116,7 +117,8 @@
   <div id="tab-checklists" style="display:none">
     <div style="display:flex;gap:8px;margin-bottom:8px;flex-wrap:wrap;">
       <select class="form-control" id="cl-filtro-mes" style="flex:1;" onchange="carregarChecklists()">
-        <option value="7" selected>Julho 2026</option>
+        <option value="8" selected>Agosto 2026</option>
+        <option value="7">Julho 2026</option>
         <option value="6">Junho 2026</option>
         <option value="5">Maio 2026</option>
         <option value="4">Abril 2026</option>
@@ -259,7 +261,7 @@ window.addEventListener('DOMContentLoaded', async()=>{
   const hoje=new Date().toISOString().split('T')[0];
   document.getElementById('rota-data-de').value=hoje;
   document.getElementById('rota-data-ate').value=hoje;
-  document.getElementById('met-mes').value=new Date().getMonth()+1;
+  garantirMesAtual(['met-mes','cl-filtro-mes','dem-mes']);
   await carregarSupervisoras();
   await carregarVisitas();
 });
@@ -267,6 +269,21 @@ window.addEventListener('DOMContentLoaded', async()=>{
 // ==============================
 // TABS
 // ==============================
+// Garante que o mês atual exista e esteja selecionado nos filtros de mês
+function garantirMesAtual(ids){
+  const MESES=['Janeiro','Fevereiro','Março','Abril','Maio','Junho','Julho','Agosto','Setembro','Outubro','Novembro','Dezembro'];
+  const now=new Date(), mes=now.getMonth()+1, ano=now.getFullYear();
+  ids.forEach(id=>{
+    const sel=document.getElementById(id); if(!sel) return;
+    if(![...sel.options].some(o=>o.value==String(mes))){
+      const opt=document.createElement('option');
+      opt.value=mes; opt.textContent=`${MESES[mes-1]} ${ano}`;
+      sel.insertBefore(opt, sel.firstChild);
+    }
+    sel.value=String(mes);
+  });
+}
+
 function mudarTab(tab) {
   ['visitas','rota','metricas','checklists','demandas'].forEach((t,i)=>{
     document.getElementById('tab-'+t).style.display=t===tab?'':'none';
