@@ -509,6 +509,12 @@
       <div style="font-size:22px;font-weight:800;color:var(--success);margin-bottom:8px;">Visita Encerrada!</div>
       <div style="color:var(--text-light);font-size:14px;" id="encerrada-msg"></div>
     </div>
+    <div class="card" style="border-left:4px solid #25D366;">
+      <div style="font-weight:800;font-size:14px;margin-bottom:4px;">📤 Resumo para a gerente</div>
+      <div style="font-size:12px;color:var(--text-light);margin-bottom:12px;">Envie o resumo da visita com o plano de ação para a gerente acompanhar.</div>
+      <button class="btn btn-full" style="background:#25D366;color:#fff;border:none;" onclick="compartilharResumoWhats()">📲 Enviar no WhatsApp</button>
+      <button class="btn btn-secondary btn-full" style="margin-top:8px;" onclick="copiarResumoGerente()">📋 Copiar resumo</button>
+    </div>
     <button class="btn btn-primary btn-full" onclick="irHome()">Voltar ao início</button>
     <button class="btn btn-secondary btn-full" style="margin-top:10px;" onclick="abrirNovaVisita()">+ Nova visita</button>
   </div>
@@ -1111,38 +1117,57 @@ async function selecionarLoja(id) {
   document.getElementById('energia-loja-nome').textContent=lojaSelecionada.nome+' · '+lojaSelecionada.cidade;
   document.getElementById('plano-loja-nome').textContent=lojaSelecionada.nome;
 
-  // Verificar se há plano de ação de visitas anteriores
-  const {data:ultimaVisita} = await db.from('visitas')
+  // Buscar TODAS as visitas encerradas desta loja (não só a última)
+  const {data:visitasEnc} = await db.from('visitas')
     .select('id,data_visita')
     .eq('loja_id',lojaSelecionada.id)
     .eq('supervisora_id',usuario.id)
     .eq('status','encerrada')
-    .order('data_visita',{ascending:false})
-    .limit(1)
-    .single();
+    .order('data_visita',{ascending:false});
 
-  if (ultimaVisita) {
+  if (visitasEnc && visitasEnc.length>0) {
+    const visIds=visitasEnc.map(v=>v.id);
+    const dataMap={}; visitasEnc.forEach(v=>dataMap[v.id]=v.data_visita);
+
+    // Todos os itens de plano de ação já registrados nesta loja
     const {data:planos} = await db.from('registros_visita')
-      .select('*')
-      .eq('visita_id',ultimaVisita.id)
-      .eq('categoria','plano_acao');
+      .select('*').in('visita_id',visIds).eq('categoria','plano_acao');
 
     if (planos && planos.length>0) {
-      planosAnteriores=planos;
-      document.getElementById('plano-ultima-visita').textContent=formatData(ultimaVisita.data_visita);
+      // Status mais recente de cada item (ordem asc → último vence)
+      const {data:revs} = await db.from('plano_acao_revisao')
+        .select('registro_original_id,status,created_at')
+        .eq('loja_id',lojaSelecionada.id)
+        .order('created_at',{ascending:true});
+      const statusMap={};
+      (revs||[]).forEach(rv=>{ statusMap[rv.registro_original_id]=rv.status; });
 
-      const listaEl=document.getElementById('lista-plano-itens');
-      listaEl.innerHTML=planos.map(p=>`
-        <div class="plano-item">
-          <div class="plano-item-desc">📌 ${p.descricao}</div>
-          <div class="plano-opcoes">
-            <button class="plano-opt" id="po-c-${p.id}" onclick="marcarPlano('${p.id}','concluido')">✅ Concluído</button>
-            <button class="plano-opt" id="po-a-${p.id}" onclick="marcarPlano('${p.id}','andamento')">🔄 Andamento</button>
-            <button class="plano-opt" id="po-p-${p.id}" onclick="marcarPlano('${p.id}','pendente')">❌ Pendente</button>
-          </div>
-        </div>`).join('');
-      mostrarTela('tela-plano-revisao');
-      return;
+      // Só os que NÃO estão concluídos continuam aparecendo
+      const pendentes=planos
+        .filter(p=> (statusMap[p.id]||'pendente')!=='concluido')
+        .sort((a,b)=> new Date(dataMap[a.visita_id]) - new Date(dataMap[b.visita_id])); // mais antigos primeiro
+
+      if (pendentes.length>0) {
+        planosAnteriores=pendentes;
+        document.getElementById('plano-ultima-visita').textContent=formatData(visitasEnc[0].data_visita);
+
+        const listaEl=document.getElementById('lista-plano-itens');
+        listaEl.innerHTML=pendentes.map(p=>{
+          const st=statusMap[p.id]||'pendente';
+          const dOrig=dataMap[p.visita_id]?formatData(dataMap[p.visita_id]):'';
+          const tag=st==='andamento'?'<span style="font-size:10px;background:#fff3cd;color:#856404;border-radius:10px;padding:1px 7px;font-weight:700;">🔄 em andamento</span>':'';
+          return `<div class="plano-item">
+            <div class="plano-item-desc">📌 ${p.descricao} ${dOrig?`<span style="font-size:11px;color:var(--text-light);">(desde ${dOrig})</span>`:''} ${tag}</div>
+            <div class="plano-opcoes">
+              <button class="plano-opt${st==='concluido'?' sel-concluido':''}" id="po-c-${p.id}" onclick="marcarPlano('${p.id}','concluido')">✅ Concluído</button>
+              <button class="plano-opt${st==='andamento'?' sel-andamento':''}" id="po-a-${p.id}" onclick="marcarPlano('${p.id}','andamento')">🔄 Andamento</button>
+              <button class="plano-opt${st==='pendente'?' sel-pendente':''}" id="po-p-${p.id}" onclick="marcarPlano('${p.id}','pendente')">❌ Pendente</button>
+            </div>
+          </div>`;
+        }).join('');
+        mostrarTela('tela-plano-revisao');
+        return;
+      }
     }
   }
   mostrarTela('tela-energia');
@@ -2758,6 +2783,58 @@ async function enviarEmailResumo(emailGerente,obs) {
     await db.functions.invoke('send-email',{body:{to:emailGerente,subject:`Resumo de Visita - ${lojaSelecionada.nome} - ${new Date().toLocaleDateString('pt-BR')}`,body:corpo}});
     await db.from('visitas').update({resumo_enviado:true}).eq('id',visitaAtual.id);
   } catch(e){console.log('Email não enviado:',e);}
+}
+
+// ===== Resumo para a gerente (WhatsApp / copiar) =====
+function gerarResumoGerente(){
+  const dataStr=new Date().toLocaleDateString('pt-BR');
+  const nome=lojaSelecionada?.nome||'';
+  let t=`*Resumo da Visita — ${nome}*\n${dataStr} · Supervisora ${usuario.nome}\n`;
+
+  // Plano de ação definido NESTA visita
+  const planosHoje=registros.filter(r=>r.categoria==='plano_acao');
+  if(planosHoje.length){
+    t+=`\n*🎯 PLANO DE AÇÃO (a executar):*\n`;
+    planosHoje.forEach(r=>{ t+=`☐ ${r.descricao}\n`; });
+  }
+  // Pendências de visitas anteriores ainda abertas
+  const aindaPend=(planosAnteriores||[]).filter(p=>revisaoPlano[p.id]!=='concluido');
+  if(aindaPend.length){
+    t+=`\n*⏳ PENDÊNCIAS ANTERIORES:*\n`;
+    aindaPend.forEach(p=>{ const st=revisaoPlano[p.id]; t+=`☐ ${p.descricao}${st==='andamento'?' (em andamento)':''}\n`; });
+  }
+  // Concluídos nesta visita
+  const concl=(planosAnteriores||[]).filter(p=>revisaoPlano[p.id]==='concluido');
+  if(concl.length){
+    t+=`\n*✅ CONCLUÍDO nesta visita:*\n`;
+    concl.forEach(p=>{ t+=`✔ ${p.descricao}\n`; });
+  }
+  // Outros pontos tratados
+  const outros=registros.filter(r=>r.categoria!=='plano_acao');
+  if(outros.length){
+    t+=`\n*📋 OUTROS PONTOS TRATADOS:*\n`;
+    outros.forEach(r=>{ t+=`• [${CAT_INFO[r.categoria]?.label||r.categoria}] ${r.descricao}\n`; });
+  }
+  const obs=document.getElementById('obs-geral')?.value?.trim();
+  if(obs) t+=`\n*💬 Observação:* ${obs}\n`;
+  t+=`\n_Enviado via Sfera · Super em Ação_`;
+  return t;
+}
+function compartilharResumoWhats(){
+  window.open('https://wa.me/?text='+encodeURIComponent(gerarResumoGerente()),'_blank');
+}
+function copiarResumoGerente(){
+  const t=gerarResumoGerente();
+  const ok=()=>showToast('📋 Resumo copiado!');
+  if(navigator.clipboard&&navigator.clipboard.writeText){
+    navigator.clipboard.writeText(t).then(ok).catch(()=>fallbackCopy(t,ok));
+  } else fallbackCopy(t,ok);
+}
+function fallbackCopy(t,cb){
+  const ta=document.createElement('textarea'); ta.value=t; ta.style.position='fixed'; ta.style.opacity='0';
+  document.body.appendChild(ta); ta.select();
+  try{ document.execCommand('copy'); cb(); }catch(e){ showToast('Não foi possível copiar','error'); }
+  ta.remove();
 }
 
 // ==============================
