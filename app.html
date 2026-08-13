@@ -1251,6 +1251,10 @@ function selecionarCategoria(cat) {
   document.querySelectorAll('.cat-btn').forEach(b=>b.classList.remove('active'));
   event.currentTarget.classList.add('active');
   document.getElementById('cat-label').textContent=CAT_INFO[cat].label;
+  const ta=document.getElementById('registro-texto');
+  ta.placeholder = cat==='plano_acao'
+    ? 'Escreva UMA demanda por linha (aperte Enter para separar). Cada linha vira um item com check próprio.'
+    : 'Descreva o que foi tratado... (ou toque no 🎤 e fale)';
   document.getElementById('registro-texto').value='';
   document.getElementById('media-preview-wrap').innerHTML='';
   document.getElementById('media-input').value='';
@@ -1330,16 +1334,27 @@ async function salvarRegistro() {
     if(mediaUrl) mediaTipo=mediaFile.type.startsWith('image/')?'foto':mediaFile.type.startsWith('video/')?'video':'arquivo';
   }
 
-  const {data,error}=await db.from('registros_visita').insert({
-    visita_id:visitaAtual.id, categoria:categoriaAtual,
-    descricao:texto, media_url:mediaUrl||null, media_tipo:mediaTipo||null
-  }).select().single();
+  // Plano de ação: separa em itens individuais (1 demanda por linha ou frase)
+  let itens=[texto];
+  if(categoriaAtual==='plano_acao'){
+    itens=texto.split(/\n+|(?<=[.!?])\s+|(?<=[.!?])(?=[A-ZÀ-Ü])/)
+      .map(s=>s.replace(/^[\s•\-–—*]+/,'').trim())
+      .filter(s=>s.length>2);
+    if(itens.length===0) itens=[texto];
+  }
+
+  const rows=itens.map((desc,i)=>({
+    visita_id:visitaAtual.id, categoria:categoriaAtual, descricao:desc,
+    media_url:(i===0?mediaUrl:null)||null, media_tipo:(i===0?mediaTipo:null)||null
+  }));
+
+  const {data,error}=await db.from('registros_visita').insert(rows).select();
 
   if(error){showToast('Erro ao salvar','error');return;}
-  registros.push(data);
+  (data||[]).forEach(d=>registros.push(d));
   cancelarRegistro();
   renderRegistros();
-  showToast('Registro adicionado!','success');
+  showToast(itens.length>1?`✅ ${itens.length} itens adicionados!`:'Registro adicionado!','success');
 }
 
 async function deletarRegistro(id) {
@@ -2786,12 +2801,22 @@ async function enviarEmailResumo(emailGerente,obs) {
 }
 
 // ===== Resumo para a gerente (WhatsApp / copiar) =====
+const CAT_EMOJI={atendimento:'👥',exposicao:'🪟',elogio:'👏',demanda:'📌',campanha:'📣',outro:'💬',plano_acao:'🎯'};
 function gerarResumoGerente(){
   const dataStr=new Date().toLocaleDateString('pt-BR');
   const nome=lojaSelecionada?.nome||'';
+  const info=ENERGIA_INFO[energiaSelecionada];
   let t=`*Resumo da Visita — ${nome}*\n${dataStr} · Supervisora ${usuario.nome}\n`;
+  if(info) t+=`Energia do time ao chegar: ${info.emoji} ${info.label}\n`;
 
-  // Plano de ação definido NESTA visita
+  // Elogios em destaque (o que foi bem)
+  const elogios=registros.filter(r=>r.categoria==='elogio');
+  if(elogios.length){
+    t+=`\n*👏 PONTOS POSITIVOS:*\n`;
+    elogios.forEach(r=>{ t+=`• ${r.descricao}\n`; });
+  }
+
+  // Plano de ação definido NESTA visita (cada item já é separado)
   const planosHoje=registros.filter(r=>r.categoria==='plano_acao');
   if(planosHoje.length){
     t+=`\n*🎯 PLANO DE AÇÃO (a executar):*\n`;
@@ -2809,14 +2834,18 @@ function gerarResumoGerente(){
     t+=`\n*✅ CONCLUÍDO nesta visita:*\n`;
     concl.forEach(p=>{ t+=`✔ ${p.descricao}\n`; });
   }
-  // Outros pontos tratados
-  const outros=registros.filter(r=>r.categoria!=='plano_acao');
-  if(outros.length){
-    t+=`\n*📋 OUTROS PONTOS TRATADOS:*\n`;
-    outros.forEach(r=>{ t+=`• [${CAT_INFO[r.categoria]?.label||r.categoria}] ${r.descricao}\n`; });
-  }
+  // Demais comandos, agrupados por categoria (demanda, campanha, exposição, atendimento, outro)
+  const jaUsadas=new Set(['elogio','plano_acao']);
+  const ordem=['demanda','campanha','exposicao','atendimento','outro'];
+  const grupos={};
+  registros.filter(r=>!jaUsadas.has(r.categoria)).forEach(r=>{ (grupos[r.categoria]=grupos[r.categoria]||[]).push(r.descricao); });
+  ordem.filter(c=>grupos[c]).forEach(cat=>{
+    t+=`\n*${CAT_EMOJI[cat]||'•'} ${(CAT_INFO[cat]?.label||cat).toUpperCase()}:*\n`;
+    grupos[cat].forEach(d=>{ t+=`• ${d}\n`; });
+  });
+
   const obs=document.getElementById('obs-geral')?.value?.trim();
-  if(obs) t+=`\n*💬 Observação:* ${obs}\n`;
+  if(obs) t+=`\n*💬 Observação geral:* ${obs}\n`;
   t+=`\n_Enviado via Sfera · Super em Ação_`;
   return t;
 }
