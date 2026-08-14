@@ -639,7 +639,15 @@ function mostrarTela(id) {
     .forEach(t => document.getElementById(t).style.display = t===id ? '':'none');
   window.scrollTo(0,0);
 }
-function irPrioridade() { mostrarTela('tela-prioridade'); }
+function irPrioridade() {
+  mostrarTela('tela-prioridade');
+  // Restaura o último arquivo importado (se houver) e já mostra a análise
+  if(prioArquivos.length===0 && restaurarPrioCache()){
+    renderPrioFiles();
+    if(lojas.length){ analisarPerformance(); }
+    showToast('📎 Último arquivo restaurado');
+  }
+}
 
 // ==============================
 // DEMANDAS DA SUPERVISORA
@@ -1942,7 +1950,26 @@ function lerArquivoPrio(file){
   reader.readAsArrayBuffer(file);
 }
 
+// Cache do último arquivo importado (fica no aparelho, não vai ao banco)
+function _prioKey(){ return 'prio_cache_'+(usuario?.id||'x'); }
+function salvarPrioCache(){
+  try{
+    if(prioArquivos.length) localStorage.setItem(_prioKey(), JSON.stringify(prioArquivos));
+    else localStorage.removeItem(_prioKey());
+  }catch(e){ /* excedeu espaço — ignora, segue sem cache */ }
+}
+function restaurarPrioCache(){
+  try{
+    const raw=localStorage.getItem(_prioKey());
+    if(!raw) return false;
+    const arr=JSON.parse(raw);
+    if(Array.isArray(arr) && arr.length){ prioArquivos=arr; return true; }
+  }catch(e){}
+  return false;
+}
+
 function renderPrioFiles(){
+  salvarPrioCache();
   const el=document.getElementById('prio-files-list');
   if(prioArquivos.length===0){ el.innerHTML=''; document.getElementById('btn-analisar').style.display='none'; return; }
   // ordena: maior período primeiro vira "30 dias", menor "7 dias"
@@ -2730,6 +2757,7 @@ function iniciarVisitaDaPrioridade(lojaId){
 
 function resetPrio(){
   prioArquivos=[]; prioAnalise=[];
+  try{ localStorage.removeItem(_prioKey()); }catch(e){}
   document.getElementById('prio-resultado').innerHTML='';
   document.getElementById('prio-files-list').innerHTML='';
   document.getElementById('btn-analisar').style.display='none';
