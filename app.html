@@ -639,13 +639,17 @@ function mostrarTela(id) {
     .forEach(t => document.getElementById(t).style.display = t===id ? '':'none');
   window.scrollTo(0,0);
 }
-function irPrioridade() {
+async function irPrioridade() {
   mostrarTela('tela-prioridade');
-  // Restaura o último arquivo importado (se houver) e já mostra a análise
-  if(prioArquivos.length===0 && restaurarPrioCache()){
-    renderPrioFiles();
-    if(lojas.length){ analisarPerformance(); }
-    showToast('📎 Último arquivo restaurado');
+  // Restaura o último arquivo importado do servidor (se houver) e já mostra a análise
+  if(prioArquivos.length===0){
+    if(!lojas.length) await carregarLojas();
+    const ok=await carregarPrioCache();
+    if(ok){
+      renderPrioFiles();
+      analisarPerformance();
+      showToast('📎 Último arquivo restaurado');
+    }
   }
 }
 
@@ -1950,20 +1954,28 @@ function lerArquivoPrio(file){
   reader.readAsArrayBuffer(file);
 }
 
-// Cache do último arquivo importado (fica no aparelho, não vai ao banco)
-function _prioKey(){ return 'prio_cache_'+(usuario?.id||'x'); }
-function salvarPrioCache(){
-  try{
-    if(prioArquivos.length) localStorage.setItem(_prioKey(), JSON.stringify(prioArquivos));
-    else localStorage.removeItem(_prioKey());
-  }catch(e){ /* excedeu espaço — ignora, segue sem cache */ }
+// Cache do último arquivo no SERVIDOR (funciona entre PC e celular).
+// Guarda só as lojas da supervisora p/ ficar leve.
+function _slimPrio(arr){
+  const codes=new Set((lojas||[]).map(l=>String(l.codigo).trim()));
+  return arr.map(a=>{
+    const pdv={};
+    Object.keys(a.pdv||{}).forEach(code=>{ if(codes.has(code)) pdv[code]=a.pdv[code]; });
+    const consultor=(a.consultor||[]).filter(r=>codes.has(String(r[1]).trim()));
+    return {nome:a.nome, periodo:a.periodo, dias:a.dias, pdv, consultor, headerPDV:a.headerPDV, headerCONSUL:a.headerCONSUL};
+  });
 }
-function restaurarPrioCache(){
+async function salvarPrioCache(){
   try{
-    const raw=localStorage.getItem(_prioKey());
-    if(!raw) return false;
-    const arr=JSON.parse(raw);
-    if(Array.isArray(arr) && arr.length){ prioArquivos=arr; return true; }
+    if(prioArquivos.length){
+      await db.from('prio_cache').upsert({supervisora_id:usuario.id, dados:_slimPrio(prioArquivos), updated_at:new Date().toISOString()});
+    }
+  }catch(e){ console.log('cache prio:',e); }
+}
+async function carregarPrioCache(){
+  try{
+    const {data}=await db.from('prio_cache').select('dados').eq('supervisora_id',usuario.id).single();
+    if(data && Array.isArray(data.dados) && data.dados.length){ prioArquivos=data.dados; return true; }
   }catch(e){}
   return false;
 }
@@ -2757,7 +2769,7 @@ function iniciarVisitaDaPrioridade(lojaId){
 
 function resetPrio(){
   prioArquivos=[]; prioAnalise=[];
-  try{ localStorage.removeItem(_prioKey()); }catch(e){}
+  try{ db.from('prio_cache').delete().eq('supervisora_id',usuario.id); }catch(e){}
   document.getElementById('prio-resultado').innerHTML='';
   document.getElementById('prio-files-list').innerHTML='';
   document.getElementById('btn-analisar').style.display='none';
