@@ -555,9 +555,13 @@
   <!-- Cabeçalho que só aparece no PDF impresso -->
   <div id="rel-pdf-header" class="rel-pdf-header"></div>
   <div id="rel-corpo" style="padding:16px 16px 90px;"></div>
-  <div class="rel-no-print" style="position:sticky;bottom:0;background:#fff;border-top:1.5px solid var(--border);padding:12px 16px;display:flex;gap:8px;">
-    <button class="btn btn-secondary" style="flex:1;" onclick="fecharRelatorio()">Fechar</button>
-    <button class="btn btn-primary" style="flex:2;" onclick="exportarChecklistPDF()">📄 Exportar PDF</button>
+  <div class="rel-no-print" style="position:sticky;bottom:0;background:#fff;border-top:1.5px solid var(--border);padding:12px 16px;">
+    <div style="display:flex;gap:8px;">
+      <button class="btn btn-secondary" style="flex:1;" onclick="fecharRelatorio()">Fechar</button>
+      <button class="btn btn-primary" style="flex:2;" onclick="exportarChecklistPDF()">📄 Exportar PDF</button>
+    </div>
+    <button class="btn btn-full" id="btn-limpar-fotos" style="margin-top:8px;background:#fff3cd;color:#856404;border:1.5px solid #ffe08a;" onclick="limparFotosNaoCriticas()">🧹 Limpar fotos OK (manter só alertas)</button>
+    <div style="font-size:10px;color:var(--text-light);text-align:center;margin-top:4px;">Faça isso após exportar o PDF. Mantém só fotos de itens com alerta ou chamado.</div>
   </div>
 </div>
 
@@ -1735,7 +1739,9 @@ async function salvarChecklist() {
 
 function fecharChecklist(){document.getElementById('modal-checklist').style.display='none';}
 
+let relChecklistInserts=[];
 function mostrarRelatorioChecklist(inserts){
+  relChecklistInserts=inserts;
   const loja=lojaSelecionada?.nome||'';
   document.getElementById('rel-titulo').textContent=`${checklistAtual?.titulo||'Checklist'} · ${loja}`;
   const dataHoje=new Date().toLocaleDateString('pt-BR');
@@ -1883,6 +1889,41 @@ function exportarChecklistPDF(){
   document.body.classList.add('print-cl');
   window.print();
   setTimeout(()=>document.body.classList.remove('print-cl'), 400);
+}
+
+// Mantém só fotos de itens com alerta (crítico), chamado aberto ou p/ abrir chamado.
+// Apaga do storage as demais e limpa o media_url no banco. Economiza espaço/egress.
+async function limparFotosNaoCriticas(){
+  const comFoto=(relChecklistInserts||[]).filter(i=>i.media_url);
+  if(comFoto.length===0){ showToast('Não há fotos para limpar.'); return; }
+
+  const manter=i=> CL_NIVEIS_CRITICOS.has(i.avaliacao) || i.precisa_chamado || (i.chamado_numero&&String(i.chamado_numero).trim());
+  const apagar=comFoto.filter(i=>!manter(i));
+  const mantidas=comFoto.length-apagar.length;
+  if(apagar.length===0){ showToast(`Todas as ${comFoto.length} fotos são de alertas — nada a apagar.`); return; }
+
+  if(!confirm(`Apagar ${apagar.length} foto(s) de itens OK e manter ${mantidas} foto(s) de alerta/chamado?\n\nFaça isso só depois de exportar o PDF. Esta ação não pode ser desfeita.`)) return;
+
+  const btn=document.getElementById('btn-limpar-fotos');
+  if(btn){ btn.disabled=true; btn.textContent='🧹 Limpando...'; }
+
+  // Caminhos no storage (a partir da URL pública)
+  const paths=apagar.map(i=>i.media_url.split('/visitas-midias/')[1]).filter(Boolean);
+  try{
+    if(paths.length) await db.storage.from('visitas-midias').remove(paths);
+    // Limpa o media_url no banco (por item desta visita+template)
+    for(const i of apagar){
+      await db.from('checklist_respostas').update({media_url:null})
+        .eq('visita_id',visitaAtual.id).eq('template_id',checklistAtual.id).eq('item_id',i.item_id);
+      i.media_url=null; // reflete no relatório atual
+    }
+    showToast(`✅ ${apagar.length} foto(s) apagada(s). Mantidas ${mantidas} de alerta.`);
+    if(btn){ btn.textContent='✅ Fotos limpas'; }
+  }catch(e){
+    console.error(e);
+    showToast('Erro ao limpar fotos: '+(e.message||e),'error');
+    if(btn){ btn.disabled=false; btn.textContent='🧹 Limpar fotos OK (manter só alertas)'; }
+  }
 }
 
 // ==============================
