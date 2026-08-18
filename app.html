@@ -121,6 +121,9 @@
       <div style="font-size:20px;font-weight:800;margin-top:2px;">Olá, <span id="home-nome-curto"></span>! 👋</div>
     </div>
 
+    <!-- Alerta de revisitas -->
+    <div id="alerta-revisitas" style="display:none;"></div>
+
     <!-- Tipo de dia -->
     <div class="card" id="card-tipo-dia">
       <div class="card-title">📅 Como será seu dia hoje?</div>
@@ -565,6 +568,17 @@
   </div>
 </div>
 
+<!-- MODAL: Datas de revisita do plano de ação -->
+<div id="modal-revisita" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:220;align-items:flex-end;justify-content:center;">
+  <div style="background:#fff;width:100%;max-width:520px;max-height:85vh;overflow-y:auto;border-radius:16px 16px 0 0;padding:18px;">
+    <div style="font-weight:800;font-size:16px;margin-bottom:4px;">📅 Quando revisitar cada tema?</div>
+    <div style="font-size:12px;color:var(--text-light);margin-bottom:14px;">Defina a data de acompanhamento de cada demanda. O app vai te avisar quando chegar o dia.</div>
+    <div id="revisita-lista"></div>
+    <button class="btn btn-primary btn-full" style="margin-top:12px;" onclick="salvarDatasRevisita()">Salvar datas</button>
+    <button class="btn btn-secondary btn-full" style="margin-top:8px;" onclick="fecharModalRevisita()">Agora não</button>
+  </div>
+</div>
+
 <!-- MODAL: Detalhes histórico -->
 <div id="modal-hist" style="display:none">
   <div class="modal-bg" onclick="fecharModalHist()">
@@ -633,6 +647,7 @@ window.addEventListener('DOMContentLoaded', async () => {
   await carregarTipoDiaHoje();
   await carregarVisitasHoje();
   await carregarHistorico('semana');
+  carregarAlertasRevisita();
 });
 
 // ==============================
@@ -954,7 +969,59 @@ function verHistoricoLoja(lojaId){
   document.getElementById('modal-hist-cl').style.display='';
   document.getElementById('modal-hist-cl').scrollTop=0;
 }
-function irHome() { mostrarTela('tela-home'); carregarVisitasHoje(); carregarHistorico(tabHistAtual); }
+function irHome() { mostrarTela('tela-home'); carregarVisitasHoje(); carregarHistorico(tabHistAtual); carregarAlertasRevisita(); }
+
+// ===== Alerta de revisitas na home =====
+async function carregarAlertasRevisita(){
+  const el=document.getElementById('alerta-revisitas');
+  if(!el) return;
+  try{
+    const {data:visitas}=await db.from('visitas').select('id,loja_id,lojas(nome)').eq('supervisora_id',usuario.id);
+    if(!visitas||visitas.length===0){ el.style.display='none'; return; }
+    const visMap={}; visitas.forEach(v=>visMap[v.id]=v);
+    const visIds=visitas.map(v=>v.id);
+    const {data:planos}=await db.from('registros_visita')
+      .select('id,descricao,visita_id,data_revisita')
+      .eq('categoria','plano_acao').not('data_revisita','is',null).in('visita_id',visIds);
+    if(!planos||planos.length===0){ el.style.display='none'; return; }
+    const ids=planos.map(p=>p.id);
+    const {data:revs}=await db.from('plano_acao_revisao')
+      .select('registro_original_id,status,created_at').in('registro_original_id',ids).order('created_at',{ascending:true});
+    const statusMap={}; (revs||[]).forEach(r=>statusMap[r.registro_original_id]=r.status);
+    const hoje=new Date().toISOString().split('T')[0];
+    const pend=planos.filter(p=>(statusMap[p.id]||'pendente')!=='concluido');
+    const vencidas=pend.filter(p=>p.data_revisita<=hoje).sort((a,b)=>a.data_revisita.localeCompare(b.data_revisita));
+    const proximas=pend.filter(p=>p.data_revisita>hoje);
+    if(vencidas.length===0 && proximas.length===0){ el.style.display='none'; return; }
+
+    let h='';
+    if(vencidas.length){
+      h+=`<div class="card" style="border-left:4px solid #dc3545;background:#fff5f5;">
+        <div style="font-weight:800;font-size:14px;color:#842029;margin-bottom:8px;">🔔 ${vencidas.length} tema(s) para revisitar</div>`;
+      h+=vencidas.map(p=>{
+        const v=visMap[p.visita_id]; const loja=v?.lojas?.nome||'Loja';
+        const atras=p.data_revisita<hoje;
+        const dataStr=p.data_revisita.split('-').reverse().join('/');
+        return `<div onclick="iniciarRevisita('${v?.loja_id}')" style="cursor:pointer;padding:8px 10px;border-radius:8px;background:#fff;margin-bottom:6px;border:1px solid #f1c0c0;">
+          <div style="font-size:12px;font-weight:700;color:#842029;">🏪 ${loja} · ${atras?'<span style="color:#dc3545;">ATRASADO</span>':'hoje'}</div>
+          <div style="font-size:12px;margin-top:2px;">📌 ${p.descricao}</div>
+          <div style="font-size:11px;color:var(--text-light);margin-top:2px;">Revisitar desde ${dataStr} · toque para iniciar visita →</div>
+        </div>`;
+      }).join('');
+      h+=`</div>`;
+    }
+    if(proximas.length){
+      h+=`<div style="font-size:11px;color:var(--text-light);margin:-4px 4px 12px;">📅 +${proximas.length} revisita(s) agendada(s) para os próximos dias.</div>`;
+    }
+    el.innerHTML=h; el.style.display='';
+  }catch(e){ console.log('alertas revisita:',e); el.style.display='none'; }
+}
+
+function iniciarRevisita(lojaId){
+  if(!lojaId||lojaId==='undefined') return;
+  lojaSelecionada=null; energiaSelecionada=null; visitaAtual=null; registros=[]; planosAnteriores=[]; revisaoPlano={};
+  selecionarLoja(lojaId);
+}
 function voltarLoja() { mostrarTela('tela-selecionar-loja'); }
 function voltarParaPlanoOuLoja() { planosAnteriores.length>0 ? mostrarTela('tela-plano-revisao') : mostrarTela('tela-selecionar-loja'); }
 function voltarVisita() { mostrarTela('tela-visita'); }
@@ -1371,7 +1438,34 @@ async function salvarRegistro() {
   cancelarRegistro();
   renderRegistros();
   showToast(itens.length>1?`✅ ${itens.length} itens adicionados!`:'Registro adicionado!','success');
+  // Plano de ação: pedir data de revisita de cada item
+  if(categoriaAtual==='plano_acao' && data && data.length){ abrirModalRevisita(data); }
 }
+
+// ===== Datas de revisita do plano de ação =====
+function abrirModalRevisita(rows){
+  const d7=new Date(); d7.setDate(d7.getDate()+7);
+  const def=d7.toISOString().split('T')[0];
+  document.getElementById('revisita-lista').innerHTML=rows.map(r=>`
+    <div style="border:1px solid var(--border);border-radius:10px;padding:10px;margin-bottom:8px;">
+      <div style="font-size:13px;margin-bottom:6px;">📌 ${r.descricao}</div>
+      <input type="date" class="form-control revisita-data" data-id="${r.id}" value="${def}">
+    </div>`).join('');
+  document.getElementById('modal-revisita').style.display='flex';
+}
+async function salvarDatasRevisita(){
+  const inputs=[...document.querySelectorAll('.revisita-data')];
+  for(const inp of inputs){
+    const id=inp.dataset.id, dt=inp.value||null;
+    if(dt){
+      await db.from('registros_visita').update({data_revisita:dt}).eq('id',id);
+      const reg=registros.find(r=>r.id===id); if(reg) reg.data_revisita=dt;
+    }
+  }
+  fecharModalRevisita();
+  showToast('📅 Datas de revisita salvas!');
+}
+function fecharModalRevisita(){ document.getElementById('modal-revisita').style.display='none'; }
 
 async function deletarRegistro(id) {
   await db.from('registros_visita').delete().eq('id',id);
