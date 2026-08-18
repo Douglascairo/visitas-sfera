@@ -568,6 +568,19 @@
   </div>
 </div>
 
+<!-- MODAL: Pop-up de alerta de revisitas (aparece no login) -->
+<div id="modal-alerta-revisitas" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:250;align-items:center;justify-content:center;padding:16px;">
+  <div style="background:#fff;width:100%;max-width:520px;max-height:88vh;overflow-y:auto;border-radius:16px;padding:20px;box-shadow:0 10px 40px rgba(0,0,0,.3);">
+    <div style="text-align:center;margin-bottom:14px;">
+      <div style="font-size:44px;line-height:1;">🔔</div>
+      <div style="font-weight:800;font-size:20px;color:#842029;margin-top:6px;">Revisitas pendentes!</div>
+      <div style="font-size:13px;color:var(--text-light);margin-top:2px;" id="alerta-rev-sub"></div>
+    </div>
+    <div id="alerta-rev-corpo"></div>
+    <button class="btn btn-primary btn-full" style="margin-top:14px;" onclick="fecharPopupRevisitas()">Entendi 👍</button>
+  </div>
+</div>
+
 <!-- MODAL: Datas de revisita do plano de ação -->
 <div id="modal-revisita" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:220;align-items:flex-end;justify-content:center;">
   <div style="background:#fff;width:100%;max-width:520px;max-height:85vh;overflow-y:auto;border-radius:16px 16px 0 0;padding:18px;">
@@ -648,6 +661,7 @@ window.addEventListener('DOMContentLoaded', async () => {
   await carregarVisitasHoje();
   await carregarHistorico('semana');
   carregarAlertasRevisita();
+  mostrarPopupRevisitas();
 });
 
 // ==============================
@@ -971,36 +985,48 @@ function verHistoricoLoja(lojaId){
 }
 function irHome() { mostrarTela('tela-home'); carregarVisitasHoje(); carregarHistorico(tabHistAtual); carregarAlertasRevisita(); }
 
-// ===== Alerta de revisitas na home =====
+// ===== Busca compartilhada de revisitas pendentes =====
+async function buscarRevisitas(){
+  const {data:visitas}=await db.from('visitas').select('id,loja_id,lojas(nome)').eq('supervisora_id',usuario.id);
+  if(!visitas||visitas.length===0) return null;
+  const visMap={}; visitas.forEach(v=>visMap[v.id]=v);
+  const visIds=visitas.map(v=>v.id);
+  const {data:planos}=await db.from('registros_visita')
+    .select('id,descricao,visita_id,data_revisita')
+    .eq('categoria','plano_acao').not('data_revisita','is',null).in('visita_id',visIds);
+  if(!planos||planos.length===0) return null;
+  const ids=planos.map(p=>p.id);
+  const {data:revs}=await db.from('plano_acao_revisao')
+    .select('registro_original_id,status,created_at').in('registro_original_id',ids).order('created_at',{ascending:true});
+  const statusMap={}; (revs||[]).forEach(r=>statusMap[r.registro_original_id]=r.status);
+  const hoje=new Date().toISOString().split('T')[0];
+  const d2=new Date(); d2.setDate(d2.getDate()+2); const limite=d2.toISOString().split('T')[0];
+  const pend=planos.filter(p=>(statusMap[p.id]||'pendente')!=='concluido');
+  return {
+    visMap, hoje,
+    vencidas: pend.filter(p=>p.data_revisita<hoje).sort((a,b)=>a.data_revisita.localeCompare(b.data_revisita)),
+    hojeItens: pend.filter(p=>p.data_revisita===hoje),
+    vencendo: pend.filter(p=>p.data_revisita>hoje && p.data_revisita<=limite).sort((a,b)=>a.data_revisita.localeCompare(b.data_revisita)),
+    proximas: pend.filter(p=>p.data_revisita>limite),
+  };
+}
+
+// ===== Banner de revisitas na home =====
 async function carregarAlertasRevisita(){
   const el=document.getElementById('alerta-revisitas');
   if(!el) return;
   try{
-    const {data:visitas}=await db.from('visitas').select('id,loja_id,lojas(nome)').eq('supervisora_id',usuario.id);
-    if(!visitas||visitas.length===0){ el.style.display='none'; return; }
-    const visMap={}; visitas.forEach(v=>visMap[v.id]=v);
-    const visIds=visitas.map(v=>v.id);
-    const {data:planos}=await db.from('registros_visita')
-      .select('id,descricao,visita_id,data_revisita')
-      .eq('categoria','plano_acao').not('data_revisita','is',null).in('visita_id',visIds);
-    if(!planos||planos.length===0){ el.style.display='none'; return; }
-    const ids=planos.map(p=>p.id);
-    const {data:revs}=await db.from('plano_acao_revisao')
-      .select('registro_original_id,status,created_at').in('registro_original_id',ids).order('created_at',{ascending:true});
-    const statusMap={}; (revs||[]).forEach(r=>statusMap[r.registro_original_id]=r.status);
-    const hoje=new Date().toISOString().split('T')[0];
-    const pend=planos.filter(p=>(statusMap[p.id]||'pendente')!=='concluido');
-    const vencidas=pend.filter(p=>p.data_revisita<=hoje).sort((a,b)=>a.data_revisita.localeCompare(b.data_revisita));
-    const proximas=pend.filter(p=>p.data_revisita>hoje);
-    if(vencidas.length===0 && proximas.length===0){ el.style.display='none'; return; }
-
+    const r=await buscarRevisitas();
+    if(!r){ el.style.display='none'; return; }
+    const urgentes=[...r.vencidas,...r.hojeItens];
+    if(urgentes.length===0 && r.vencendo.length===0 && r.proximas.length===0){ el.style.display='none'; return; }
     let h='';
-    if(vencidas.length){
+    if(urgentes.length){
       h+=`<div class="card" style="border-left:4px solid #dc3545;background:#fff5f5;">
-        <div style="font-weight:800;font-size:14px;color:#842029;margin-bottom:8px;">🔔 ${vencidas.length} tema(s) para revisitar</div>`;
-      h+=vencidas.map(p=>{
-        const v=visMap[p.visita_id]; const loja=v?.lojas?.nome||'Loja';
-        const atras=p.data_revisita<hoje;
+        <div style="font-weight:800;font-size:14px;color:#842029;margin-bottom:8px;">🔔 ${urgentes.length} tema(s) para revisitar</div>`;
+      h+=urgentes.map(p=>{
+        const v=r.visMap[p.visita_id]; const loja=v?.lojas?.nome||'Loja';
+        const atras=p.data_revisita<r.hoje;
         const dataStr=p.data_revisita.split('-').reverse().join('/');
         return `<div onclick="iniciarRevisita('${v?.loja_id}')" style="cursor:pointer;padding:8px 10px;border-radius:8px;background:#fff;margin-bottom:6px;border:1px solid #f1c0c0;">
           <div style="font-size:12px;font-weight:700;color:#842029;">🏪 ${loja} · ${atras?'<span style="color:#dc3545;">ATRASADO</span>':'hoje'}</div>
@@ -1010,12 +1036,41 @@ async function carregarAlertasRevisita(){
       }).join('');
       h+=`</div>`;
     }
-    if(proximas.length){
-      h+=`<div style="font-size:11px;color:var(--text-light);margin:-4px 4px 12px;">📅 +${proximas.length} revisita(s) agendada(s) para os próximos dias.</div>`;
+    const futuras=r.vencendo.length+r.proximas.length;
+    if(futuras){
+      h+=`<div style="font-size:11px;color:var(--text-light);margin:-4px 4px 12px;">📅 +${futuras} revisita(s) agendada(s) para os próximos dias.</div>`;
     }
     el.innerHTML=h; el.style.display='';
   }catch(e){ console.log('alertas revisita:',e); el.style.display='none'; }
 }
+
+// ===== Pop-up de revisitas (abre no login) =====
+async function mostrarPopupRevisitas(){
+  try{
+    const r=await buscarRevisitas();
+    if(!r) return;
+    const urgentes=[...r.vencidas,...r.hojeItens,...r.vencendo];
+    if(urgentes.length===0) return;
+    document.getElementById('alerta-rev-sub').textContent=
+      `${r.vencidas.length} vencida(s) · ${r.hojeItens.length} para hoje · ${r.vencendo.length} vencendo`;
+    const linha=(p,cor,tag)=>{
+      const v=r.visMap[p.visita_id]; const loja=v?.lojas?.nome||'Loja';
+      const dStr=p.data_revisita.split('-').reverse().join('/');
+      return `<div onclick="fecharPopupRevisitas();iniciarRevisita('${v?.loja_id}')" style="cursor:pointer;border:1px solid ${cor}44;border-left:4px solid ${cor};border-radius:8px;padding:10px 12px;margin-bottom:8px;background:${cor}0d;">
+        <div style="font-size:12px;font-weight:800;color:${cor};">🏪 ${loja} · ${tag} (${dStr})</div>
+        <div style="font-size:13px;margin-top:3px;">📌 ${p.descricao}</div>
+        <div style="font-size:11px;color:var(--text-light);margin-top:2px;">toque para iniciar a visita →</div>
+      </div>`;
+    };
+    let h='';
+    r.vencidas.forEach(p=>h+=linha(p,'#dc3545','ATRASADO'));
+    r.hojeItens.forEach(p=>h+=linha(p,'#fd7e14','HOJE'));
+    r.vencendo.forEach(p=>h+=linha(p,'#b8860b','VENCENDO'));
+    document.getElementById('alerta-rev-corpo').innerHTML=h;
+    document.getElementById('modal-alerta-revisitas').style.display='flex';
+  }catch(e){ console.log('popup revisita:',e); }
+}
+function fecharPopupRevisitas(){ document.getElementById('modal-alerta-revisitas').style.display='none'; }
 
 function iniciarRevisita(lojaId){
   if(!lojaId||lojaId==='undefined') return;
