@@ -156,18 +156,6 @@
       </div>
     </div>
 
-    <!-- Registrar demanda -->
-    <div class="card" style="background:linear-gradient(135deg,#5a2d82 0%,#9b59b6 100%);color:white;cursor:pointer;border:none;" onclick="irDemandas()">
-      <div style="display:flex;align-items:center;gap:14px;">
-        <div style="font-size:34px;">➕</div>
-        <div style="flex:1;">
-          <div style="font-size:15px;font-weight:800;">Registrar demanda</div>
-          <div style="font-size:12px;opacity:0.9;margin-top:2px;">Reuniões, checagens de ciclo, treinamentos... contabilize suas atividades do mês</div>
-        </div>
-        <div style="font-size:22px;">→</div>
-      </div>
-    </div>
-
     <!-- Prioridade de rota -->
     <div class="card" style="background:linear-gradient(135deg,#042C53 0%,#1BA8D9 100%);color:white;cursor:pointer;border:none;" onclick="irPrioridade()">
       <div style="display:flex;align-items:center;gap:14px;">
@@ -447,6 +435,14 @@
       </div>
     </div>
 
+    <!-- Demandas desta visita -->
+    <div class="card">
+      <div class="card-title">📌 Demandas desta visita</div>
+      <div style="font-size:12px;color:var(--text-light);margin-bottom:10px;">Registre atividades (reunião, treinamento, troca de ciclo...) com prazo de acompanhamento.</div>
+      <div id="demvis-lista" style="margin-bottom:10px;"></div>
+      <button class="btn btn-secondary btn-full" onclick="abrirDemandaVisita()">➕ Registrar demanda</button>
+    </div>
+
     <!-- Checklists -->
     <div class="card">
       <div class="card-title">☑️ Checklists</div>
@@ -592,6 +588,23 @@
   </div>
 </div>
 
+<!-- MODAL: Registrar demanda desta visita -->
+<div id="modal-demanda-visita" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:220;align-items:flex-end;justify-content:center;">
+  <div style="background:#fff;width:100%;max-width:520px;max-height:88vh;overflow-y:auto;border-radius:16px 16px 0 0;padding:18px;">
+    <div style="font-weight:800;font-size:16px;margin-bottom:2px;">📌 Registrar demanda</div>
+    <div style="font-size:12px;color:var(--text-light);margin-bottom:12px;" id="demvis-loja-nome"></div>
+    <div style="font-size:13px;font-weight:700;color:var(--sfera-dark);margin-bottom:8px;">1. Qual atividade?</div>
+    <div id="demvis-tipos" style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:14px;"></div>
+    <div style="font-size:13px;font-weight:700;color:var(--sfera-dark);margin-bottom:6px;">2. Prazo de acompanhamento (opcional)</div>
+    <input type="date" class="form-control" id="demvis-prazo" style="margin-bottom:12px;">
+    <div style="font-size:13px;font-weight:700;color:var(--sfera-dark);margin-bottom:6px;">Observação (opcional)</div>
+    <textarea class="form-control" id="demvis-obs" placeholder="Detalhe se quiser... (ou toque no 🎤)"></textarea>
+    <button type="button" class="btn btn-secondary btn-sm btn-mic" style="margin-top:6px;" data-label="🎤 Falar" onclick="ditarPara('demvis-obs',this)">🎤 Falar</button>
+    <button class="btn btn-primary btn-full" style="margin-top:14px;" onclick="salvarDemandaVisita()" id="btn-salvar-demvis">Salvar demanda</button>
+    <button class="btn btn-secondary btn-full" style="margin-top:8px;" onclick="fecharDemandaVisita()">Cancelar</button>
+  </div>
+</div>
+
 <!-- MODAL: Detalhes histórico -->
 <div id="modal-hist" style="display:none">
   <div class="modal-bg" onclick="fecharModalHist()">
@@ -710,6 +723,57 @@ const DEMANDA_TIPOS = [
 ];
 const DEMANDA_MAP = Object.fromEntries(DEMANDA_TIPOS.map(t=>[t.id,t]));
 let demandaTipoAtual = null;
+
+// ===== Demanda DENTRO da visita (loja fixa da visita) =====
+let demvisTipo=null;
+let demandasVisita=[]; // demandas já registradas nesta visita (em memória)
+function abrirDemandaVisita(){
+  if(!lojaSelecionada){ showToast('Abra uma visita primeiro','error'); return; }
+  demvisTipo=null;
+  document.getElementById('demvis-loja-nome').textContent='🏪 '+lojaSelecionada.nome;
+  document.getElementById('demvis-prazo').value='';
+  document.getElementById('demvis-obs').value='';
+  document.getElementById('demvis-tipos').innerHTML=DEMANDA_TIPOS.map(t=>
+    `<button type="button" class="cat-btn" id="dvt-${t.id}" onclick="selDemvisTipo('${t.id}')" style="text-align:left;font-size:12px;line-height:1.25;">
+      <span style="font-size:20px;display:block;margin-bottom:2px;">${t.icon}</span>${t.label}
+    </button>`).join('');
+  document.getElementById('modal-demanda-visita').style.display='flex';
+}
+function selDemvisTipo(id){
+  demvisTipo=DEMANDA_MAP[id];
+  DEMANDA_TIPOS.forEach(t=>{ const b=document.getElementById('dvt-'+t.id); if(b) b.classList.toggle('active',t.id===id); });
+}
+function fecharDemandaVisita(){ document.getElementById('modal-demanda-visita').style.display='none'; }
+async function salvarDemandaVisita(){
+  if(!demvisTipo){ showToast('Escolha a atividade','error'); return; }
+  const prazo=document.getElementById('demvis-prazo').value||null;
+  const obs=document.getElementById('demvis-obs').value.trim()||null;
+  const btn=document.getElementById('btn-salvar-demvis');
+  btn.disabled=true; btn.textContent='Salvando...';
+  const {data,error}=await db.from('demandas_supervisora').insert({
+    supervisora_id:usuario.id, tipo:demvisTipo.id, loja_id:lojaSelecionada.id,
+    data:new Date().toISOString().split('T')[0], prazo, observacao:obs, concluida:false
+  }).select().single();
+  btn.disabled=false; btn.textContent='Salvar demanda';
+  if(error){ showToast('Erro ao salvar: '+error.message,'error'); return; }
+  demandasVisita.push(data);
+  renderDemandasVisita();
+  fecharDemandaVisita();
+  showToast('📌 Demanda registrada!');
+}
+function renderDemandasVisita(){
+  const el=document.getElementById('demvis-lista');
+  if(!el) return;
+  if(demandasVisita.length===0){ el.innerHTML=''; return; }
+  el.innerHTML=demandasVisita.map(d=>{
+    const t=DEMANDA_MAP[d.tipo]||{icon:'•',label:d.tipo};
+    const prazoStr=d.prazo?` · 📅 ${d.prazo.split('-').reverse().join('/')}`:'';
+    return `<div style="display:flex;align-items:center;gap:8px;padding:6px 8px;border:1px solid var(--border);border-radius:8px;margin-bottom:6px;font-size:12px;">
+      <span style="font-size:15px;">${t.icon}</span>
+      <span style="flex:1;">${t.label}${prazoStr}</span>
+    </div>`;
+  }).join('');
+}
 
 async function irDemandas(){
   mostrarTela('tela-demanda');
@@ -985,33 +1049,61 @@ function verHistoricoLoja(lojaId){
 }
 function irHome() { mostrarTela('tela-home'); carregarVisitasHoje(); carregarHistorico(tabHistAtual); carregarAlertasRevisita(); }
 
-// ===== Busca compartilhada de revisitas pendentes =====
+// ===== Busca compartilhada de pendências (plano de ação + demandas com prazo) =====
 async function buscarRevisitas(){
+  // Plano de ação (usa visitas p/ mapear loja)
   const {data:visitas}=await db.from('visitas').select('id,loja_id,lojas(nome)').eq('supervisora_id',usuario.id);
-  if(!visitas||visitas.length===0) return null;
-  const visMap={}; visitas.forEach(v=>visMap[v.id]=v);
-  const visIds=visitas.map(v=>v.id);
-  const {data:planos}=await db.from('registros_visita')
-    .select('id,descricao,visita_id,data_revisita')
-    .eq('categoria','plano_acao').not('data_revisita','is',null).in('visita_id',visIds);
-  if(!planos||planos.length===0) return null;
-  const ids=planos.map(p=>p.id);
-  const {data:revs}=await db.from('plano_acao_revisao')
-    .select('registro_original_id,status,created_at').in('registro_original_id',ids).order('created_at',{ascending:true});
-  const statusMap={}; (revs||[]).forEach(r=>statusMap[r.registro_original_id]=r.status);
+  const visMap={}; (visitas||[]).forEach(v=>visMap[v.id]=v);
+  const visIds=(visitas||[]).map(v=>v.id);
+  let planoItems=[];
+  if(visIds.length){
+    const {data:planos}=await db.from('registros_visita')
+      .select('id,descricao,visita_id,data_revisita')
+      .eq('categoria','plano_acao').not('data_revisita','is',null).in('visita_id',visIds);
+    if(planos&&planos.length){
+      const ids=planos.map(p=>p.id);
+      const {data:revs}=await db.from('plano_acao_revisao')
+        .select('registro_original_id,status,created_at').in('registro_original_id',ids).order('created_at',{ascending:true});
+      const statusMap={}; (revs||[]).forEach(r=>statusMap[r.registro_original_id]=r.status);
+      planoItems=planos.filter(p=>(statusMap[p.id]||'pendente')!=='concluido').map(p=>{
+        const v=visMap[p.visita_id];
+        return {kind:'plano', id:p.id, descricao:p.descricao, loja:v?.lojas?.nome||'Loja', lojaId:v?.loja_id, date:p.data_revisita};
+      });
+    }
+  }
+  // Demandas com prazo (não concluídas)
+  let demItems=[];
+  const {data:dem}=await db.from('demandas_supervisora')
+    .select('id,tipo,observacao,prazo,loja_id,lojas(nome)')
+    .eq('supervisora_id',usuario.id).eq('concluida',false).not('prazo','is',null);
+  if(dem&&dem.length){
+    demItems=dem.map(d=>{
+      const t=DEMANDA_MAP[d.tipo]||{label:d.tipo};
+      return {kind:'demanda', id:d.id, descricao:t.label+(d.observacao?(' — '+d.observacao):''), loja:d.lojas?.nome||'', lojaId:d.loja_id, date:d.prazo};
+    });
+  }
+  const all=[...planoItems,...demItems];
+  if(all.length===0) return null;
   const hoje=new Date().toISOString().split('T')[0];
   const d2=new Date(); d2.setDate(d2.getDate()+2); const limite=d2.toISOString().split('T')[0];
-  const pend=planos.filter(p=>(statusMap[p.id]||'pendente')!=='concluido');
+  const byDate=(a,b)=>a.date.localeCompare(b.date);
   return {
-    visMap, hoje,
-    vencidas: pend.filter(p=>p.data_revisita<hoje).sort((a,b)=>a.data_revisita.localeCompare(b.data_revisita)),
-    hojeItens: pend.filter(p=>p.data_revisita===hoje),
-    vencendo: pend.filter(p=>p.data_revisita>hoje && p.data_revisita<=limite).sort((a,b)=>a.data_revisita.localeCompare(b.data_revisita)),
-    proximas: pend.filter(p=>p.data_revisita>limite),
+    hoje,
+    vencidas: all.filter(i=>i.date<hoje).sort(byDate),
+    hojeItens: all.filter(i=>i.date===hoje).sort(byDate),
+    vencendo: all.filter(i=>i.date>hoje&&i.date<=limite).sort(byDate),
+    proximas: all.filter(i=>i.date>limite).sort(byDate),
   };
 }
 
-// ===== Banner de revisitas na home =====
+function _acaoItem(it){ // ação ao tocar
+  return it.kind==='plano' ? `iniciarRevisita('${it.lojaId}')` : `concluirDemanda('${it.id}')`;
+}
+function _rodapeItem(it){
+  return it.kind==='plano' ? 'toque para iniciar a visita →' : 'toque para marcar como concluída ✓';
+}
+
+// ===== Banner de pendências na home =====
 async function carregarAlertasRevisita(){
   const el=document.getElementById('alerta-revisitas');
   if(!el) return;
@@ -1019,61 +1111,70 @@ async function carregarAlertasRevisita(){
     const r=await buscarRevisitas();
     if(!r){ el.style.display='none'; return; }
     const urgentes=[...r.vencidas,...r.hojeItens];
-    if(urgentes.length===0 && r.vencendo.length===0 && r.proximas.length===0){ el.style.display='none'; return; }
+    const futuras=r.vencendo.length+r.proximas.length;
+    if(urgentes.length===0 && futuras===0){ el.style.display='none'; return; }
     let h='';
     if(urgentes.length){
       h+=`<div class="card" style="border-left:4px solid #dc3545;background:#fff5f5;">
-        <div style="font-weight:800;font-size:14px;color:#842029;margin-bottom:8px;">🔔 ${urgentes.length} tema(s) para revisitar</div>`;
-      h+=urgentes.map(p=>{
-        const v=r.visMap[p.visita_id]; const loja=v?.lojas?.nome||'Loja';
-        const atras=p.data_revisita<r.hoje;
-        const dataStr=p.data_revisita.split('-').reverse().join('/');
-        return `<div onclick="iniciarRevisita('${v?.loja_id}')" style="cursor:pointer;padding:8px 10px;border-radius:8px;background:#fff;margin-bottom:6px;border:1px solid #f1c0c0;">
-          <div style="font-size:12px;font-weight:700;color:#842029;">🏪 ${loja} · ${atras?'<span style="color:#dc3545;">ATRASADO</span>':'hoje'}</div>
-          <div style="font-size:12px;margin-top:2px;">📌 ${p.descricao}</div>
-          <div style="font-size:11px;color:var(--text-light);margin-top:2px;">Revisitar desde ${dataStr} · toque para iniciar visita →</div>
+        <div style="font-weight:800;font-size:14px;color:#842029;margin-bottom:8px;">🔔 ${urgentes.length} pendência(s) para hoje</div>`;
+      h+=urgentes.map(it=>{
+        const atras=it.date<r.hoje;
+        const dataStr=it.date.split('-').reverse().join('/');
+        const icone=it.kind==='plano'?'📌':'📅';
+        return `<div onclick="${_acaoItem(it)}" style="cursor:pointer;padding:8px 10px;border-radius:8px;background:#fff;margin-bottom:6px;border:1px solid #f1c0c0;">
+          <div style="font-size:12px;font-weight:700;color:#842029;">🏪 ${it.loja||'—'} · ${atras?'<span style="color:#dc3545;">ATRASADO</span>':'hoje'}</div>
+          <div style="font-size:12px;margin-top:2px;">${icone} ${it.descricao}</div>
+          <div style="font-size:11px;color:var(--text-light);margin-top:2px;">${it.kind==='plano'?'Revisitar':'Prazo'} ${dataStr} · ${_rodapeItem(it)}</div>
         </div>`;
       }).join('');
       h+=`</div>`;
     }
-    const futuras=r.vencendo.length+r.proximas.length;
     if(futuras){
-      h+=`<div style="font-size:11px;color:var(--text-light);margin:-4px 4px 12px;">📅 +${futuras} revisita(s) agendada(s) para os próximos dias.</div>`;
+      h+=`<div style="font-size:11px;color:var(--text-light);margin:-4px 4px 12px;">📅 +${futuras} pendência(s) agendada(s) para os próximos dias.</div>`;
     }
     el.innerHTML=h; el.style.display='';
   }catch(e){ console.log('alertas revisita:',e); el.style.display='none'; }
 }
 
-// ===== Pop-up de revisitas (abre no login) =====
+// ===== Pop-up de pendências (abre no login) =====
 async function mostrarPopupRevisitas(){
   try{
     const r=await buscarRevisitas();
-    if(!r) return;
-    const urgentes=[...r.vencidas,...r.hojeItens,...r.vencendo];
-    if(urgentes.length===0) return;
+    const urgentes=r?[...r.vencidas,...r.hojeItens,...r.vencendo]:[];
+    if(urgentes.length===0){ fecharPopupRevisitas(); return; }
     document.getElementById('alerta-rev-sub').textContent=
       `${r.vencidas.length} vencida(s) · ${r.hojeItens.length} para hoje · ${r.vencendo.length} vencendo`;
-    const linha=(p,cor,tag)=>{
-      const v=r.visMap[p.visita_id]; const loja=v?.lojas?.nome||'Loja';
-      const dStr=p.data_revisita.split('-').reverse().join('/');
-      return `<div onclick="fecharPopupRevisitas();iniciarRevisita('${v?.loja_id}')" style="cursor:pointer;border:1px solid ${cor}44;border-left:4px solid ${cor};border-radius:8px;padding:10px 12px;margin-bottom:8px;background:${cor}0d;">
-        <div style="font-size:12px;font-weight:800;color:${cor};">🏪 ${loja} · ${tag} (${dStr})</div>
-        <div style="font-size:13px;margin-top:3px;">📌 ${p.descricao}</div>
-        <div style="font-size:11px;color:var(--text-light);margin-top:2px;">toque para iniciar a visita →</div>
+    const linha=(it,cor,tag)=>{
+      const dStr=it.date.split('-').reverse().join('/');
+      const icone=it.kind==='plano'?'📌':'📅';
+      return `<div onclick="fecharPopupRevisitas();${_acaoItem(it)}" style="cursor:pointer;border:1px solid ${cor}44;border-left:4px solid ${cor};border-radius:8px;padding:10px 12px;margin-bottom:8px;background:${cor}0d;">
+        <div style="font-size:12px;font-weight:800;color:${cor};">🏪 ${it.loja||'—'} · ${tag} (${dStr})</div>
+        <div style="font-size:13px;margin-top:3px;">${icone} ${it.descricao}</div>
+        <div style="font-size:11px;color:var(--text-light);margin-top:2px;">${_rodapeItem(it)}</div>
       </div>`;
     };
     let h='';
-    r.vencidas.forEach(p=>h+=linha(p,'#dc3545','ATRASADO'));
-    r.hojeItens.forEach(p=>h+=linha(p,'#fd7e14','HOJE'));
-    r.vencendo.forEach(p=>h+=linha(p,'#b8860b','VENCENDO'));
+    r.vencidas.forEach(it=>h+=linha(it,'#dc3545','ATRASADO'));
+    r.hojeItens.forEach(it=>h+=linha(it,'#fd7e14','HOJE'));
+    r.vencendo.forEach(it=>h+=linha(it,'#b8860b','VENCENDO'));
     document.getElementById('alerta-rev-corpo').innerHTML=h;
     document.getElementById('modal-alerta-revisitas').style.display='flex';
   }catch(e){ console.log('popup revisita:',e); }
 }
 function fecharPopupRevisitas(){ document.getElementById('modal-alerta-revisitas').style.display='none'; }
 
+async function concluirDemanda(id){
+  try{
+    await db.from('demandas_supervisora').update({concluida:true}).eq('id',id);
+    showToast('✅ Demanda concluída!');
+    carregarAlertasRevisita();
+    mostrarPopupRevisitas(); // re-renderiza o pop-up (fecha se esvaziar)
+  }catch(e){ showToast('Erro ao concluir','error'); }
+}
+
 function iniciarRevisita(lojaId){
   if(!lojaId||lojaId==='undefined') return;
+  fecharPopupRevisitas();
   lojaSelecionada=null; energiaSelecionada=null; visitaAtual=null; registros=[]; planosAnteriores=[]; revisaoPlano={};
   selecionarLoja(lojaId);
 }
@@ -1367,6 +1468,7 @@ function abrirTelaVisita() {
   document.getElementById('energia-resumo-emoji').textContent=info.emoji;
   document.getElementById('energia-resumo-label').textContent=info.label;
   renderRegistros();
+  demandasVisita=[]; renderDemandasVisita();
   carregarTemplates();
   mostrarTela('tela-visita');
 }
