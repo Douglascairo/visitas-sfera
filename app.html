@@ -614,6 +614,16 @@
   </div>
 </div>
 
+<!-- MODAL: Definir/alterar prazo -->
+<div id="modal-prazo" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:230;align-items:center;justify-content:center;padding:16px;">
+  <div style="background:#fff;width:100%;max-width:420px;border-radius:16px;padding:20px;">
+    <div style="font-weight:800;font-size:16px;margin-bottom:12px;">📅 Definir prazo</div>
+    <input type="date" class="form-control" id="prazo-input">
+    <button class="btn btn-primary btn-full" style="margin-top:14px;" onclick="confirmarPrazo()">Salvar prazo</button>
+    <button class="btn btn-secondary btn-full" style="margin-top:8px;" onclick="fecharPrazo()">Cancelar</button>
+  </div>
+</div>
+
 <!-- MODAL: Registrar demanda desta visita -->
 <div id="modal-demanda-visita" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:220;align-items:flex-end;justify-content:center;">
   <div style="background:#fff;width:100%;max-width:520px;max-height:88vh;overflow-y:auto;border-radius:16px 16px 0 0;padding:18px;">
@@ -1242,11 +1252,11 @@ async function irPainelDemandas(){
     planos.forEach(p=>{
       const v=visMap[p.visita_id]; const nome=v?.lojas?.nome||'Loja';
       const st=statusMap[p.id]||'pendente';
-      lojaKey(nome).planos.push({desc:p.descricao, criado:v?.data_visita, revisita:p.data_revisita, status:st});
+      lojaKey(nome).planos.push({id:p.id, lojaId:v?.loja_id, desc:p.descricao, criado:v?.data_visita, revisita:p.data_revisita, status:st});
     });
     demandas.forEach(d=>{
       const nome=d.lojas?.nome||'(sem loja)';
-      lojaKey(nome).demandas.push({tipo:d.tipo, prazo:d.prazo, concluida:d.concluida, data:d.data, obs:d.observacao});
+      lojaKey(nome).demandas.push({id:d.id, tipo:d.tipo, prazo:d.prazo, concluida:d.concluida, data:d.data, obs:d.observacao});
     });
 
     // totais
@@ -1296,12 +1306,17 @@ async function irPainelDemandas(){
         inner+=L.planos.sort((a,b)=>(a.revisita||'').localeCompare(b.revisita||'')).map(p=>{
           const s=_PST[p.status]||_PST.pendente;
           const rev=p.revisita?` · 📅 revisitar ${_dbr(p.revisita)}${(p.status!=='concluido'&&p.revisita<hoje)?' <span style="color:#dc3545;font-weight:700;">(atrasado)</span>':''}`:'';
+          const acoes=p.status!=='concluido'?`<div style="display:flex;gap:6px;margin-top:6px;">
+            <button class="btn btn-sm" style="flex:1;background:#d1e7dd;color:#0f5132;border:none;font-size:11px;" onclick="execPlano('${p.id}','${p.lojaId||''}')">✅ Executado</button>
+            <button class="btn btn-secondary btn-sm" style="flex:1;font-size:11px;" onclick="prazoPlano('${p.id}')">📅 ${p.revisita?'Alterar prazo':'Definir prazo'}</button>
+          </div>`:'';
           return `<div style="padding:6px 8px;border:1px solid var(--border);border-radius:8px;margin-bottom:6px;font-size:12px;">
             <div style="display:flex;justify-content:space-between;gap:6px;">
               <span style="flex:1;">${p.desc}</span>
               <span style="background:${s.bg};color:${s.c};border-radius:10px;padding:1px 7px;font-size:10px;font-weight:700;white-space:nowrap;height:fit-content;">${s.i} ${s.l}</span>
             </div>
             <div style="font-size:10px;color:var(--text-light);margin-top:2px;">desde ${_dbr(p.criado)}${rev}</div>
+            ${acoes}
           </div>`;
         }).join('');
       }
@@ -1311,12 +1326,17 @@ async function irPainelDemandas(){
           const t=DEMANDA_MAP[d.tipo]||{icon:'•',label:d.tipo};
           const s=d.concluida?_PST.concluido:_PST.pendente;
           const prazo=d.prazo?` · 📅 ${_dbr(d.prazo)}${(!d.concluida&&d.prazo<hoje)?' <span style="color:#dc3545;font-weight:700;">(atrasado)</span>':''}`:'';
+          const acoes=!d.concluida?`<div style="display:flex;gap:6px;margin-top:6px;">
+            <button class="btn btn-sm" style="flex:1;background:#d1e7dd;color:#0f5132;border:none;font-size:11px;" onclick="execDemanda('${d.id}')">✅ Executado</button>
+            <button class="btn btn-secondary btn-sm" style="flex:1;font-size:11px;" onclick="prazoDemanda('${d.id}')">📅 ${d.prazo?'Alterar prazo':'Definir prazo'}</button>
+          </div>`:'';
           return `<div style="padding:6px 8px;border:1px solid var(--border);border-radius:8px;margin-bottom:6px;font-size:12px;">
             <div style="display:flex;justify-content:space-between;gap:6px;">
               <span style="flex:1;">${t.icon} ${t.label}${d.obs?` — ${d.obs}`:''}</span>
               <span style="background:${s.bg};color:${s.c};border-radius:10px;padding:1px 7px;font-size:10px;font-weight:700;white-space:nowrap;height:fit-content;">${s.i} ${s.l}</span>
             </div>
             <div style="font-size:10px;color:var(--text-light);margin-top:2px;">registrada ${_dbr(d.data)}${prazo}</div>
+            ${acoes}
           </div>`;
         }).join('');
       }
@@ -1326,6 +1346,40 @@ async function irPainelDemandas(){
     el.innerHTML=h;
   }catch(e){ console.error(e); el.innerHTML='<div class="empty"><p>Erro ao carregar. Tente novamente.</p></div>'; }
 }
+
+// Ações do painel: executar / definir prazo
+let _prazoCb=null;
+function pedirPrazo(cb){
+  _prazoCb=cb;
+  const d7=new Date(); d7.setDate(d7.getDate()+7);
+  document.getElementById('prazo-input').value=d7.toISOString().split('T')[0];
+  document.getElementById('modal-prazo').style.display='flex';
+}
+function fecharPrazo(){ document.getElementById('modal-prazo').style.display='none'; _prazoCb=null; }
+function confirmarPrazo(){
+  const dt=document.getElementById('prazo-input').value;
+  if(!dt){ showToast('Escolha uma data','error'); return; }
+  const cb=_prazoCb; fecharPrazo(); if(cb) cb(dt);
+}
+async function execDemanda(id){
+  try{ await db.from('demandas_supervisora').update({concluida:true}).eq('id',id);
+    showToast('✅ Demanda executada!'); irPainelDemandas(); carregarAlertasRevisita();
+  }catch(e){ showToast('Erro ao concluir','error'); }
+}
+function prazoDemanda(id){
+  pedirPrazo(async dt=>{ try{ await db.from('demandas_supervisora').update({prazo:dt}).eq('id',id);
+    showToast('📅 Prazo salvo!'); irPainelDemandas(); carregarAlertasRevisita(); }catch(e){ showToast('Erro','error'); } });
+}
+async function execPlano(registroId, lojaId){
+  try{ await db.from('plano_acao_revisao').insert({registro_original_id:registroId, status:'concluido', loja_id:(lojaId&&lojaId!=='undefined'&&lojaId!==''?lojaId:null), visita_revisao_id:null});
+    showToast('✅ Plano executado!'); irPainelDemandas(); carregarAlertasRevisita();
+  }catch(e){ showToast('Erro ao concluir','error'); }
+}
+function prazoPlano(registroId){
+  pedirPrazo(async dt=>{ try{ await db.from('registros_visita').update({data_revisita:dt}).eq('id',registroId);
+    showToast('📅 Prazo salvo!'); irPainelDemandas(); carregarAlertasRevisita(); }catch(e){ showToast('Erro','error'); } });
+}
+
 function voltarLoja() { mostrarTela('tela-selecionar-loja'); }
 function voltarParaPlanoOuLoja() { planosAnteriores.length>0 ? mostrarTela('tela-plano-revisao') : mostrarTela('tela-selecionar-loja'); }
 function voltarVisita() { mostrarTela('tela-visita'); }
