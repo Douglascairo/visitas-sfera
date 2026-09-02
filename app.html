@@ -156,6 +156,18 @@
       </div>
     </div>
 
+    <!-- Demandas & Planos de Ação -->
+    <div class="card" style="background:linear-gradient(135deg,#5a2d82 0%,#9b59b6 100%);color:white;cursor:pointer;border:none;" onclick="irPainelDemandas()">
+      <div style="display:flex;align-items:center;gap:14px;">
+        <div style="font-size:34px;">📋</div>
+        <div style="flex:1;">
+          <div style="font-size:15px;font-weight:800;">Demandas & Planos de Ação</div>
+          <div style="font-size:12px;opacity:0.9;margin-top:2px;">Acompanhe prazos, pendências e o que já foi concluído em cada loja</div>
+        </div>
+        <div style="font-size:22px;">→</div>
+      </div>
+    </div>
+
     <!-- Prioridade de rota -->
     <div class="card" style="background:linear-gradient(135deg,#042C53 0%,#1BA8D9 100%);color:white;cursor:pointer;border:none;" onclick="irPrioridade()">
       <div style="display:flex;align-items:center;gap:14px;">
@@ -286,6 +298,15 @@
       <div style="font-size:13px;font-weight:800;margin-bottom:10px;">📊 Suas demandas neste mês</div>
       <div id="demanda-resumo"><div class="loader"><div class="spinner"></div></div></div>
     </div>
+  </div>
+
+  <!-- TELA: PAINEL DE DEMANDAS & PLANOS -->
+  <div id="tela-painel-demandas" style="display:none">
+    <div style="display:flex;align-items:center;gap:10px;margin-bottom:16px;">
+      <button onclick="irHome()" style="background:none;border:none;font-size:22px;cursor:pointer;padding:4px;">←</button>
+      <div style="font-size:18px;font-weight:800;">📋 Demandas & Planos de Ação</div>
+    </div>
+    <div id="painel-dem-corpo"><div class="loader"><div class="spinner"></div><p>Carregando...</p></div></div>
   </div>
 
   <!-- MODAL: Histórico detalhe loja -->
@@ -681,7 +702,7 @@ window.addEventListener('DOMContentLoaded', async () => {
 // NAVEGAÇÃO
 // ==============================
 function mostrarTela(id) {
-  ['tela-home','tela-selecionar-loja','tela-prioridade','tela-historico-cl','tela-demanda','tela-plano-revisao','tela-energia','tela-visita','tela-encerrar','tela-encerrada']
+  ['tela-home','tela-selecionar-loja','tela-prioridade','tela-historico-cl','tela-demanda','tela-painel-demandas','tela-plano-revisao','tela-energia','tela-visita','tela-encerrar','tela-encerrada']
     .forEach(t => document.getElementById(t).style.display = t===id ? '':'none');
   window.scrollTo(0,0);
 }
@@ -1177,6 +1198,128 @@ function iniciarRevisita(lojaId){
   fecharPopupRevisitas();
   lojaSelecionada=null; energiaSelecionada=null; visitaAtual=null; registros=[]; planosAnteriores=[]; revisaoPlano={};
   selecionarLoja(lojaId);
+}
+
+// ===== Painel de Demandas & Planos de Ação =====
+const _PST={concluido:{l:'Concluído',i:'✅',bg:'#d1e7dd',c:'#0f5132'},andamento:{l:'Em andamento',i:'🔄',bg:'#fff3cd',c:'#856404'},pendente:{l:'Pendente',i:'❌',bg:'#f8d7da',c:'#842029'}};
+function _dbr(iso){ return iso?iso.split('-').reverse().join('/'):''; }
+
+async function irPainelDemandas(){
+  mostrarTela('tela-painel-demandas');
+  const el=document.getElementById('painel-dem-corpo');
+  el.innerHTML='<div class="loader"><div class="spinner"></div><p>Carregando...</p></div>';
+  try{
+    const hoje=new Date().toISOString().split('T')[0];
+    // visitas → mapa de loja
+    const {data:visitas}=await db.from('visitas').select('id,loja_id,data_visita,lojas(nome,cidade)').eq('supervisora_id',usuario.id);
+    const visMap={}; (visitas||[]).forEach(v=>visMap[v.id]=v);
+    const visIds=(visitas||[]).map(v=>v.id);
+
+    // planos de ação + status
+    let planos=[];
+    if(visIds.length){
+      const {data:pl}=await db.from('registros_visita').select('id,descricao,visita_id,data_revisita,created_at').eq('categoria','plano_acao').in('visita_id',visIds);
+      planos=pl||[];
+    }
+    let statusMap={};
+    if(planos.length){
+      const ids=planos.map(p=>p.id);
+      const {data:revs}=await db.from('plano_acao_revisao').select('registro_original_id,status,created_at').in('registro_original_id',ids).order('created_at',{ascending:true});
+      (revs||[]).forEach(r=>statusMap[r.registro_original_id]=r.status);
+    }
+    // demandas
+    const {data:dem}=await db.from('demandas_supervisora').select('id,tipo,prazo,concluida,data,loja_id,observacao,lojas(nome)').eq('supervisora_id',usuario.id).order('data',{ascending:false});
+    const demandas=dem||[];
+
+    // agrupa por loja
+    const lojasMap={};
+    const lojaKey=(nome)=>{ if(!lojasMap[nome]) lojasMap[nome]={nome, planos:[], demandas:[]}; return lojasMap[nome]; };
+    planos.forEach(p=>{
+      const v=visMap[p.visita_id]; const nome=v?.lojas?.nome||'Loja';
+      const st=statusMap[p.id]||'pendente';
+      lojaKey(nome).planos.push({desc:p.descricao, criado:v?.data_visita, revisita:p.data_revisita, status:st});
+    });
+    demandas.forEach(d=>{
+      const nome=d.lojas?.nome||'(sem loja)';
+      lojaKey(nome).demandas.push({tipo:d.tipo, prazo:d.prazo, concluida:d.concluida, data:d.data, obs:d.observacao});
+    });
+
+    // totais
+    let pPend=0,pAnd=0,pConc=0, dPend=0,dConc=0, atrasados=[];
+    planos.forEach(p=>{ const st=statusMap[p.id]||'pendente'; if(st==='concluido')pConc++; else if(st==='andamento')pAnd++; else pPend++;
+      if(st!=='concluido' && p.data_revisita && p.data_revisita<hoje){ const v=visMap[p.visita_id]; atrasados.push({kind:'plano', loja:v?.lojas?.nome||'Loja', desc:p.descricao, date:p.data_revisita}); } });
+    demandas.forEach(d=>{ if(d.concluida)dConc++; else dPend++;
+      if(!d.concluida && d.prazo && d.prazo<hoje){ const t=DEMANDA_MAP[d.tipo]||{label:d.tipo}; atrasados.push({kind:'demanda', loja:d.lojas?.nome||'—', desc:t.label, date:d.prazo}); } });
+    const totalItens=planos.length+demandas.length;
+    const totalConc=pConc+dConc;
+    const taxa=totalItens>0?Math.round(totalConc/totalItens*100):0;
+
+    if(totalItens===0){ el.innerHTML='<div class="empty"><div class="empty-icon">📋</div><p>Nenhuma demanda ou plano de ação registrado ainda.</p></div>'; return; }
+
+    let h='';
+    // Resumo
+    h+=`<div class="card">
+      <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;text-align:center;">
+        <div style="background:#f8d7da;border-radius:10px;padding:10px;"><div style="font-size:22px;font-weight:900;color:#842029;">${pPend+dPend}</div><div style="font-size:10px;color:#842029;">Pendentes</div></div>
+        <div style="background:#fff3cd;border-radius:10px;padding:10px;"><div style="font-size:22px;font-weight:900;color:#856404;">${pAnd}</div><div style="font-size:10px;color:#856404;">Em andamento</div></div>
+        <div style="background:#d1e7dd;border-radius:10px;padding:10px;"><div style="font-size:22px;font-weight:900;color:#0f5132;">${totalConc}</div><div style="font-size:10px;color:#0f5132;">Concluídos</div></div>
+      </div>
+      <div style="margin-top:12px;">
+        <div style="display:flex;justify-content:space-between;font-size:12px;margin-bottom:4px;"><span>Taxa de conclusão</span><span style="font-weight:800;color:var(--sfera);">${taxa}%</span></div>
+        <div style="background:var(--border);border-radius:8px;height:9px;overflow:hidden;"><div style="width:${taxa}%;background:${taxa>=70?'#198754':taxa>=40?'#fd7e14':'#dc3545'};height:100%;"></div></div>
+      </div>
+      <div style="font-size:11px;color:var(--text-light);margin-top:10px;">🎯 ${planos.length} plano(s) de ação · 📌 ${demandas.length} demanda(s)</div>
+    </div>`;
+
+    // Atrasados
+    if(atrasados.length){
+      atrasados.sort((a,b)=>a.date.localeCompare(b.date));
+      h+=`<div class="card" style="border-left:4px solid #dc3545;background:#fff5f5;">
+        <div style="font-weight:800;font-size:14px;color:#842029;margin-bottom:8px;">🔴 Atrasados (${atrasados.length})</div>`;
+      h+=atrasados.map(a=>`<div style="padding:6px 0;border-bottom:1px solid #f1c0c0;font-size:12px;">
+        <span style="font-weight:700;">🏪 ${a.loja}</span> · ${a.kind==='plano'?'🎯':'📌'} ${a.desc}
+        <span style="color:#dc3545;font-weight:700;"> — venceu ${_dbr(a.date)}</span></div>`).join('');
+      h+=`</div>`;
+    }
+
+    // Por loja
+    const lojasOrd=Object.values(lojasMap).sort((a,b)=>(b.planos.length+b.demandas.length)-(a.planos.length+a.demandas.length));
+    h+=lojasOrd.map(L=>{
+      let inner='';
+      if(L.planos.length){
+        inner+=`<div style="font-size:12px;font-weight:800;color:var(--sfera-dark);margin:6px 0 4px;">🎯 Planos de ação</div>`;
+        inner+=L.planos.sort((a,b)=>(a.revisita||'').localeCompare(b.revisita||'')).map(p=>{
+          const s=_PST[p.status]||_PST.pendente;
+          const rev=p.revisita?` · 📅 revisitar ${_dbr(p.revisita)}${(p.status!=='concluido'&&p.revisita<hoje)?' <span style="color:#dc3545;font-weight:700;">(atrasado)</span>':''}`:'';
+          return `<div style="padding:6px 8px;border:1px solid var(--border);border-radius:8px;margin-bottom:6px;font-size:12px;">
+            <div style="display:flex;justify-content:space-between;gap:6px;">
+              <span style="flex:1;">${p.desc}</span>
+              <span style="background:${s.bg};color:${s.c};border-radius:10px;padding:1px 7px;font-size:10px;font-weight:700;white-space:nowrap;height:fit-content;">${s.i} ${s.l}</span>
+            </div>
+            <div style="font-size:10px;color:var(--text-light);margin-top:2px;">desde ${_dbr(p.criado)}${rev}</div>
+          </div>`;
+        }).join('');
+      }
+      if(L.demandas.length){
+        inner+=`<div style="font-size:12px;font-weight:800;color:var(--sfera-dark);margin:8px 0 4px;">📌 Demandas</div>`;
+        inner+=L.demandas.sort((a,b)=>(b.data||'').localeCompare(a.data||'')).map(d=>{
+          const t=DEMANDA_MAP[d.tipo]||{icon:'•',label:d.tipo};
+          const s=d.concluida?_PST.concluido:_PST.pendente;
+          const prazo=d.prazo?` · 📅 ${_dbr(d.prazo)}${(!d.concluida&&d.prazo<hoje)?' <span style="color:#dc3545;font-weight:700;">(atrasado)</span>':''}`:'';
+          return `<div style="padding:6px 8px;border:1px solid var(--border);border-radius:8px;margin-bottom:6px;font-size:12px;">
+            <div style="display:flex;justify-content:space-between;gap:6px;">
+              <span style="flex:1;">${t.icon} ${t.label}${d.obs?` — ${d.obs}`:''}</span>
+              <span style="background:${s.bg};color:${s.c};border-radius:10px;padding:1px 7px;font-size:10px;font-weight:700;white-space:nowrap;height:fit-content;">${s.i} ${s.l}</span>
+            </div>
+            <div style="font-size:10px;color:var(--text-light);margin-top:2px;">registrada ${_dbr(d.data)}${prazo}</div>
+          </div>`;
+        }).join('');
+      }
+      return `<div class="card"><div style="font-weight:800;font-size:15px;margin-bottom:4px;">🏪 ${L.nome}</div>${inner}</div>`;
+    }).join('');
+
+    el.innerHTML=h;
+  }catch(e){ console.error(e); el.innerHTML='<div class="empty"><p>Erro ao carregar. Tente novamente.</p></div>'; }
 }
 function voltarLoja() { mostrarTela('tela-selecionar-loja'); }
 function voltarParaPlanoOuLoja() { planosAnteriores.length>0 ? mostrarTela('tela-plano-revisao') : mostrarTela('tela-selecionar-loja'); }
