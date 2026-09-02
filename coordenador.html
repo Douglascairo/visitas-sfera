@@ -995,7 +995,7 @@ async function verChecklistCoord(visitaId, templateId){
         <div style="font-size:12px;font-weight:600;margin-bottom:4px;">${item.ordem}. ${item.pergunta}</div>
         <div style="font-size:12px;font-weight:700;color:${cor};">${label}</div>
         ${r?.observacao?`<div style="font-size:11px;color:var(--text-light);margin-top:4px;">💬 ${r.observacao}</div>`:''}
-        ${r?.media_url?`<a href="${r.media_url}" target="_blank"><img src="${r.media_url}" style="width:60px;height:60px;object-fit:cover;border-radius:6px;margin-top:6px;"></a>`:''}
+        ${r?.media_url?`<a href="${r.media_url}" target="_blank"><img src="${r.media_url}" loading="lazy" style="width:60px;height:60px;object-fit:cover;border-radius:6px;margin-top:6px;"></a>`:''}
       </div>`;
     });
   });

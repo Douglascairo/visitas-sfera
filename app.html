@@ -2029,7 +2029,7 @@ function mostrarRelatorioChecklist(inserts){
   // Miniatura de foto (clicável p/ abrir em tela cheia)
   const fotoHtml=(r)=> r.media_url
     ? `<a href="${r.media_url}" target="_blank" style="display:inline-block;margin-top:8px;">
-         <img src="${r.media_url}" alt="foto" style="width:72px;height:72px;object-fit:cover;border-radius:8px;border:1.5px solid var(--border);">
+         <img src="${r.media_url}" alt="foto" loading="lazy" style="width:72px;height:72px;object-fit:cover;border-radius:8px;border:1.5px solid var(--border);">
        </a>`
     : '';
 
@@ -2257,17 +2257,33 @@ function _slimPrio(arr){
     return {nome:a.nome, periodo:a.periodo, dias:a.dias, pdv, consultor, headerPDV:a.headerPDV, headerCONSUL:a.headerCONSUL};
   });
 }
+function _prioLSKey(){ return 'prio_cache_ls_'+(usuario?.id||'x'); }
 async function salvarPrioCache(){
   try{
     if(prioArquivos.length){
-      await db.from('prio_cache').upsert({supervisora_id:usuario.id, dados:_slimPrio(prioArquivos), updated_at:new Date().toISOString()});
+      const slim=_slimPrio(prioArquivos);
+      try{ localStorage.setItem(_prioLSKey(), JSON.stringify({t:Date.now(), d:slim})); }catch(e){}
+      await db.from('prio_cache').upsert({supervisora_id:usuario.id, dados:slim, updated_at:new Date().toISOString()});
     }
   }catch(e){ console.log('cache prio:',e); }
 }
 async function carregarPrioCache(){
+  // 1) tenta cache local (sem egress) — válido por 24h
+  try{
+    const raw=localStorage.getItem(_prioLSKey());
+    if(raw){
+      const o=JSON.parse(raw);
+      if(o && Array.isArray(o.d) && o.d.length && (Date.now()-o.t)<86400000){ prioArquivos=o.d; return true; }
+    }
+  }catch(e){}
+  // 2) fallback: servidor
   try{
     const {data}=await db.from('prio_cache').select('dados').eq('supervisora_id',usuario.id).single();
-    if(data && Array.isArray(data.dados) && data.dados.length){ prioArquivos=data.dados; return true; }
+    if(data && Array.isArray(data.dados) && data.dados.length){
+      prioArquivos=data.dados;
+      try{ localStorage.setItem(_prioLSKey(), JSON.stringify({t:Date.now(), d:data.dados})); }catch(e){}
+      return true;
+    }
   }catch(e){}
   return false;
 }
