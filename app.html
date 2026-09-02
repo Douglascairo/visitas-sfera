@@ -124,24 +124,28 @@
     <!-- Alerta de revisitas -->
     <div id="alerta-revisitas" style="display:none;"></div>
 
-    <!-- Tipo de dia -->
+    <!-- Tipo de dia / para onde vai hoje -->
     <div class="card" id="card-tipo-dia">
-      <div class="card-title">📅 Como será seu dia hoje?</div>
-      <div class="tipo-dia-grid">
-        <div class="tipo-dia-btn" id="td-visitas" onclick="selecionarTipoDia('visitas')">
-          <span class="td-icon">🏪</span><span class="td-label">Visita a Lojas</span>
+      <div class="card-title">📍 Para onde você vai hoje?</div>
+      <div class="tipo-dia-grid" style="grid-template-columns:1fr 1fr;">
+        <div class="tipo-dia-btn" id="td-visitas" onclick="novaVisitaDoDia()">
+          <span class="td-icon">🏪</span><span class="td-label">Nova Visita</span>
         </div>
         <div class="tipo-dia-btn" id="td-escritorio" onclick="selecionarTipoDia('escritorio')">
-          <span class="td-icon">🏢</span><span class="td-label">Escritório</span>
+          <span class="td-icon">🏢</span><span class="td-label">Ida ao Escritório</span>
+        </div>
+        <div class="tipo-dia-btn" id="td-inventario" onclick="selecionarTipoDia('inventario')">
+          <span class="td-icon">📦</span><span class="td-label">Inventário</span>
         </div>
         <div class="tipo-dia-btn" id="td-demanda" onclick="selecionarTipoDia('demanda')">
-          <span class="td-icon">📋</span><span class="td-label">Outra Demanda</span>
+          <span class="td-icon">📋</span><span class="td-label">Outra Atividade</span>
         </div>
       </div>
       <div id="form-demanda" style="display:none;">
-        <input type="text" class="form-control" id="desc-demanda" placeholder="Descreva a demanda do dia...">
+        <input type="text" class="form-control" id="desc-demanda" placeholder="Descreva a atividade...">
         <button class="btn btn-primary btn-sm" style="margin-top:8px;" onclick="salvarTipoDia()">Confirmar</button>
       </div>
+      <div id="tipo-dia-status" style="font-size:12px;color:var(--sfera-dark);font-weight:600;margin-top:10px;display:none;"></div>
     </div>
 
     <!-- Histórico de Checklists -->
@@ -471,6 +475,7 @@
     </div>
 
     <button class="btn btn-success btn-full" onclick="irEncerrar()" style="margin-bottom:8px;">Encerrar Visita →</button>
+    <button class="btn btn-full" onclick="cancelarVisita()" style="margin-bottom:8px;background:#fff;color:#dc3545;border:1.5px solid #f1c0c0;">✕ Cancelar visita</button>
   </div>
 
   <!-- TELA: ENCERRAR -->
@@ -1328,6 +1333,13 @@ function voltarVisita() { mostrarTela('tela-visita'); }
 // ==============================
 // TIPO DE DIA
 // ==============================
+const TIPO_DIA_LABEL={visitas:'🏪 Visita a lojas',escritorio:'🏢 Escritório',inventario:'📦 Inventário',demanda:'📋 Outra atividade'};
+function _statusTipoDia(tipo, desc){
+  const el=document.getElementById('tipo-dia-status');
+  if(!el) return;
+  el.innerHTML='✅ Hoje: '+(TIPO_DIA_LABEL[tipo]||tipo)+(desc?` — ${desc}`:'');
+  el.style.display='';
+}
 async function carregarTipoDiaHoje() {
   const hoje = new Date().toISOString().split('T')[0];
   const {data} = await db.from('dias_supervisora').select('*').eq('supervisora_id',usuario.id).eq('data',hoje).single();
@@ -1336,8 +1348,16 @@ async function carregarTipoDiaHoje() {
     document.querySelectorAll('.tipo-dia-btn').forEach(b => b.classList.remove('selected'));
     const el = document.getElementById('td-'+data.tipo);
     if (el) el.classList.add('selected');
-    document.getElementById('card-tipo-dia').style.display = 'none'; // já foi marcado
+    _statusTipoDia(data.tipo, data.descricao); // mantém visível, só mostra o que já foi marcado
   }
+}
+
+// Botão "Nova Visita": registra o dia como visita e abre o fluxo
+function novaVisitaDoDia(){
+  tipoDiaHoje='visitas';
+  const hoje=new Date().toISOString().split('T')[0];
+  db.from('dias_supervisora').upsert({supervisora_id:usuario.id, data:hoje, tipo:'visitas', descricao:null}, {onConflict:'supervisora_id,data'});
+  abrirNovaVisita();
 }
 
 function selecionarTipoDia(tipo) {
@@ -1361,8 +1381,9 @@ async function salvarTipoDia() {
     tipo: tipoDiaHoje,
     descricao: desc || null
   }, {onConflict:'supervisora_id,data'});
-  document.getElementById('card-tipo-dia').style.display = 'none';
-  showToast('Tipo de dia registrado!', 'success');
+  document.getElementById('form-demanda').style.display = 'none';
+  _statusTipoDia(tipoDiaHoje, desc);
+  showToast('✅ Dia registrado!', 'success');
 }
 
 // ==============================
@@ -1614,6 +1635,18 @@ function abrirTelaVisita() {
   demandasVisita=[]; renderDemandasVisita();
   carregarTemplates();
   mostrarTela('tela-visita');
+}
+
+async function cancelarVisita(){
+  if(!visitaAtual){ irHome(); return; }
+  if(!confirm('Cancelar esta visita?\n\nTodos os registros e checklists feitos nela serão apagados. Esta ação não pode ser desfeita.')) return;
+  try{
+    await db.from('plano_acao_revisao').delete().eq('visita_revisao_id',visitaAtual.id);
+    await db.from('visitas').delete().eq('id',visitaAtual.id); // cascata apaga registros e respostas
+  }catch(e){ console.log('cancelar visita:',e); }
+  showToast('Visita cancelada.');
+  lojaSelecionada=null; energiaSelecionada=null; visitaAtual=null; registros=[]; planosAnteriores=[]; revisaoPlano={}; demandasVisita=[];
+  irHome();
 }
 
 async function abrirVisitaExistente(visitaId) {
