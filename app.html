@@ -421,8 +421,8 @@
 
     <!-- Registrar -->
     <div class="card">
-      <div class="card-title">📝 O que você fez agora?</div>
-      <textarea class="form-control" id="registro-texto" placeholder="Escreva ou toque no 🎤 e fale livremente sobre o que aconteceu..."></textarea>
+      <div class="card-title">🎙️ O que você combinou com seu líder?</div>
+      <textarea class="form-control" id="registro-texto" style="min-height:120px;" placeholder="Fale ou escreva aqui o que você está combinando com seu líder..."></textarea>
       <button type="button" class="btn btn-secondary btn-sm btn-mic" style="margin-top:6px;" data-label="🎤 Falar" onclick="ditarPara('registro-texto',this)">🎤 Falar</button>
 
       <!-- Upload de mídia -->
@@ -433,19 +433,8 @@
         <div id="media-preview-wrap" class="media-preview"></div>
       </div>
 
-      <div style="font-size:12px;font-weight:700;color:var(--sfera-dark);margin:14px 0 8px;">Do que se trata? (marque um ou mais)</div>
-      <div class="categorias-grid" id="tags-grid">
-        <button type="button" class="cat-btn" data-tag="atendimento" onclick="toggleTag('atendimento',this)"><span class="cat-icon">🎯</span>Atendimento</button>
-        <button type="button" class="cat-btn" data-tag="exposicao" onclick="toggleTag('exposicao',this)"><span class="cat-icon">🪟</span>Exposição</button>
-        <button type="button" class="cat-btn" data-tag="elogio" onclick="toggleTag('elogio',this)"><span class="cat-icon">⭐</span>Elogio</button>
-        <button type="button" class="cat-btn" data-tag="demanda" onclick="toggleTag('demanda',this)"><span class="cat-icon">📋</span>Demanda</button>
-        <button type="button" class="cat-btn" data-tag="plano_acao" onclick="toggleTag('plano_acao',this)"><span class="cat-icon">🎯</span>Plano de Ação</button>
-        <button type="button" class="cat-btn" data-tag="campanha" onclick="toggleTag('campanha',this)"><span class="cat-icon">📣</span>Campanha</button>
-        <button type="button" class="cat-btn" data-tag="outro" onclick="toggleTag('outro',this)" style="grid-column:span 2"><span class="cat-icon">💬</span>Outro</button>
-      </div>
-      <div id="dica-pauta" style="display:none;font-size:11px;color:var(--sfera-dark);background:var(--sfera-light);border-radius:8px;padding:8px 10px;margin-top:10px;">💡 Escreva <strong>cada pendência em uma linha separada</strong> — cada linha vira um item de plano de ação com prazo, prioridade e custo próprios.</div>
-
-      <button class="btn btn-primary btn-full" style="margin-top:12px;" onclick="salvarRegistro()">Salvar registro</button>
+      <div style="font-size:11px;color:var(--text-light);margin-top:12px;">💡 Escreva cada assunto em uma linha. O app organiza em pautas e você marca o assunto, prazo, prioridade e custo de cada uma.</div>
+      <button class="btn btn-primary btn-full" style="margin-top:10px;" onclick="organizarPautas()">Organizar em pautas →</button>
     </div>
 
     <!-- Registros -->
@@ -602,11 +591,11 @@
 <!-- MODAL: Datas de revisita do plano de ação -->
 <div id="modal-pautas" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:220;align-items:flex-end;justify-content:center;">
   <div style="background:#fff;width:100%;max-width:560px;max-height:90vh;overflow-y:auto;border-radius:16px 16px 0 0;padding:18px;">
-    <div style="font-weight:800;font-size:16px;margin-bottom:4px;">🎯 Organize as pautas do plano de ação</div>
-    <div style="font-size:12px;color:var(--text-light);margin-bottom:14px;">Confira a descrição de cada pauta e preencha prazo, prioridade e custo. Você pode ajustar o texto se quiser.</div>
+    <div style="font-weight:800;font-size:16px;margin-bottom:4px;">🗂️ Organize suas pautas</div>
+    <div style="font-size:12px;color:var(--text-light);margin-bottom:14px;">Para cada pauta: confira a descrição, marque o assunto. Se for Plano de Ação, defina prazo, prioridade e custo.</div>
     <div id="pautas-lista"></div>
     <button type="button" class="btn btn-secondary btn-sm btn-full" style="margin-bottom:10px;" onclick="adicionarPautaVazia()">➕ Adicionar outra pauta</button>
-    <button class="btn btn-primary btn-full" onclick="salvarPautas()">Salvar plano de ação</button>
+    <button class="btn btn-primary btn-full" onclick="salvarPautas()">Salvar tudo</button>
     <button class="btn btn-secondary btn-full" style="margin-top:8px;" onclick="fecharModalPautas()">Cancelar</button>
   </div>
 </div>
@@ -1740,20 +1729,16 @@ async function abrirVisitaExistente(visitaId) {
 // ==============================
 // REGISTROS
 // ==============================
-// ===== Tags multi-select do registro =====
-let tagsSelecionadas = [];
-function toggleTag(tag, btn){
-  const i=tagsSelecionadas.indexOf(tag);
-  if(i>-1){ tagsSelecionadas.splice(i,1); btn.classList.remove('active'); }
-  else { tagsSelecionadas.push(tag); btn.classList.add('active'); }
-  const dica=document.getElementById('dica-pauta');
-  if(dica) dica.style.display = tagsSelecionadas.includes('plano_acao') ? '' : 'none';
-}
-function limparTags(){
-  tagsSelecionadas=[];
-  document.querySelectorAll('#tags-grid .cat-btn').forEach(b=>b.classList.remove('active'));
-  const dica=document.getElementById('dica-pauta'); if(dica) dica.style.display='none';
-}
+// ===== Assuntos (tags) disponíveis por pauta =====
+const TAG_LIST=[
+  {id:'atendimento',icon:'🎯',label:'Atendimento'},
+  {id:'exposicao',icon:'🪟',label:'Exposição'},
+  {id:'elogio',icon:'⭐',label:'Elogio'},
+  {id:'demanda',icon:'📋',label:'Demanda'},
+  {id:'plano_acao',icon:'🎯',label:'Plano de Ação'},
+  {id:'campanha',icon:'📣',label:'Campanha'},
+  {id:'outro',icon:'💬',label:'Outro'},
+];
 
 function previewMedia() {
   const input=document.getElementById('media-input');
@@ -1808,106 +1793,106 @@ async function uploadMedia() {
   return urlData.publicUrl;
 }
 
-async function salvarRegistro() {
-  const texto=document.getElementById('registro-texto').value.trim();
-  if(!texto){showToast('Escreva ou fale o que aconteceu','error');return;}
-  if(tagsSelecionadas.length===0){showToast('Marque ao menos um assunto','error');return;}
+let pautasPendentesSalvar=[]; // {desc, tags:[], prazo, prioridade, custo}
+let pautasMediaUrl=null; let pautasMediaTipo=null;
 
-  let mediaUrl=null, mediaTipo=null;
+async function organizarPautas(){
+  const texto=document.getElementById('registro-texto').value.trim();
+  if(!texto){ showToast('Escreva ou fale o que combinou','error'); return; }
+
+  // Sobe o anexo (se houver) uma vez — fica na 1ª pauta
+  pautasMediaUrl=null; pautasMediaTipo=null;
   if(mediaFile){
     showToast('Enviando arquivo...');
-    mediaUrl=await uploadMedia();
-    if(mediaUrl) mediaTipo=mediaFile.type.startsWith('image/')?'foto':mediaFile.type.startsWith('video/')?'video':'arquivo';
+    pautasMediaUrl=await uploadMedia();
+    if(pautasMediaUrl) pautasMediaTipo=mediaFile.type.startsWith('image/')?'foto':mediaFile.type.startsWith('video/')?'video':'arquivo';
   }
 
-  const tags=[...tagsSelecionadas];
+  // Separa em pautas (1 por linha/frase)
+  let fragmentos=texto.split(/\n+|(?<=[.!?])\s+|(?<=[.!?])(?=[A-ZÀ-Ü])/)
+    .map(s=>s.replace(/^[\s•\-–—*]+/,'').trim())
+    .filter(s=>s.length>2);
+  if(fragmentos.length===0) fragmentos=[texto];
 
-  if(tags.includes('plano_acao')){
-    // Plano de ação: separa em pautas individuais (1 por linha/frase) e abre o modal p/ ela detalhar prazo/prioridade/custo
-    let fragmentos=texto.split(/\n+|(?<=[.!?])\s+|(?<=[.!?])(?=[A-ZÀ-Ü])/)
-      .map(s=>s.replace(/^[\s•\-–—*]+/,'').trim())
-      .filter(s=>s.length>2);
-    if(fragmentos.length===0) fragmentos=[texto];
-    abrirModalPautas(fragmentos, tags, mediaUrl, mediaTipo);
-    return; // salva só quando ela confirmar no modal
-  }
-
-  const primaria=tags[0];
-  const row={
-    visita_id:visitaAtual.id, categoria:primaria, categorias:tags, descricao:texto,
-    media_url:mediaUrl||null, media_tipo:mediaTipo||null
-  };
-  const {data,error}=await db.from('registros_visita').insert(row).select().single();
-  if(error){showToast('Erro ao salvar','error');return;}
-  registros.push(data);
-  limparRegistroForm();
-  renderRegistros();
-  showToast('Registro salvo!','success');
-}
-
-function limparRegistroForm(){
-  document.getElementById('registro-texto').value='';
-  document.getElementById('media-preview-wrap').innerHTML='';
-  document.getElementById('media-input').value='';
-  mediaFile=null;
-  limparTags();
-}
-
-// ===== Modal de pautas do plano de ação (descrição + prazo + prioridade + custo) =====
-let pautasPendentesSalvar=[]; // {desc, prazo, prioridade, custo}
-let pautasTags=[]; let pautasMediaUrl=null; let pautasMediaTipo=null;
-
-function abrirModalPautas(fragmentos, tags, mediaUrl, mediaTipo){
   const d7=new Date(); d7.setDate(d7.getDate()+7);
   const defData=d7.toISOString().split('T')[0];
-  pautasPendentesSalvar=fragmentos.map(f=>({desc:f, prazo:defData, prioridade:'media', custo:''}));
-  pautasTags=tags; pautasMediaUrl=mediaUrl; pautasMediaTipo=mediaTipo;
+  pautasPendentesSalvar=fragmentos.map(f=>({desc:f, tags:[], prazo:defData, prioridade:'media', custo:''}));
   renderPautasLista();
   document.getElementById('modal-pautas').style.display='flex';
+  document.getElementById('modal-pautas').scrollTop=0;
 }
+
+function togglePautaTag(i, tag){
+  const p=pautasPendentesSalvar[i];
+  const idx=p.tags.indexOf(tag);
+  if(idx>-1) p.tags.splice(idx,1); else p.tags.push(tag);
+  renderPautasLista();
+}
+
 function renderPautasLista(){
-  document.getElementById('pautas-lista').innerHTML=pautasPendentesSalvar.map((p,i)=>`
-    <div style="border:1px solid var(--border);border-radius:10px;padding:12px;margin-bottom:10px;">
+  document.getElementById('pautas-lista').innerHTML=pautasPendentesSalvar.map((p,i)=>{
+    const chips=TAG_LIST.map(t=>{
+      const on=p.tags.includes(t.id);
+      return `<button type="button" onclick="togglePautaTag(${i},'${t.id}')" style="background:${on?'var(--sfera)':'#fff'};color:${on?'#fff':'var(--text)'};border:1.5px solid ${on?'var(--sfera)':'var(--border)'};border-radius:16px;padding:4px 10px;font-size:11px;font-weight:600;cursor:pointer;margin:2px;">${t.icon} ${t.label}</button>`;
+    }).join('');
+    const ehPlano=p.tags.includes('plano_acao');
+    const camposPlano=ehPlano?`
+      <div style="background:var(--sfera-light);border-radius:8px;padding:10px;margin-top:8px;">
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;">
+          <div>
+            <label style="font-size:10px;font-weight:700;color:var(--text-light);">PRAZO</label>
+            <input type="date" class="form-control" style="font-size:12px;padding:6px 8px;" value="${p.prazo}" onchange="pautasPendentesSalvar[${i}].prazo=this.value">
+          </div>
+          <div>
+            <label style="font-size:10px;font-weight:700;color:var(--text-light);">PRIORIDADE</label>
+            <select class="form-control" style="font-size:12px;padding:6px 8px;" onchange="pautasPendentesSalvar[${i}].prioridade=this.value">
+              <option value="baixa" ${p.prioridade==='baixa'?'selected':''}>🟢 Baixa</option>
+              <option value="media" ${p.prioridade==='media'?'selected':''}>🟡 Média</option>
+              <option value="alta" ${p.prioridade==='alta'?'selected':''}>🔴 Alta</option>
+            </select>
+          </div>
+        </div>
+        <label style="font-size:10px;font-weight:700;color:var(--text-light);display:block;margin-top:8px;">CUSTO APROXIMADO (R$, opcional)</label>
+        <input type="number" inputmode="decimal" min="0" step="0.01" class="form-control" style="font-size:12px;padding:6px 8px;" placeholder="0,00" value="${p.custo}" oninput="pautasPendentesSalvar[${i}].custo=this.value">
+      </div>`:'';
+    return `<div style="border:1px solid var(--border);border-radius:10px;padding:12px;margin-bottom:10px;">
       <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;">
         <span style="font-size:11px;font-weight:700;color:var(--text-light);">PAUTA ${i+1}</span>
         <button type="button" onclick="removerPauta(${i})" style="background:none;border:none;color:#dc3545;font-size:16px;cursor:pointer;">✕</button>
       </div>
-      <textarea class="form-control" style="min-height:50px;font-size:13px;" oninput="pautasPendentesSalvar[${i}].desc=this.value">${p.desc}</textarea>
-      <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:8px;">
-        <div>
-          <label style="font-size:10px;font-weight:700;color:var(--text-light);">PRAZO</label>
-          <input type="date" class="form-control" style="font-size:12px;padding:6px 8px;" value="${p.prazo}" onchange="pautasPendentesSalvar[${i}].prazo=this.value">
-        </div>
-        <div>
-          <label style="font-size:10px;font-weight:700;color:var(--text-light);">PRIORIDADE</label>
-          <select class="form-control" style="font-size:12px;padding:6px 8px;" onchange="pautasPendentesSalvar[${i}].prioridade=this.value">
-            <option value="baixa" ${p.prioridade==='baixa'?'selected':''}>🟢 Baixa</option>
-            <option value="media" ${p.prioridade==='media'?'selected':''}>🟡 Média</option>
-            <option value="alta" ${p.prioridade==='alta'?'selected':''}>🔴 Alta</option>
-          </select>
-        </div>
-      </div>
-      <label style="font-size:10px;font-weight:700;color:var(--text-light);display:block;margin-top:8px;">CUSTO APROXIMADO (R$, opcional)</label>
-      <input type="number" inputmode="decimal" min="0" step="0.01" class="form-control" style="font-size:12px;padding:6px 8px;" placeholder="0,00" value="${p.custo}" oninput="pautasPendentesSalvar[${i}].custo=this.value">
-    </div>`).join('');
+      <textarea class="form-control" style="min-height:50px;font-size:13px;" oninput="pautasPendentesSalvar[${i}].desc=this.value" placeholder="Descreva o assunto da pauta...">${p.desc}</textarea>
+      <div style="font-size:10px;font-weight:700;color:var(--sfera-dark);margin:8px 0 4px;">DO QUE SE TRATA?</div>
+      <div style="display:flex;flex-wrap:wrap;">${chips}</div>
+      ${camposPlano}
+    </div>`;
+  }).join('');
 }
 function removerPauta(i){ pautasPendentesSalvar.splice(i,1); renderPautasLista(); }
 function adicionarPautaVazia(){
   const d7=new Date(); d7.setDate(d7.getDate()+7);
-  pautasPendentesSalvar.push({desc:'', prazo:d7.toISOString().split('T')[0], prioridade:'media', custo:''});
+  pautasPendentesSalvar.push({desc:'', tags:[], prazo:d7.toISOString().split('T')[0], prioridade:'media', custo:''});
   renderPautasLista();
 }
 async function salvarPautas(){
   const validas=pautasPendentesSalvar.filter(p=>p.desc.trim().length>0);
   if(validas.length===0){ showToast('Adicione ao menos uma pauta','error'); return; }
-  const rows=validas.map((p,i)=>({
-    visita_id:visitaAtual.id, categoria:'plano_acao', categorias:pautasTags, descricao:p.desc.trim(),
-    data_revisita:p.prazo||null, prioridade:p.prioridade||null,
-    custo_estimado:(p.custo!==''&&p.custo!==null)?parseFloat(p.custo):null,
-    media_url:(i===0?pautasMediaUrl:null)||null, media_tipo:(i===0?pautasMediaTipo:null)||null
-  }));
+  if(validas.some(p=>p.tags.length===0)){ showToast('Marque o assunto de cada pauta','error'); return; }
+  const rows=validas.map((p,i)=>{
+    const ehPlano=p.tags.includes('plano_acao');
+    return {
+      visita_id:visitaAtual.id,
+      categoria: ehPlano?'plano_acao':p.tags[0],
+      categorias:p.tags,
+      descricao:p.desc.trim(),
+      data_revisita: ehPlano?(p.prazo||null):null,
+      prioridade: ehPlano?(p.prioridade||null):null,
+      custo_estimado: (ehPlano && p.custo!==''&&p.custo!==null)?parseFloat(p.custo):null,
+      media_url:(i===0?pautasMediaUrl:null)||null,
+      media_tipo:(i===0?pautasMediaTipo:null)||null
+    };
+  });
   const {data,error}=await db.from('registros_visita').insert(rows).select();
-  if(error){ showToast('Erro ao salvar plano de ação','error'); return; }
+  if(error){ showToast('Erro ao salvar: '+error.message,'error'); return; }
   (data||[]).forEach(d=>registros.push(d));
   fecharModalPautas();
   limparRegistroForm();
@@ -1916,7 +1901,13 @@ async function salvarPautas(){
 }
 function fecharModalPautas(){
   document.getElementById('modal-pautas').style.display='none';
-  pautasPendentesSalvar=[]; pautasTags=[]; pautasMediaUrl=null; pautasMediaTipo=null;
+  pautasPendentesSalvar=[]; pautasMediaUrl=null; pautasMediaTipo=null;
+}
+function limparRegistroForm(){
+  document.getElementById('registro-texto').value='';
+  document.getElementById('media-preview-wrap').innerHTML='';
+  document.getElementById('media-input').value='';
+  mediaFile=null;
 }
 
 async function deletarRegistro(id) {
