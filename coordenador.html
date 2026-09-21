@@ -357,19 +357,22 @@ async function carregarPlanos(){
   const statusMap={}; (revs||[]).forEach(r=>statusMap[r.registro_original_id]=r.status);
 
   // Contadores
-  let cP=0,cA=0,cC=0;
-  planos.forEach(p=>{const st=statusMap[p.id]||'pendente'; if(st==='concluido')cC++; else if(st==='andamento')cA++; else cP++;});
+  let cP=0,cA=0,cC=0,custoTotalAberto=0;
+  planos.forEach(p=>{const st=statusMap[p.id]||'pendente'; if(st==='concluido')cC++; else if(st==='cancelado'){} else if(st==='andamento')cA++; else cP++;
+    if(st!=='concluido'&&st!=='cancelado'&&p.custo_estimado) custoTotalAberto+=Number(p.custo_estimado);});
 
   // Agrupa por loja (respeitando filtro de status)
   const porLoja={};
   planos.forEach(p=>{
     const st=statusMap[p.id]||'pendente';
-    if(filtro==='abertos' && st==='concluido') return;
+    if(filtro==='abertos' && (st==='concluido'||st==='cancelado')) return;
     const v=visMap[p.visita_id]; if(!v) return;
     const loja=v.lojas?.nome||'Loja';
     if(!porLoja[loja]) porLoja[loja]={sup:v.supervisoras?.nome_curto||v.supervisoras?.nome||'', itens:[]};
-    porLoja[loja].itens.push({desc:p.descricao, data:v.data_visita, status:st});
+    porLoja[loja].itens.push({desc:p.descricao, data:v.data_visita, status:st, prioridade:p.prioridade, custo:p.custo_estimado});
   });
+
+  const PRIO_C={baixa:{i:'🟢',l:'Baixa'},media:{i:'🟡',l:'Média'},alta:{i:'🔴',l:'Alta'}};
 
   // Resumo
   let html=`<div class="card"><div class="card-title">🎯 Resumo dos planos de ação</div>
@@ -377,7 +380,9 @@ async function carregarPlanos(){
       <div style="flex:1;background:#f8d7da;border-radius:10px;padding:10px;"><div style="font-size:22px;font-weight:900;color:#842029;">${cP}</div><div style="font-size:11px;color:#842029;">Pendentes</div></div>
       <div style="flex:1;background:#fff3cd;border-radius:10px;padding:10px;"><div style="font-size:22px;font-weight:900;color:#856404;">${cA}</div><div style="font-size:11px;color:#856404;">Em andamento</div></div>
       <div style="flex:1;background:#d1e7dd;border-radius:10px;padding:10px;"><div style="font-size:22px;font-weight:900;color:#0f5132;">${cC}</div><div style="font-size:11px;color:#0f5132;">Concluídos</div></div>
-    </div></div>`;
+    </div>
+    ${custoTotalAberto>0?`<div style="font-size:12px;font-weight:700;color:var(--sfera-dark);margin-top:10px;">💰 Custo total estimado em aberto: R$${custoTotalAberto.toFixed(2).replace('.',',')}</div>`:''}
+  </div>`;
 
   const lojasOrd=Object.entries(porLoja).sort((a,b)=>b[1].itens.length-a[1].itens.length);
   if(lojasOrd.length===0){ html+='<div class="empty"><div class="empty-icon">✅</div><p>Nenhum item em aberto — tudo concluído!</p></div>'; el.innerHTML=html; return; }
@@ -386,11 +391,13 @@ async function carregarPlanos(){
     const itens=d.itens.sort((a,b)=>new Date(a.data)-new Date(b.data)).map(it=>{
       const s=PLANO_ST[it.status]||PLANO_ST.pendente;
       const dataStr=it.data?it.data.split('-').reverse().join('/'):'';
+      const pr=PRIO_C[it.prioridade];
+      const custoStr=it.custo?` · 💰 R$${Number(it.custo).toFixed(2).replace('.',',')}`:'';
       return `<div style="display:flex;align-items:flex-start;gap:8px;padding:8px 0;border-bottom:1px solid var(--border);">
         <span style="font-size:15px;">${s.icon}</span>
         <div style="flex:1;">
-          <div style="font-size:13px;">${it.desc}</div>
-          <div style="font-size:11px;color:var(--text-light);">desde ${dataStr}</div>
+          <div style="font-size:13px;">${pr?pr.i+' ':''}${it.desc}</div>
+          <div style="font-size:11px;color:var(--text-light);">desde ${dataStr}${custoStr}</div>
         </div>
         <span style="background:${s.bg};color:${s.cor};border-radius:12px;padding:2px 8px;font-size:10px;font-weight:700;white-space:nowrap;">${s.label}</span>
       </div>`;
