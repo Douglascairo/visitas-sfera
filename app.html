@@ -605,23 +605,6 @@
   </div>
 </div>
 
-<!-- MODAL: Registrar demanda desta visita -->
-<div id="modal-demanda-visita" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:220;align-items:flex-end;justify-content:center;">
-  <div style="background:#fff;width:100%;max-width:520px;max-height:88vh;overflow-y:auto;border-radius:16px 16px 0 0;padding:18px;">
-    <div style="font-weight:800;font-size:16px;margin-bottom:2px;">📌 Registrar demanda</div>
-    <div style="font-size:12px;color:var(--text-light);margin-bottom:12px;" id="demvis-loja-nome"></div>
-    <div style="font-size:13px;font-weight:700;color:var(--sfera-dark);margin-bottom:8px;">1. Qual atividade?</div>
-    <div id="demvis-tipos" style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:14px;"></div>
-    <div style="font-size:13px;font-weight:700;color:var(--sfera-dark);margin-bottom:6px;">2. Prazo de acompanhamento (opcional)</div>
-    <input type="date" class="form-control" id="demvis-prazo" style="margin-bottom:12px;">
-    <div style="font-size:13px;font-weight:700;color:var(--sfera-dark);margin-bottom:6px;">Observação (opcional)</div>
-    <textarea class="form-control" id="demvis-obs" placeholder="Detalhe se quiser... (ou toque no 🎤)"></textarea>
-    <button type="button" class="btn btn-secondary btn-sm btn-mic" style="margin-top:6px;" data-label="🎤 Falar" onclick="ditarPara('demvis-obs',this)">🎤 Falar</button>
-    <button class="btn btn-primary btn-full" style="margin-top:14px;" onclick="salvarDemandaVisita()" id="btn-salvar-demvis">Salvar demanda</button>
-    <button class="btn btn-secondary btn-full" style="margin-top:8px;" onclick="fecharDemandaVisita()">Cancelar</button>
-  </div>
-</div>
-
 <!-- MODAL: Detalhes histórico -->
 <div id="modal-hist" style="display:none">
   <div class="modal-bg" onclick="fecharModalHist()">
@@ -739,57 +722,6 @@ const DEMANDA_TIPOS = [
 ];
 const DEMANDA_MAP = Object.fromEntries(DEMANDA_TIPOS.map(t=>[t.id,t]));
 let demandaTipoAtual = null;
-
-// ===== Demanda DENTRO da visita (loja fixa da visita) =====
-let demvisTipo=null;
-let demandasVisita=[]; // demandas já registradas nesta visita (em memória)
-function abrirDemandaVisita(){
-  if(!lojaSelecionada){ showToast('Abra uma visita primeiro','error'); return; }
-  demvisTipo=null;
-  document.getElementById('demvis-loja-nome').textContent='🏪 '+lojaSelecionada.nome;
-  document.getElementById('demvis-prazo').value='';
-  document.getElementById('demvis-obs').value='';
-  document.getElementById('demvis-tipos').innerHTML=DEMANDA_TIPOS.map(t=>
-    `<button type="button" class="cat-btn" id="dvt-${t.id}" onclick="selDemvisTipo('${t.id}')" style="text-align:left;font-size:12px;line-height:1.25;">
-      <span style="font-size:20px;display:block;margin-bottom:2px;">${t.icon}</span>${t.label}
-    </button>`).join('');
-  document.getElementById('modal-demanda-visita').style.display='flex';
-}
-function selDemvisTipo(id){
-  demvisTipo=DEMANDA_MAP[id];
-  DEMANDA_TIPOS.forEach(t=>{ const b=document.getElementById('dvt-'+t.id); if(b) b.classList.toggle('active',t.id===id); });
-}
-function fecharDemandaVisita(){ document.getElementById('modal-demanda-visita').style.display='none'; }
-async function salvarDemandaVisita(){
-  if(!demvisTipo){ showToast('Escolha a atividade','error'); return; }
-  const prazo=document.getElementById('demvis-prazo').value||null;
-  const obs=document.getElementById('demvis-obs').value.trim()||null;
-  const btn=document.getElementById('btn-salvar-demvis');
-  btn.disabled=true; btn.textContent='Salvando...';
-  const {data,error}=await db.from('demandas_supervisora').insert({
-    supervisora_id:usuario.id, tipo:demvisTipo.id, loja_id:lojaSelecionada.id,
-    data:new Date().toISOString().split('T')[0], prazo, observacao:obs, concluida:false
-  }).select().single();
-  btn.disabled=false; btn.textContent='Salvar demanda';
-  if(error){ showToast('Erro ao salvar: '+error.message,'error'); return; }
-  demandasVisita.push(data);
-  renderDemandasVisita();
-  fecharDemandaVisita();
-  showToast('📌 Demanda registrada!');
-}
-function renderDemandasVisita(){
-  const el=document.getElementById('demvis-lista');
-  if(!el) return;
-  if(demandasVisita.length===0){ el.innerHTML=''; return; }
-  el.innerHTML=demandasVisita.map(d=>{
-    const t=DEMANDA_MAP[d.tipo]||{icon:'•',label:d.tipo};
-    const prazoStr=d.prazo?` · 📅 ${d.prazo.split('-').reverse().join('/')}`:'';
-    return `<div style="display:flex;align-items:center;gap:8px;padding:6px 8px;border:1px solid var(--border);border-radius:8px;margin-bottom:6px;font-size:12px;">
-      <span style="font-size:15px;">${t.icon}</span>
-      <span style="flex:1;">${t.label}${prazoStr}</span>
-    </div>`;
-  }).join('');
-}
 
 async function irDemandas(){
   mostrarTela('tela-demanda');
@@ -1694,7 +1626,6 @@ function abrirTelaVisita() {
   document.getElementById('energia-resumo-label').textContent=info.label;
   renderRegistros();
   limparRegistroForm();
-  demandasVisita=[]; renderDemandasVisita();
   carregarTemplates();
   mostrarTela('tela-visita');
 }
@@ -1707,7 +1638,7 @@ async function cancelarVisita(){
     await db.from('visitas').delete().eq('id',visitaAtual.id); // cascata apaga registros e respostas
   }catch(e){ console.log('cancelar visita:',e); }
   showToast('Visita cancelada.');
-  lojaSelecionada=null; energiaSelecionada=null; visitaAtual=null; registros=[]; planosAnteriores=[]; revisaoPlano={}; demandasVisita=[];
+  lojaSelecionada=null; energiaSelecionada=null; visitaAtual=null; registros=[]; planosAnteriores=[]; revisaoPlano={};
   irHome();
 }
 
