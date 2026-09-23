@@ -270,6 +270,9 @@ textarea.form-control { resize: none; min-height: 80px; font-size: 15px; }
 .badge-demanda { background: #f8d7da; color: #842029; }
 .badge-plano_acao { background: #e2d9f3; color: #41295a; }
 .badge-campanha { background: #fde9d9; color: #7d3c00; }
+.badge-rh { background: #d1ecf1; color: #0c5460; }
+.badge-manutencao { background: #ffe5b4; color: #7d4a00; }
+.badge-ti { background: #d6d8f5; color: #2d2f7d; }
 .badge-outro { background: #e2e3e5; color: #383d41; }
 
 /* ===== VISITA CARD ===== */

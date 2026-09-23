@@ -646,12 +646,15 @@ const ENERGIA_INFO = {
   5:{emoji:'🤩',label:'Super energizada!'}
 };
 const CAT_INFO = {
-  atendimento:{label:'Atendimento',badge:'badge-atendimento'},
+  atendimento:{label:'Atend./Trein.',badge:'badge-atendimento'},
   exposicao:{label:'Exposição',badge:'badge-exposicao'},
   elogio:{label:'Elogio',badge:'badge-elogio'},
   demanda:{label:'Demanda',badge:'badge-demanda'},
   plano_acao:{label:'Plano de Ação',badge:'badge-plano_acao'},
   campanha:{label:'Campanha',badge:'badge-campanha'},
+  rh:{label:'RH',badge:'badge-rh'},
+  manutencao:{label:'Manutenção',badge:'badge-manutencao'},
+  ti:{label:'TI',badge:'badge-ti'},
   outro:{label:'Outro',badge:'badge-outro'}
 };
 
@@ -1655,14 +1658,16 @@ async function abrirVisitaExistente(visitaId) {
 // ==============================
 // REGISTROS
 // ==============================
-// ===== Assuntos (tags) disponíveis por pauta =====
+// ===== Assuntos (tags/áreas) disponíveis por pauta =====
 const TAG_LIST=[
-  {id:'atendimento',icon:'🎯',label:'Atendimento'},
+  {id:'atendimento',icon:'🎯',label:'Atendimento / Treinamento'},
   {id:'exposicao',icon:'🪟',label:'Exposição'},
   {id:'elogio',icon:'⭐',label:'Elogio'},
   {id:'demanda',icon:'📋',label:'Demanda'},
-  {id:'plano_acao',icon:'🎯',label:'Plano de Ação'},
   {id:'campanha',icon:'📣',label:'Campanha'},
+  {id:'rh',icon:'🗓️',label:'RH'},
+  {id:'manutencao',icon:'🔧',label:'Manutenção'},
+  {id:'ti',icon:'💻',label:'TI'},
   {id:'outro',icon:'💬',label:'Outro'},
 ];
 
@@ -1761,8 +1766,7 @@ function renderPautasLista(){
       const on=p.tags.includes(t.id);
       return `<button type="button" onclick="togglePautaTag(${i},'${t.id}')" style="background:${on?'var(--sfera)':'#fff'};color:${on?'#fff':'var(--text)'};border:1.5px solid ${on?'var(--sfera)':'var(--border)'};border-radius:16px;padding:4px 10px;font-size:11px;font-weight:600;cursor:pointer;margin:2px;">${t.icon} ${t.label}</button>`;
     }).join('');
-    const ehPlano=p.tags.includes('plano_acao');
-    const camposPlano=ehPlano?`
+    const camposPlano=`
       <div style="background:var(--sfera-light);border-radius:8px;padding:10px;margin-top:8px;">
         <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;">
           <div>
@@ -1780,7 +1784,7 @@ function renderPautasLista(){
         </div>
         <label style="font-size:10px;font-weight:700;color:var(--text-light);display:block;margin-top:8px;">CUSTO APROXIMADO (R$, opcional)</label>
         <input type="number" inputmode="decimal" min="0" step="0.01" class="form-control" style="font-size:12px;padding:6px 8px;" placeholder="0,00" value="${p.custo}" oninput="pautasPendentesSalvar[${i}].custo=this.value">
-      </div>`:'';
+      </div>`;
     return `<div style="border:1px solid var(--border);border-radius:10px;padding:12px;margin-bottom:10px;">
       <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;">
         <span style="font-size:11px;font-weight:700;color:var(--text-light);">PAUTA ${i+1}</span>
@@ -1803,20 +1807,17 @@ async function salvarPautas(){
   const validas=pautasPendentesSalvar.filter(p=>p.desc.trim().length>0);
   if(validas.length===0){ showToast('Adicione ao menos uma pauta','error'); return; }
   if(validas.some(p=>p.tags.length===0)){ showToast('Marque o assunto de cada pauta','error'); return; }
-  const rows=validas.map((p,i)=>{
-    const ehPlano=p.tags.includes('plano_acao');
-    return {
-      visita_id:visitaAtual.id,
-      categoria: ehPlano?'plano_acao':p.tags[0],
-      categorias:p.tags,
-      descricao:p.desc.trim(),
-      data_revisita: ehPlano?(p.prazo||null):null,
-      prioridade: ehPlano?(p.prioridade||null):null,
-      custo_estimado: (ehPlano && p.custo!==''&&p.custo!==null)?parseFloat(p.custo):null,
-      media_url:(i===0?pautasMediaUrl:null)||null,
-      media_tipo:(i===0?pautasMediaTipo:null)||null
-    };
-  });
+  const rows=validas.map((p,i)=>({
+    visita_id:visitaAtual.id,
+    categoria:'plano_acao',           // toda pauta é um item do plano de ação
+    categorias:p.tags,                // as tags marcadas são a área/assunto
+    descricao:p.desc.trim(),
+    data_revisita: p.prazo||null,
+    prioridade: p.prioridade||null,
+    custo_estimado: (p.custo!==''&&p.custo!==null)?parseFloat(p.custo):null,
+    media_url:(i===0?pautasMediaUrl:null)||null,
+    media_tipo:(i===0?pautasMediaTipo:null)||null
+  }));
   const {data,error}=await db.from('registros_visita').insert(rows).select();
   if(error){ showToast('Erro ao salvar: '+error.message,'error'); return; }
   (data||[]).forEach(d=>registros.push(d));
@@ -3379,21 +3380,15 @@ function gerarResumoGerente(){
   let t=`*Resumo da Visita — ${nome}*\n${dataStr} · Supervisora ${usuario.nome}\n`;
   if(info) t+=`Energia do time ao chegar: ${info.emoji} ${info.label}\n`;
 
-  // Elogios em destaque (o que foi bem)
-  const elogios=registros.filter(r=>r.categoria==='elogio');
-  if(elogios.length){
-    t+=`\n*👏 PONTOS POSITIVOS:*\n`;
-    elogios.forEach(r=>{ t+=`• ${r.descricao}\n`; });
-  }
-
-  // Plano de ação definido NESTA visita (cada pauta já é separada, com prazo/prioridade/custo)
-  const planosHoje=registros.filter(r=>r.categoria==='plano_acao');
-  if(planosHoje.length){
+  // Pautas desta visita (todas são plano de ação, com prazo/prioridade/custo)
+  if(registros.length){
     t+=`\n*🎯 PLANO DE AÇÃO (a executar):*\n`;
-    planosHoje.forEach(r=>{
+    registros.forEach(r=>{
       const pr=PRIORIDADE_INFO[r.prioridade];
+      const areas=_tagsDeRegistro(r).map(tg=>CAT_INFO[tg]?.label||tg).join(', ');
       let linha=`☐ ${r.descricao}`;
       const det=[];
+      if(areas) det.push(areas);
       if(pr) det.push(`${pr.i} ${pr.l}`);
       if(r.data_revisita) det.push(`prazo ${r.data_revisita.split('-').reverse().join('/')}`);
       if(r.custo_estimado) det.push(`R$${Number(r.custo_estimado).toFixed(2).replace('.',',')}`);
@@ -3413,15 +3408,6 @@ function gerarResumoGerente(){
     t+=`\n*✅ CONCLUÍDO nesta visita:*\n`;
     concl.forEach(p=>{ t+=`✔ ${p.descricao}\n`; });
   }
-  // Demais comandos, agrupados por categoria (demanda, campanha, exposição, atendimento, outro)
-  const jaUsadas=new Set(['elogio','plano_acao']);
-  const ordem=['demanda','campanha','exposicao','atendimento','outro'];
-  const grupos={};
-  registros.filter(r=>!jaUsadas.has(r.categoria)).forEach(r=>{ (grupos[r.categoria]=grupos[r.categoria]||[]).push(r.descricao); });
-  ordem.filter(c=>grupos[c]).forEach(cat=>{
-    t+=`\n*${CAT_EMOJI[cat]||'•'} ${(CAT_INFO[cat]?.label||cat).toUpperCase()}:*\n`;
-    grupos[cat].forEach(d=>{ t+=`• ${d}\n`; });
-  });
 
   const obs=document.getElementById('obs-geral')?.value?.trim();
   if(obs) t+=`\n*💬 Observação geral:* ${obs}\n`;

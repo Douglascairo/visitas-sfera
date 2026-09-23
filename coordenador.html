@@ -226,8 +226,9 @@ const ENERGIA_INFO = {
   5:{emoji:'🤩',label:'Super energizada!',cor:'#28a745'}
 };
 const CAT_INFO = {
-  atendimento:'Atendimento',exposicao:'Exposição',elogio:'Elogio',
-  demanda:'Demanda',plano_acao:'Plano de Ação',campanha:'Campanha',outro:'Outro'
+  atendimento:'Atend./Trein.',exposicao:'Exposição',elogio:'Elogio',
+  demanda:'Demanda',plano_acao:'Plano de Ação',campanha:'Campanha',
+  rh:'RH',manutencao:'Manutenção',ti:'TI',outro:'Outro'
 };
 const TIPO_DIA = {
   visitas:{label:'🏪 Visita a lojas',badge:'td-badge-visitas'},
@@ -614,8 +615,13 @@ async function verDetalhesPorLoja(lojaId, idsEncoded) {
     const info=ENERGIA_INFO[v.energia_time];
     const regs=(todosRegs||[]).filter(r=>r.visita_id===v.id);
     const revisoes=(todasRevisoes||[]).filter(r=>r.visita_revisao_id===v.id);
+    // Agrupa por área (tags); cada registro pode ter várias
     const catGroups={};
-    regs.forEach(r=>{if(!catGroups[r.categoria])catGroups[r.categoria]=[];catGroups[r.categoria].push(r);});
+    regs.forEach(r=>{
+      const areas=(r.categorias&&r.categorias.length)?r.categorias:[r.categoria];
+      areas.forEach(a=>{ if(!catGroups[a])catGroups[a]=[]; catGroups[a].push(r); });
+    });
+    const PRIO_D={baixa:'🟢',media:'🟡',alta:'🔴'};
 
     html+=`<div style="border:1.5px solid var(--border);border-radius:12px;padding:14px;margin-bottom:14px;">
       <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;">
@@ -643,8 +649,13 @@ async function verDetalhesPorLoja(lojaId, idsEncoded) {
       Object.entries(catGroups).forEach(([cat,items])=>{
         html+=`<div style="font-size:11px;font-weight:700;color:var(--sfera-dark);margin:8px 0 4px;text-transform:uppercase;">${CAT_INFO[cat]||cat}</div>`;
         items.forEach(r=>{
+          const det=[];
+          if(r.prioridade) det.push(`${PRIO_D[r.prioridade]||''} ${r.prioridade}`);
+          if(r.data_revisita) det.push(`📅 ${r.data_revisita.split('-').reverse().join('/')}`);
+          if(r.custo_estimado) det.push(`💰 R$${Number(r.custo_estimado).toFixed(2).replace('.',',')}`);
           html+=`<div style="padding:6px 8px;background:var(--bg);border-radius:6px;font-size:13px;margin-bottom:4px;">• ${r.descricao}`;
           if(r.media_url) html+=` <a href="${r.media_url}" target="_blank" style="color:var(--sfera);">📎</a>`;
+          if(det.length) html+=`<div style="font-size:10px;color:var(--text-light);margin-top:2px;">${det.join(' · ')}</div>`;
           html+='</div>';
         });
       });
