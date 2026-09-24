@@ -119,9 +119,39 @@
 
   <!-- TELA: HOME -->
   <div id="tela-home">
-    <div style="margin-bottom:16px;">
+    <div style="margin-bottom:14px;">
       <div style="font-size:13px;color:var(--text-light);">Hoje, <span id="data-hoje"></span></div>
       <div style="font-size:20px;font-weight:800;margin-top:2px;">Olá, <span id="home-nome-curto"></span>! 👋</div>
+    </div>
+
+    <!-- Contadores de visitas (ano / mês) -->
+    <div class="card" style="background:linear-gradient(135deg,#042C53 0%,#0a4a7a 100%);color:#fff;border:none;padding:14px 16px;">
+      <div style="display:flex;align-items:stretch;gap:12px;">
+        <div style="flex:1;text-align:center;">
+          <div style="font-size:28px;font-weight:900;line-height:1;" id="cont-ano">–</div>
+          <div style="font-size:11px;opacity:.85;margin-top:3px;">visitas em <span id="cont-ano-label"></span></div>
+        </div>
+        <div style="width:1px;background:rgba(255,255,255,.25);"></div>
+        <div style="flex:1;text-align:center;">
+          <div style="font-size:28px;font-weight:900;line-height:1;" id="cont-mes">–</div>
+          <div style="font-size:11px;opacity:.85;margin-top:3px;" id="cont-mes-label">no mês</div>
+        </div>
+      </div>
+      <div style="margin-top:10px;">
+        <select id="cont-mes-select" onchange="carregarContadores()" style="width:100%;border:none;border-radius:8px;padding:7px 10px;font-size:12px;font-weight:600;color:#042C53;"></select>
+      </div>
+    </div>
+
+    <!-- Minha Agenda -->
+    <div class="card" style="background:linear-gradient(135deg,#8e44ad 0%,#c471ed 100%);color:white;cursor:pointer;border:none;" onclick="irAgenda()">
+      <div style="display:flex;align-items:center;gap:14px;">
+        <div style="font-size:34px;">🗓️</div>
+        <div style="flex:1;">
+          <div style="font-size:15px;font-weight:800;">Minha Agenda</div>
+          <div style="font-size:12px;opacity:0.9;margin-top:2px;">Calendário do mês, o que fazer na semana e lojas que precisam de visita</div>
+        </div>
+        <div style="font-size:22px;">→</div>
+      </div>
     </div>
 
     <!-- Alerta de revisitas -->
@@ -314,6 +344,15 @@
       <div style="font-size:18px;font-weight:800;">📋 Demandas & Planos de Ação</div>
     </div>
     <div id="painel-dem-corpo"><div class="loader"><div class="spinner"></div><p>Carregando...</p></div></div>
+  </div>
+
+  <!-- TELA: MINHA AGENDA -->
+  <div id="tela-agenda" style="display:none">
+    <div style="display:flex;align-items:center;gap:10px;margin-bottom:16px;">
+      <button onclick="irHome()" style="background:none;border:none;font-size:22px;cursor:pointer;padding:4px;">←</button>
+      <div style="font-size:18px;font-weight:800;">🗓️ Minha Agenda</div>
+    </div>
+    <div id="agenda-corpo"><div class="loader"><div class="spinner"></div><p>Carregando...</p></div></div>
   </div>
 
   <!-- MODAL: Histórico detalhe loja -->
@@ -676,6 +715,7 @@ window.addEventListener('DOMContentLoaded', async () => {
   await carregarVisitasHoje();
   await carregarHistorico('semana');
   carregarAlertasRevisita();
+  carregarContadores();
   mostrarPopupRevisitas();
 });
 
@@ -683,7 +723,7 @@ window.addEventListener('DOMContentLoaded', async () => {
 // NAVEGAÇÃO
 // ==============================
 function mostrarTela(id) {
-  ['tela-home','tela-selecionar-loja','tela-prioridade','tela-historico-cl','tela-demanda','tela-painel-demandas','tela-plano-revisao','tela-energia','tela-visita','tela-encerrar','tela-encerrada']
+  ['tela-home','tela-selecionar-loja','tela-prioridade','tela-historico-cl','tela-demanda','tela-painel-demandas','tela-agenda','tela-plano-revisao','tela-energia','tela-visita','tela-encerrar','tela-encerrada']
     .forEach(t => document.getElementById(t).style.display = t===id ? '':'none');
   window.scrollTo(0,0);
 }
@@ -998,7 +1038,145 @@ function verHistoricoLoja(lojaId){
   document.getElementById('modal-hist-cl').style.display='';
   document.getElementById('modal-hist-cl').scrollTop=0;
 }
-function irHome() { mostrarTela('tela-home'); carregarVisitasHoje(); carregarHistorico(tabHistAtual); carregarAlertasRevisita(); }
+function irHome() { mostrarTela('tela-home'); carregarVisitasHoje(); carregarHistorico(tabHistAtual); carregarAlertasRevisita(); carregarContadores(); }
+
+// ===== Contadores de visitas (ano / mês) =====
+const MESES_PT=['Janeiro','Fevereiro','Março','Abril','Maio','Junho','Julho','Agosto','Setembro','Outubro','Novembro','Dezembro'];
+let _contInit=false;
+async function carregarContadores(){
+  const sel=document.getElementById('cont-mes-select');
+  if(!sel) return;
+  const hoje=new Date(), ano=hoje.getFullYear(), mesAtual=hoje.getMonth()+1;
+  // popular select uma vez
+  if(!_contInit){
+    let opts='';
+    for(let m=mesAtual;m>=1;m--) opts+=`<option value="${m}">${MESES_PT[m-1]} ${ano}</option>`;
+    sel.innerHTML=opts; sel.value=String(mesAtual);
+    document.getElementById('cont-ano-label').textContent=ano;
+    _contInit=true;
+  }
+  const mesSel=parseInt(sel.value)||mesAtual;
+  // Visitas encerradas no ANO
+  const iniAno=`${ano}-01-01`, fimAno=`${ano}-12-31`;
+  const {count:cAno}=await db.from('visitas').select('id',{count:'exact',head:true})
+    .eq('supervisora_id',usuario.id).eq('status','encerrada').gte('data_visita',iniAno).lte('data_visita',fimAno);
+  document.getElementById('cont-ano').textContent=cAno??0;
+  // Visitas encerradas no MÊS selecionado (se for o mês atual, até ontem)
+  const ultimoDia=new Date(ano,mesSel,0).getDate();
+  const iniMes=`${ano}-${String(mesSel).padStart(2,'0')}-01`;
+  let fimMes=`${ano}-${String(mesSel).padStart(2,'0')}-${String(ultimoDia).padStart(2,'0')}`;
+  let label=`em ${MESES_PT[mesSel-1]}`;
+  if(mesSel===mesAtual){
+    const ontem=new Date(hoje); ontem.setDate(ontem.getDate()-1);
+    if(ontem.getMonth()+1===mesSel){ fimMes=ontem.toISOString().split('T')[0]; label=`${MESES_PT[mesSel-1]} (1 até ontem)`; }
+    else { label=`${MESES_PT[mesSel-1]} (início do mês)`; }
+  }
+  const {count:cMes}=await db.from('visitas').select('id',{count:'exact',head:true})
+    .eq('supervisora_id',usuario.id).eq('status','encerrada').gte('data_visita',iniMes).lte('data_visita',fimMes);
+  document.getElementById('cont-mes').textContent=cMes??0;
+  document.getElementById('cont-mes-label').textContent=label;
+}
+
+// ===== Minha Agenda (calendário + semana + lojas esquecidas) =====
+function _diffDias(d1,d2){ return Math.round((new Date(d2)-new Date(d1))/86400000); }
+
+async function irAgenda(){
+  mostrarTela('tela-agenda');
+  const el=document.getElementById('agenda-corpo');
+  el.innerHTML='<div class="loader"><div class="spinner"></div><p>Carregando...</p></div>';
+  try{
+    if(!lojas.length) await carregarLojas();
+    const hoje=new Date(); const hojeStr=hoje.toISOString().split('T')[0];
+    const ano=hoje.getFullYear(), mes=hoje.getMonth()+1;
+
+    const {data:visitas}=await db.from('visitas').select('id,loja_id,data_visita,status,lojas(nome)').eq('supervisora_id',usuario.id);
+    const visMap={}; (visitas||[]).forEach(v=>visMap[v.id]=v);
+    const iniMes=`${ano}-${String(mes).padStart(2,'0')}-01`;
+    const {data:dias}=await db.from('dias_supervisora').select('data,tipo').eq('supervisora_id',usuario.id).gte('data',iniMes);
+
+    const visIds=(visitas||[]).map(v=>v.id);
+    let pautas=[];
+    if(visIds.length){
+      const {data:pl}=await db.from('registros_visita').select('id,descricao,visita_id,data_revisita,prioridade').eq('categoria','plano_acao').not('data_revisita','is',null).in('visita_id',visIds);
+      pautas=pl||[];
+    }
+    let statusMap={};
+    if(pautas.length){
+      const ids=pautas.map(p=>p.id);
+      const {data:revs}=await db.from('plano_acao_revisao').select('registro_original_id,status,created_at').in('registro_original_id',ids).order('created_at',{ascending:true});
+      (revs||[]).forEach(r=>statusMap[r.registro_original_id]=r.status);
+    }
+
+    el.innerHTML = renderAgendaSemana(pautas,statusMap,visMap,hojeStr)
+                 + renderCalendario(ano,mes,visitas||[],dias||[])
+                 + renderLojasEsquecidas(lojas,visitas||[],hojeStr);
+  }catch(e){ console.error(e); el.innerHTML='<div class="empty"><p>Erro ao carregar a agenda.</p></div>'; }
+}
+
+function renderAgendaSemana(pautas,statusMap,visMap,hojeStr){
+  const d7=new Date(); d7.setDate(d7.getDate()+7); const limite=d7.toISOString().split('T')[0];
+  const PRIO={baixa:'🟢',media:'🟡',alta:'🔴'};
+  const abertas=pautas.filter(p=>{const st=statusMap[p.id]||'pendente'; return st!=='concluido'&&st!=='cancelado';});
+  const atrasadas=abertas.filter(p=>p.data_revisita<hojeStr).sort((a,b)=>a.data_revisita.localeCompare(b.data_revisita));
+  const semana=abertas.filter(p=>p.data_revisita>=hojeStr&&p.data_revisita<=limite).sort((a,b)=>a.data_revisita.localeCompare(b.data_revisita));
+  const item=(p)=>{ const v=visMap[p.visita_id]; return `<div style="padding:6px 8px;background:var(--bg);border-radius:8px;margin-bottom:5px;font-size:12px;"><strong>🏪 ${v?.lojas?.nome||'Loja'}</strong> ${PRIO[p.prioridade]||''}<div>${p.descricao}</div></div>`; };
+  let h='<div class="card"><div class="card-title">📌 O que fazer</div>';
+  if(atrasadas.length){
+    h+=`<div style="font-size:12px;font-weight:800;color:#842029;margin:4px 0 6px;">🔴 Atrasadas (${atrasadas.length})</div>`;
+    h+=atrasadas.map(p=>`<div style="border-left:3px solid #dc3545;padding-left:8px;">${item(p)}<div style="font-size:10px;color:#dc3545;margin:-3px 0 5px 8px;">venceu ${_dbr(p.data_revisita)}</div></div>`).join('');
+  }
+  if(semana.length){
+    const grupos={}; semana.forEach(p=>{(grupos[p.data_revisita]=grupos[p.data_revisita]||[]).push(p);});
+    Object.keys(grupos).sort().forEach(data=>{
+      const dt=new Date(data+'T00:00'); const wd=['dom','seg','ter','qua','qui','sex','sáb'][dt.getDay()];
+      const lbl=data===hojeStr?'Hoje':_dbr(data)+' ('+wd+')';
+      h+=`<div style="font-size:12px;font-weight:800;color:var(--sfera-dark);margin:8px 0 4px;">📅 ${lbl}</div>`;
+      h+=grupos[data].map(item).join('');
+    });
+  }
+  if(!atrasadas.length&&!semana.length) h+='<p style="color:var(--text-light);font-size:13px;">Nada com prazo nos próximos dias. 🎉</p>';
+  h+='</div>';
+  return h;
+}
+
+function renderCalendario(ano,mes,visitas,dias){
+  const TIPO={visitas:{c:'#28a745',e:'🏪'},escritorio:{c:'#6c757d',e:'🏢'},inventario:{c:'#fd7e14',e:'📦'},demanda:{c:'#9b59b6',e:'📋'}};
+  const visDatas=new Set(visitas.filter(v=>v.status==='encerrada').map(v=>v.data_visita));
+  const diaTipo={}; dias.forEach(d=>diaTipo[d.data]=d.tipo);
+  const primeiro=new Date(ano,mes-1,1).getDay();
+  const totalDias=new Date(ano,mes,0).getDate();
+  const hojeStr=new Date().toISOString().split('T')[0];
+  let cells='';
+  for(let i=0;i<primeiro;i++) cells+='<div></div>';
+  for(let d=1;d<=totalDias;d++){
+    const ds=`${ano}-${String(mes).padStart(2,'0')}-${String(d).padStart(2,'0')}`;
+    const temVis=visDatas.has(ds); const tp=diaTipo[ds];
+    const cor=temVis?'#28a745':(tp?TIPO[tp]?.c:null);
+    const emo=temVis?'🏪':(tp?TIPO[tp]?.e:'');
+    const isHoje=ds===hojeStr;
+    cells+=`<div style="aspect-ratio:1;border-radius:8px;display:flex;flex-direction:column;align-items:center;justify-content:center;${cor?`background:${cor}22;`:''}${isHoje?'outline:2px solid var(--sfera);':''}">
+      <span style="font-size:12px;font-weight:${isHoje?'800':'600'};color:${cor||'var(--text)'};">${d}</span>
+      ${emo?`<span style="font-size:10px;line-height:1;">${emo}</span>`:''}
+    </div>`;
+  }
+  return `<div class="card"><div class="card-title">📅 ${MESES_PT[mes-1]} ${ano}</div>
+    <div style="display:grid;grid-template-columns:repeat(7,1fr);gap:3px;text-align:center;font-size:10px;font-weight:700;color:var(--text-light);margin-bottom:4px;"><div>D</div><div>S</div><div>T</div><div>Q</div><div>Q</div><div>S</div><div>S</div></div>
+    <div style="display:grid;grid-template-columns:repeat(7,1fr);gap:3px;">${cells}</div>
+    <div style="font-size:10px;color:var(--text-light);margin-top:8px;">🏪 Visita · 🏢 Escritório · 📦 Inventário · 📋 Outra</div></div>`;
+}
+
+function renderLojasEsquecidas(lojasArr,visitas,hojeStr){
+  const ultima={};
+  visitas.filter(v=>v.status==='encerrada').forEach(v=>{ if(!ultima[v.loja_id]||v.data_visita>ultima[v.loja_id]) ultima[v.loja_id]=v.data_visita; });
+  const lista=lojasArr.map(l=>{ const u=ultima[l.id]; return {nome:l.nome, dias:u?_diffDias(u,hojeStr):null}; })
+    .filter(x=>x.dias===null||x.dias>=15)
+    .sort((a,b)=>{ if(a.dias===null)return -1; if(b.dias===null)return 1; return b.dias-a.dias; });
+  if(lista.length===0) return '';
+  let h='<div class="card" style="border-left:4px solid #fd7e14;"><div class="card-title">⏰ Lojas que precisam de visita</div><div style="font-size:11px;color:var(--text-light);margin-bottom:8px;">Sem visita há 15 dias ou mais.</div>';
+  h+=lista.map(x=>`<div style="display:flex;justify-content:space-between;padding:6px 0;border-bottom:1px solid var(--border);font-size:13px;"><span>🏪 ${x.nome}</span><span style="font-weight:700;color:${(x.dias===null||x.dias>=30)?'#dc3545':'#fd7e14'};">${x.dias===null?'nunca visitada':'há '+x.dias+' dias'}</span></div>`).join('');
+  h+='</div>';
+  return h;
+}
 
 // ===== Busca compartilhada de pendências (plano de ação + demandas com prazo) =====
 async function buscarRevisitas(){
