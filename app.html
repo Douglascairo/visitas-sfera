@@ -1390,7 +1390,7 @@ async function irPainelDemandas(){
     // planos de ação + status
     let planos=[];
     if(visIds.length){
-      const {data:pl}=await db.from('registros_visita').select('id,descricao,visita_id,data_revisita,created_at,prioridade,custo_estimado').eq('categoria','plano_acao').in('visita_id',visIds);
+      const {data:pl}=await db.from('registros_visita').select('id,descricao,visita_id,data_revisita,created_at,prioridade,custo_estimado,resultado_atual,meta').eq('categoria','plano_acao').in('visita_id',visIds);
       planos=pl||[];
     }
     let statusMap={};
@@ -1409,7 +1409,7 @@ async function irPainelDemandas(){
     planos.forEach(p=>{
       const v=visMap[p.visita_id]; const nome=v?.lojas?.nome||'Loja';
       const st=statusMap[p.id]||'pendente';
-      lojaKey(nome).planos.push({id:p.id, lojaId:v?.loja_id, desc:p.descricao, criado:v?.data_visita, revisita:p.data_revisita, status:st, prioridade:p.prioridade, custo:p.custo_estimado});
+      lojaKey(nome).planos.push({id:p.id, lojaId:v?.loja_id, desc:p.descricao, criado:v?.data_visita, revisita:p.data_revisita, status:st, prioridade:p.prioridade, custo:p.custo_estimado, resultado:p.resultado_atual, meta:p.meta});
     });
     demandas.forEach(d=>{
       const nome=d.lojas?.nome||'(sem loja)';
@@ -1477,12 +1477,14 @@ async function irPainelDemandas(){
           </div>`:'';
           const pr=PRIORIDADE_INFO[p.prioridade];
           const custoStr=p.custo?` · 💰 R$${Number(p.custo).toFixed(2).replace('.',',')}`:'';
+          const metaStr=(p.resultado||p.meta)?`<div style="font-size:11px;font-weight:700;color:#0f5132;margin-top:2px;">📊 ${p.resultado||'—'} → 🎯 ${p.meta||'—'}</div>`:'';
           return `<div style="padding:6px 8px;border:1px solid var(--border);border-radius:8px;margin-bottom:6px;font-size:12px;">
             <div style="display:flex;justify-content:space-between;gap:6px;">
               <span style="flex:1;">${pr?pr.i+' ':''}${p.desc}</span>
               <span style="background:${s.bg};color:${s.c};border-radius:10px;padding:1px 7px;font-size:10px;font-weight:700;white-space:nowrap;height:fit-content;">${s.i} ${s.l}</span>
             </div>
             <div style="font-size:10px;color:var(--text-light);margin-top:2px;">desde ${_dbr(p.criado)}${rev}${custoStr}</div>
+            ${metaStr}
             ${acoes}
           </div>`;
         }).join('');
@@ -2070,7 +2072,7 @@ async function organizarPautas(){
 
   const d7=new Date(); d7.setDate(d7.getDate()+7);
   const defData=d7.toISOString().split('T')[0];
-  pautasPendentesSalvar=fragmentos.map(f=>({desc:f, tags:[], prazo:defData, prioridade:'media', custo:''}));
+  pautasPendentesSalvar=fragmentos.map(f=>({desc:f, tags:[], prazo:defData, prioridade:'media', custo:'', resultado:'', meta:''}));
   renderPautasLista();
   document.getElementById('modal-pautas').style.display='flex';
   document.getElementById('modal-pautas').scrollTop=0;
@@ -2107,6 +2109,10 @@ function renderPautasLista(){
         </div>
         <label style="font-size:10px;font-weight:700;color:var(--text-light);display:block;margin-top:8px;">CUSTO APROXIMADO (R$, opcional)</label>
         <input type="number" inputmode="decimal" min="0" step="0.01" class="form-control" style="font-size:12px;padding:6px 8px;" placeholder="0,00" value="${p.custo}" oninput="pautasPendentesSalvar[${i}].custo=this.value">
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:8px;">
+          <div><label style="font-size:10px;font-weight:700;color:var(--text-light);">📊 HOJE (resultado atual)</label><input type="text" class="form-control" style="font-size:12px;padding:6px 8px;" placeholder="Ex: 22%" value="${p.resultado||''}" oninput="pautasPendentesSalvar[${i}].resultado=this.value"></div>
+          <div><label style="font-size:10px;font-weight:700;color:#0f5132;">🎯 META</label><input type="text" class="form-control" style="font-size:12px;padding:6px 8px;" placeholder="Ex: 28%" value="${p.meta||''}" oninput="pautasPendentesSalvar[${i}].meta=this.value"></div>
+        </div>
       </div>`;
     return `<div style="border:1px solid var(--border);border-radius:10px;padding:12px;margin-bottom:10px;">
       <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;">
@@ -2123,7 +2129,7 @@ function renderPautasLista(){
 function removerPauta(i){ pautasPendentesSalvar.splice(i,1); renderPautasLista(); }
 function adicionarPautaVazia(){
   const d7=new Date(); d7.setDate(d7.getDate()+7);
-  pautasPendentesSalvar.push({desc:'', tags:[], prazo:d7.toISOString().split('T')[0], prioridade:'media', custo:''});
+  pautasPendentesSalvar.push({desc:'', tags:[], prazo:d7.toISOString().split('T')[0], prioridade:'media', custo:'', resultado:'', meta:''});
   renderPautasLista();
 }
 async function salvarPautas(){
@@ -2138,6 +2144,8 @@ async function salvarPautas(){
     data_revisita: p.prazo||null,
     prioridade: p.prioridade||null,
     custo_estimado: (p.custo!==''&&p.custo!==null)?parseFloat(p.custo):null,
+    resultado_atual: p.resultado?.trim()||null,
+    meta: p.meta?.trim()||null,
     media_url:(i===0?pautasMediaUrl:null)||null,
     media_tipo:(i===0?pautasMediaTipo:null)||null
   }));
@@ -2174,11 +2182,12 @@ function renderRegistros() {
   if(registros.length===0){el.innerHTML='<div class="empty"><div class="empty-icon">📝</div><p>Nenhum registro ainda</p></div>';return;}
   el.innerHTML=registros.map(r=>{
     const badges=_tagsDeRegistro(r).map(t=>`<span class="registro-badge ${CAT_INFO[t]?.badge}">${CAT_INFO[t]?.label}</span>`).join(' ');
+    const metaTxt=(r.resultado_atual||r.meta)?`<div style="font-size:11px;font-weight:700;color:#0f5132;margin-top:3px;">📊 ${r.resultado_atual||'—'} → 🎯 ${r.meta||'—'}</div>`:'';
     const extra=r.categoria==='plano_acao'?`<div style="font-size:11px;color:var(--text-light);margin-top:4px;">
       ${r.prioridade?PRIORIDADE_INFO[r.prioridade].i+' '+PRIORIDADE_INFO[r.prioridade].l:''}
       ${r.data_revisita?' · 📅 '+r.data_revisita.split('-').reverse().join('/'):''}
       ${r.custo_estimado?' · 💰 R$'+Number(r.custo_estimado).toFixed(2).replace('.',','):''}
-    </div>`:'';
+    </div>${metaTxt}`:'';
     return `<div class="registro-item">
       <div style="display:flex;flex-wrap:wrap;gap:4px;flex-shrink:0;max-width:80px;">${badges}</div>
       <div style="flex:1;">
@@ -3716,6 +3725,7 @@ function gerarResumoGerente(){
       if(r.data_revisita) det.push(`prazo ${r.data_revisita.split('-').reverse().join('/')}`);
       if(r.custo_estimado) det.push(`R$${Number(r.custo_estimado).toFixed(2).replace('.',',')}`);
       if(det.length) linha+=` _(${det.join(' · ')})_`;
+      if(r.resultado_atual||r.meta) linha+=`\n   📊 Hoje: ${r.resultado_atual||'—'} → 🎯 Meta: ${r.meta||'—'}`;
       t+=linha+'\n';
     });
   }

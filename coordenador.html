@@ -652,7 +652,7 @@ async function carregarPlanos(){
     const v=visMap[p.visita_id]; if(!v) return;
     const loja=v.lojas?.nome||'Loja';
     if(!porLoja[loja]) porLoja[loja]={sup:v.supervisoras?.nome_curto||v.supervisoras?.nome||'', itens:[]};
-    porLoja[loja].itens.push({desc:p.descricao, data:v.data_visita, status:st, prioridade:p.prioridade, custo:p.custo_estimado});
+    porLoja[loja].itens.push({desc:p.descricao, data:v.data_visita, status:st, prioridade:p.prioridade, custo:p.custo_estimado, resultado:p.resultado_atual, meta:p.meta});
   });
 
   const PRIO_C={baixa:{i:'🟢',l:'Baixa'},media:{i:'🟡',l:'Média'},alta:{i:'🔴',l:'Alta'}};
@@ -681,6 +681,7 @@ async function carregarPlanos(){
         <div style="flex:1;">
           <div style="font-size:13px;">${pr?pr.i+' ':''}${it.desc}</div>
           <div style="font-size:11px;color:var(--text-light);">desde ${dataStr}${custoStr}</div>
+          ${(it.resultado||it.meta)?`<div style="font-size:11px;font-weight:700;color:#0f5132;">📊 ${it.resultado||'—'} → 🎯 ${it.meta||'—'}</div>`:''}
         </div>
         <span style="background:${s.bg};color:${s.cor};border-radius:12px;padding:2px 8px;font-size:10px;font-weight:700;white-space:nowrap;">${s.label}</span>
       </div>`;
@@ -935,6 +936,7 @@ async function verDetalhesPorLoja(lojaId, idsEncoded) {
           html+=`<div style="padding:6px 8px;background:var(--bg);border-radius:6px;font-size:13px;margin-bottom:4px;">• ${r.descricao}`;
           if(r.media_url) html+=` <a href="${r.media_url}" target="_blank" style="color:var(--sfera);">📎</a>`;
           if(det.length) html+=`<div style="font-size:10px;color:var(--text-light);margin-top:2px;">${det.join(' · ')}</div>`;
+          if(r.resultado_atual||r.meta) html+=`<div style="font-size:11px;font-weight:700;color:#0f5132;margin-top:2px;">📊 ${r.resultado_atual||'—'} → 🎯 ${r.meta||'—'}</div>`;
           html+='</div>';
         });
       });
