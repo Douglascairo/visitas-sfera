@@ -1270,7 +1270,7 @@ async function buscarRevisitas(){
     .select('id,descricao,prazo,loja_id,autor_nome,lojas(nome)')
     .eq('destinatario_email',usuario.email).neq('status','resolvido').not('prazo','is',null);
   if(dir&&dir.length){
-    dirItems=dir.map(d=>({kind:'diretoria', id:d.id, descricao:'🎯 '+d.descricao+' (de '+(d.autor_nome||'diretoria')+')', loja:d.lojas?.nome||'', lojaId:d.loja_id, date:d.prazo}));
+    dirItems=dir.map(d=>({kind:'diretoria', id:d.id, descricao:'🎯 '+d.descricao, loja:d.lojas?.nome||'', lojaId:d.loja_id, date:d.prazo, autor:d.autor_nome||'diretoria'}));
   }
   const all=[...planoItems,...demItems,...dirItems];
   if(all.length===0) return null;
@@ -1313,9 +1313,12 @@ async function carregarAlertasRevisita(){
       h+=urgentes.map(it=>{
         const atras=it.date<r.hoje;
         const dataStr=it.date.split('-').reverse().join('/');
-        const icone=it.kind==='plano'?'📌':'📅';
+        const icone=it.kind==='plano'?'📌':it.kind==='diretoria'?'🎯':'📅';
+        const cabecalho=it.kind==='diretoria'
+          ? `📨 Demanda enviada por ${it.autor}${it.loja?' · '+it.loja:''}`
+          : `🏪 ${it.loja||'—'}`;
         return `<div onclick="${_acaoItem(it)}" style="cursor:pointer;padding:8px 10px;border-radius:8px;background:#fff;margin-bottom:6px;border:1px solid #f1c0c0;">
-          <div style="font-size:12px;font-weight:700;color:#842029;">🏪 ${it.loja||'—'} · ${atras?'<span style="color:#dc3545;">ATRASADO</span>':'hoje'}</div>
+          <div style="font-size:12px;font-weight:700;color:#842029;">${cabecalho} · ${atras?'<span style="color:#dc3545;">ATRASADO</span>':'hoje'}</div>
           <div style="font-size:12px;margin-top:2px;">${icone} ${it.descricao}</div>
           <div style="font-size:11px;color:var(--text-light);margin-top:2px;">${it.kind==='plano'?'Revisitar':'Prazo'} ${dataStr} · ${_rodapeItem(it)}</div>
         </div>`;
@@ -1339,9 +1342,12 @@ async function mostrarPopupRevisitas(){
       `${r.vencidas.length} vencida(s) · ${r.hojeItens.length} para hoje · ${r.vencendo.length} vencendo`;
     const linha=(it,cor,tag)=>{
       const dStr=it.date.split('-').reverse().join('/');
-      const icone=it.kind==='plano'?'📌':'📅';
+      const icone=it.kind==='plano'?'📌':it.kind==='diretoria'?'🎯':'📅';
+      const cabecalho=it.kind==='diretoria'
+        ? `📨 Demanda enviada por ${it.autor}${it.loja?' · '+it.loja:''} · ${tag} (${dStr})`
+        : `🏪 ${it.loja||'—'} · ${tag} (${dStr})`;
       return `<div onclick="fecharPopupRevisitas();${_acaoItem(it)}" style="cursor:pointer;border:1px solid ${cor}44;border-left:4px solid ${cor};border-radius:8px;padding:10px 12px;margin-bottom:8px;background:${cor}0d;">
-        <div style="font-size:12px;font-weight:800;color:${cor};">🏪 ${it.loja||'—'} · ${tag} (${dStr})</div>
+        <div style="font-size:12px;font-weight:800;color:${cor};">${cabecalho}</div>
         <div style="font-size:13px;margin-top:3px;">${icone} ${it.descricao}</div>
         <div style="font-size:11px;color:var(--text-light);margin-top:2px;">${_rodapeItem(it)}</div>
       </div>`;
