@@ -53,14 +53,8 @@
 
   <!-- ======== TAB: VISITAS ======== -->
   <div id="tab-visitas">
-    <div style="display:flex;gap:8px;margin-bottom:12px;flex-wrap:wrap;">
-      <select class="form-control" id="filtro-periodo" style="flex:1;" onchange="carregarVisitas()">
-        <option value="hoje">Hoje</option>
-        <option value="semana">Esta semana</option>
-        <option value="mes" selected>Este mês</option>
-        <option value="tudo">Tudo</option>
-      </select>
-      <select class="form-control" id="filtro-sup" style="flex:1;" onchange="carregarVisitas()">
+    <div style="margin-bottom:12px;">
+      <select class="form-control" id="filtro-sup" onchange="carregarVisitas()">
         <option value="">Todas as supervisoras</option>
       </select>
     </div>
@@ -817,61 +811,55 @@ function renderDiasAgenda(dias){
 async function carregarVisitas() {
   const el=document.getElementById('lista-visitas-coord');
   el.innerHTML='<div class="loader"><div class="spinner"></div></div>';
-  const periodo=document.getElementById('filtro-periodo').value;
   const supId=document.getElementById('filtro-sup').value;
-  const hoje=new Date();
-  let iniP=null;
-  if(periodo==='hoje') iniP=hoje.toISOString().split('T')[0];
-  else if(periodo==='semana'){const d=new Date(hoje);d.setDate(d.getDate()-7);iniP=d.toISOString().split('T')[0];}
-  else if(periodo==='mes') iniP=`${hoje.getFullYear()}-${String(hoje.getMonth()+1).padStart(2,'0')}-01`;
+  const hoje=new Date(), ano=hoje.getFullYear(), mes=hoje.getMonth()+1;
+  const anoIni=`${ano}-01-01`;
+  const mesIni=`${ano}-${String(mes).padStart(2,'0')}-01`;
 
-  // Onde cada supervisora esteve (dias_supervisora)
-  let qd=db.from('dias_supervisora').select('data,tipo,descricao,supervisora_id,supervisoras(nome,nome_curto)').order('data',{ascending:false});
-  if(iniP) qd=qd.gte('data',iniP);
-  if(supId) qd=qd.eq('supervisora_id',supId);
-  const {data:dias}=await qd;
-  const diasHtml=renderDiasAgenda(dias||[]);
-
-  let q=db.from('visitas').select('*,lojas(id,nome,cidade,estado),supervisoras(nome)').order('data_visita',{ascending:false});
-  if(iniP) q=q.gte('data_visita',iniP);
+  let q=db.from('visitas').select('loja_id,data_visita,energia_time,lojas(id,nome,cidade,estado),supervisoras(nome,nome_curto)')
+    .eq('status','encerrada').gte('data_visita',anoIni);
   if(supId) q=q.eq('supervisora_id',supId);
-
   const {data:visitas}=await q;
-  if(!visitas||visitas.length===0){el.innerHTML=diasHtml+'<div class="empty"><div class="empty-icon">🔍</div><p>Nenhuma visita de loja concluída no período.</p></div>';return;}
+  if(!visitas||visitas.length===0){ el.innerHTML='<div class="empty"><div class="empty-icon">🔍</div><p>Nenhuma visita de loja concluída no ano.</p></div>'; return; }
 
-  // Agrupar por loja
+  el.innerHTML=renderMediaPorLoja(visitas, mesIni, {mostrarSup:true});
+}
+
+// Renderiza média por loja (ano + mês) a partir das visitas encerradas
+function renderMediaPorLoja(visitas, mesIni, opt={}){
   const porLoja={};
   visitas.forEach(v=>{
-    const lojaId=v.lojas?.id||v.loja_id;
-    const lojaNome=v.lojas?.nome||'—';
-    if(!porLoja[lojaId]) porLoja[lojaId]={nome:lojaNome,cidade:v.lojas?.cidade,estado:v.lojas?.estado,visitas:[],energias:[],supervisoras:new Set()};
-    porLoja[lojaId].visitas.push(v);
-    if(v.energia_time) porLoja[lojaId].energias.push(v.energia_time);
-    if(v.supervisoras?.nome) porLoja[lojaId].supervisoras.add(v.supervisoras.nome.split(' ')[1]||v.supervisoras.nome.split(' ')[0]);
+    const id=v.lojas?.id||v.loja_id;
+    if(!porLoja[id]) porLoja[id]={nome:v.lojas?.nome||'—', cidade:v.lojas?.cidade, estado:v.lojas?.estado, anoEn:[], mesEn:[], sups:new Set()};
+    const L=porLoja[id];
+    if(v.energia_time){ L.anoEn.push(v.energia_time); if(v.data_visita>=mesIni) L.mesEn.push(v.energia_time); }
+    else { if(v.data_visita>=mesIni) L.mesEn.push(null); L.anoEn.push(null); }
+    const sn=v.supervisoras?.nome_curto||(v.supervisoras?.nome?v.supervisoras.nome.split(' ')[0]:null);
+    if(sn && opt.mostrarSup) L.sups.add(sn);
   });
-
-  // Ordenar por qtd de visitas (maior primeiro)
-  const sorted=Object.entries(porLoja).sort((a,b)=>b[1].visitas.length-a[1].visitas.length);
-
-  el.innerHTML=diasHtml+sorted.map(([lojaId,loja])=>{
-    const mediaE=loja.energias.length>0?(loja.energias.reduce((a,b)=>a+b,0)/loja.energias.length):0;
-    const emojiMedia=ENERGIA_INFO[Math.round(mediaE)]?.emoji||'—';
-    const abertas=loja.visitas.filter(v=>v.status==='aberta').length;
-    const sups=[...loja.supervisoras].join(', ');
-    return `<div class="visita-card" onclick="verDetalhesPorLoja('${lojaId}','${encodeURIComponent(JSON.stringify(loja.visitas.map(v=>v.id)))}')">
-      <div style="display:flex;justify-content:space-between;align-items:flex-start;">
-        <div style="flex:1;">
-          <div class="visita-card-loja">${loja.nome}</div>
-          <div class="visita-card-info">${loja.cidade||''}/${loja.estado||''} · ${sups}</div>
-        </div>
-        <div style="text-align:right;flex-shrink:0;">
-          <div style="font-size:22px;">${emojiMedia}</div>
-          <div style="font-size:11px;color:var(--text-light);">E. média</div>
-        </div>
+  const mediaOf=arr=>{ const c=arr.filter(x=>x!=null); return c.length?c.reduce((a,b)=>a+b,0)/c.length:0; };
+  const bloco=(media,n,label)=>{
+    const emo=ENERGIA_INFO[Math.round(media)]?.emoji||'—';
+    const cor=media>=4?'#198754':media>=3?'#856404':media>0?'#dc3545':'var(--text-light)';
+    return `<div style="flex:1;text-align:center;background:var(--bg);border-radius:8px;padding:8px;">
+      <div style="font-size:18px;">${emo}</div>
+      <div style="font-size:16px;font-weight:900;color:${cor};">${media>0?media.toFixed(1):'–'}</div>
+      <div style="font-size:10px;color:var(--text-light);">${label} · ${n} visita${n!==1?'s':''}</div>
+    </div>`;
+  };
+  const sorted=Object.entries(porLoja).sort((a,b)=>b[1].anoEn.length-a[1].anoEn.length);
+  return sorted.map(([id,L])=>{
+    const nAno=L.anoEn.length, nMes=L.mesEn.length;
+    const mAno=mediaOf(L.anoEn), mMes=mediaOf(L.mesEn);
+    const sups=[...L.sups].join(', ');
+    return `<div class="card">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">
+        <div><div style="font-weight:800;font-size:15px;">🏪 ${L.nome}</div>
+        <div style="font-size:11px;color:var(--text-light);">${L.cidade||''}${L.estado?'/'+L.estado:''}${sups?' · '+sups:''}</div></div>
       </div>
-      <div style="display:flex;align-items:center;gap:8px;margin-top:8px;">
-        <span style="background:var(--sfera-light);color:var(--sfera-dark);padding:3px 10px;border-radius:20px;font-size:12px;font-weight:700;">${loja.visitas.length} visita${loja.visitas.length!==1?'s':''}</span>
-        ${abertas>0?`<span class="visita-card-status status-aberta">● ${abertas} em andamento</span>`:''}
+      <div style="display:flex;gap:8px;">
+        ${bloco(mAno,nAno,'Média ano')}
+        ${bloco(mMes,nMes,'Média mês')}
       </div>
     </div>`;
   }).join('');

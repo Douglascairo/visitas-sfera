@@ -226,14 +226,10 @@
       <div class="loader"><div class="spinner"></div></div>
     </div>
 
-    <!-- Tabs histórico -->
+    <!-- Média de energia por loja -->
     <div style="margin-top:20px;">
-      <div style="font-size:16px;font-weight:800;margin-bottom:12px;">Histórico</div>
-      <div class="tabs" style="margin-bottom:12px;">
-        <button class="tab-btn active" onclick="mudarTabHist('semana')">Esta semana</button>
-        <button class="tab-btn" onclick="mudarTabHist('mes')">Este mês</button>
-        <button class="tab-btn" onclick="mudarTabHist('todas')">Todas</button>
-      </div>
+      <div style="font-size:16px;font-weight:800;margin-bottom:4px;">🌟 Energia média por loja</div>
+      <div style="font-size:12px;color:var(--text-light);margin-bottom:12px;">Média da energia do time — no ano e no mês.</div>
       <div id="lista-historico">
         <div class="loader"><div class="spinner"></div></div>
       </div>
@@ -1691,26 +1687,34 @@ async function mudarTabHist(tab) {
 async function carregarHistorico(periodo) {
   const el = document.getElementById('lista-historico');
   el.innerHTML='<div class="loader"><div class="spinner"></div></div>';
-  const hoje = new Date();
-  let inicio = null;
-  if (periodo==='semana') { const d=new Date(hoje); d.setDate(d.getDate()-7); inicio=d.toISOString().split('T')[0]; }
-  else if (periodo==='mes') { inicio=`${hoje.getFullYear()}-${String(hoje.getMonth()+1).padStart(2,'0')}-01`; }
+  const hoje=new Date(), ano=hoje.getFullYear(), mes=hoje.getMonth()+1;
+  const anoIni=`${ano}-01-01`, mesIni=`${ano}-${String(mes).padStart(2,'0')}-01`;
 
-  let q = db.from('visitas').select('*,lojas(nome,cidade)').eq('supervisora_id',usuario.id).eq('status','encerrada').order('data_visita',{ascending:false}).limit(30);
-  if (inicio) q = q.gte('data_visita',inicio);
+  const {data} = await db.from('visitas').select('loja_id,data_visita,energia_time,lojas(nome,cidade)')
+    .eq('supervisora_id',usuario.id).eq('status','encerrada').gte('data_visita',anoIni);
+  if (!data||data.length===0) { el.innerHTML='<div class="empty"><div class="empty-icon">📋</div><p>Nenhuma visita encerrada no ano ainda.</p></div>'; return; }
 
-  const {data} = await q;
-  if (!data||data.length===0) { el.innerHTML='<div class="empty"><div class="empty-icon">📋</div><p>Nenhuma visita encerrada neste período</p></div>'; return; }
-
-  el.innerHTML = data.map(v=>`
-    <div class="hist-item" onclick="verDetalhesHist('${v.id}')">
-      <div style="display:flex;justify-content:space-between;">
-        <div>
-          <div class="hist-loja">${v.lojas?.nome||'—'}</div>
-          <div class="hist-info">${formatData(v.data_visita)} · ${v.lojas?.cidade||''}</div>
-        </div>
-        <span style="font-size:24px;">${ENERGIA_INFO[v.energia_time]?.emoji||'—'}</span>
-      </div>
+  const porLoja={};
+  data.forEach(v=>{
+    const id=v.loja_id;
+    if(!porLoja[id]) porLoja[id]={nome:v.lojas?.nome||'—', cidade:v.lojas?.cidade||'', anoEn:[], mesEn:[]};
+    if(v.energia_time){ porLoja[id].anoEn.push(v.energia_time); if(v.data_visita>=mesIni) porLoja[id].mesEn.push(v.energia_time); }
+    else { porLoja[id].anoEn.push(null); if(v.data_visita>=mesIni) porLoja[id].mesEn.push(null); }
+  });
+  const mediaOf=arr=>{ const c=arr.filter(x=>x!=null); return c.length?c.reduce((a,b)=>a+b,0)/c.length:0; };
+  const bloco=(m,n,label)=>{
+    const emo=ENERGIA_INFO[Math.round(m)]?.emoji||'—';
+    const cor=m>=4?'#198754':m>=3?'#856404':m>0?'#dc3545':'var(--text-light)';
+    return `<div style="flex:1;text-align:center;background:var(--bg);border-radius:8px;padding:8px;">
+      <div style="font-size:18px;">${emo}</div>
+      <div style="font-size:16px;font-weight:900;color:${cor};">${m>0?m.toFixed(1):'–'}</div>
+      <div style="font-size:10px;color:var(--text-light);">${label} · ${n} visita${n!==1?'s':''}</div>
+    </div>`;
+  };
+  el.innerHTML=Object.values(porLoja).sort((a,b)=>b.anoEn.length-a.anoEn.length).map(L=>`
+    <div class="card" style="margin-bottom:10px;">
+      <div style="font-weight:800;font-size:14px;margin-bottom:8px;">🏪 ${L.nome} <span style="font-size:11px;color:var(--text-light);font-weight:400;">${L.cidade}</span></div>
+      <div style="display:flex;gap:8px;">${bloco(mediaOf(L.anoEn),L.anoEn.length,'Média ano')}${bloco(mediaOf(L.mesEn),L.mesEn.length,'Média mês')}</div>
     </div>`).join('');
 }
 
