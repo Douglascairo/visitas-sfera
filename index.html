@@ -54,9 +54,13 @@
     const email = emailInput.value.trim().toLowerCase();
     if (!email) return showToast('Digite seu e-mail', 'error');
 
-    // Coordenador
-    if (email === 'douglas.cairo@franquiasboticario.com') {
-      sessionStorage.setItem('usuario', JSON.stringify({ tipo: 'coordenador', nome: 'Douglas Cairo', email }));
+    // Coordenação / Diretoria
+    const COORDENADORES = {
+      'douglas.cairo@franquiasboticario.com': 'Douglas Cairo',
+      'leonardo.sobral@sferamultifranquias.com': 'Leonardo Sobral'
+    };
+    if (COORDENADORES[email]) {
+      sessionStorage.setItem('usuario', JSON.stringify({ tipo: 'coordenador', nome: COORDENADORES[email], email }));
       window.location.href = 'coordenador.html';
       return;
     }

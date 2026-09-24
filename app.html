@@ -396,7 +396,10 @@
       <div style="font-size:13px;color:var(--sfera-dark);">📌 Última visita: <strong id="plano-ultima-visita"></strong></div>
     </div>
 
-    <div class="card">
+    <!-- Demandas da diretoria para esta loja -->
+    <div id="demandas-diretoria-loja"></div>
+
+    <div class="card" id="card-plano-anterior">
       <div class="card-title">🎯 O que ficou no plano de ação?</div>
       <p style="font-size:13px;color:var(--text-light);margin-bottom:14px;">Marque o status de cada item para registrar a evolução:</p>
       <div id="lista-plano-itens"></div>
@@ -1261,7 +1264,15 @@ async function buscarRevisitas(){
       return {kind:'demanda', id:d.id, descricao:t.label+(d.observacao?(' — '+d.observacao):''), loja:d.lojas?.nome||'', lojaId:d.loja_id, date:d.prazo};
     });
   }
-  const all=[...planoItems,...demItems];
+  // Demandas da diretoria com prazo (não resolvidas)
+  let dirItems=[];
+  const {data:dir}=await db.from('demandas_diretoria')
+    .select('id,descricao,prazo,loja_id,autor_nome,lojas(nome)')
+    .eq('destinatario_email',usuario.email).neq('status','resolvido').not('prazo','is',null);
+  if(dir&&dir.length){
+    dirItems=dir.map(d=>({kind:'diretoria', id:d.id, descricao:'🎯 '+d.descricao+' (de '+(d.autor_nome||'diretoria')+')', loja:d.lojas?.nome||'', lojaId:d.loja_id, date:d.prazo}));
+  }
+  const all=[...planoItems,...demItems,...dirItems];
   if(all.length===0) return null;
   const hoje=new Date().toISOString().split('T')[0];
   const d2=new Date(); d2.setDate(d2.getDate()+2); const limite=d2.toISOString().split('T')[0];
@@ -1276,10 +1287,13 @@ async function buscarRevisitas(){
 }
 
 function _acaoItem(it){ // ação ao tocar
-  return it.kind==='plano' ? `iniciarRevisita('${it.lojaId}')` : `concluirDemanda('${it.id}')`;
+  if(it.kind==='plano'||it.kind==='diretoria') return `iniciarRevisita('${it.lojaId}')`;
+  return `concluirDemanda('${it.id}')`;
 }
 function _rodapeItem(it){
-  return it.kind==='plano' ? 'toque para iniciar a visita →' : 'toque para marcar como concluída ✓';
+  if(it.kind==='plano') return 'toque para iniciar a visita →';
+  if(it.kind==='diretoria') return 'demanda da diretoria · toque para abrir a loja →';
+  return 'toque para marcar como concluída ✓';
 }
 
 // ===== Banner de pendências na home =====
@@ -1744,6 +1758,9 @@ async function selecionarLoja(id) {
   document.getElementById('energia-loja-nome').textContent=lojaSelecionada.nome+' · '+lojaSelecionada.cidade;
   document.getElementById('plano-loja-nome').textContent=lojaSelecionada.nome;
 
+  // Demandas da diretoria para esta loja (não resolvidas)
+  const temDemDir = await carregarDemandasDiretoriaLoja(lojaSelecionada.id);
+
   // Buscar TODAS as visitas encerradas desta loja (não só a última)
   const {data:visitasEnc} = await db.from('visitas')
     .select('id,data_visita')
@@ -1776,6 +1793,7 @@ async function selecionarLoja(id) {
 
       if (pendentes.length>0) {
         planosAnteriores=pendentes;
+        document.getElementById('card-plano-anterior').style.display='';
         document.getElementById('plano-ultima-visita').textContent=formatData(visitasEnc[0].data_visita);
 
         const listaEl=document.getElementById('lista-plano-itens');
@@ -1797,7 +1815,53 @@ async function selecionarLoja(id) {
       }
     }
   }
+  // Sem plano pendente, mas com demandas da diretoria → ainda mostra a tela
+  if(temDemDir){
+    planosAnteriores=[];
+    document.getElementById('card-plano-anterior').style.display='none';
+    document.getElementById('plano-ultima-visita').textContent = (visitasEnc&&visitasEnc[0])?formatData(visitasEnc[0].data_visita):'primeira visita';
+    mostrarTela('tela-plano-revisao');
+    return;
+  }
   mostrarTela('tela-energia');
+}
+
+// Carrega demandas da diretoria (não resolvidas) para a loja e renderiza no container.
+// Retorna true se houver alguma.
+async function carregarDemandasDiretoriaLoja(lojaId){
+  const el=document.getElementById('demandas-diretoria-loja');
+  el.innerHTML='';
+  try{
+    const {data}=await db.from('demandas_diretoria')
+      .select('*').eq('destinatario_email',usuario.email).eq('loja_id',lojaId).neq('status','resolvido')
+      .order('prazo',{ascending:true});
+    if(!data||data.length===0) return false;
+    const hoje=new Date().toISOString().split('T')[0];
+    const PRIO={baixa:'🟢',media:'🟡',alta:'🔴'};
+    el.innerHTML=`<div class="card" style="border-left:4px solid #8e44ad;background:#f6effc;">
+      <div style="font-weight:800;font-size:14px;color:#5a2d82;margin-bottom:8px;">🎯 Demandas da diretoria (${data.length})</div>
+      ${data.map(d=>{
+        const atras=d.prazo&&d.prazo<hoje;
+        const emAnd=d.status==='andamento';
+        return `<div style="border:1px solid #e0d0f0;border-radius:8px;padding:8px 10px;margin-bottom:6px;background:#fff;">
+          <div style="font-size:13px;">${PRIO[d.prioridade]||''} ${d.descricao}</div>
+          <div style="font-size:10px;color:var(--text-light);margin-top:2px;">de ${d.autor_nome||'diretoria'}${d.prazo?' · 📅 '+d.prazo.split('-').reverse().join('/'):''}${atras?' <span style="color:#dc3545;font-weight:700;">(atrasado)</span>':''}${emAnd?' · 🔄 em andamento':''}${d.media_url?` · <a href="${d.media_url}" target="_blank" style="color:var(--sfera);">📎 anexo</a>`:''}</div>
+          <div style="display:flex;gap:6px;margin-top:6px;">
+            <button class="btn btn-sm" style="flex:1;background:#d1e7dd;color:#0f5132;border:none;font-size:11px;" onclick="resolverDemDir('${d.id}','resolvido',this)">✅ Resolvido</button>
+            <button class="btn btn-sm" style="flex:1;background:#fff3cd;color:#856404;border:none;font-size:11px;" onclick="resolverDemDir('${d.id}','andamento',this)">🔄 Andamento</button>
+          </div>
+        </div>`;
+      }).join('')}
+    </div>`;
+    return true;
+  }catch(e){ console.log('dem diretoria:',e); return false; }
+}
+async function resolverDemDir(id,st,btn){
+  try{
+    await db.from('demandas_diretoria').update({status:st}).eq('id',id);
+    if(st==='resolvido'){ const card=btn.closest('div[style*="border:1px solid #e0d0f0"]'); if(card) card.style.opacity='.4'; btn.parentElement.innerHTML='<span style="font-size:11px;color:#0f5132;font-weight:700;">✅ Marcado como resolvido</span>'; }
+    else { showToast('🔄 Em andamento'); }
+  }catch(e){ showToast('Erro','error'); }
 }
 
 function marcarPlano(registroId, status) {

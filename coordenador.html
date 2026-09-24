@@ -48,6 +48,7 @@
     <button class="tab-btn" onclick="mudarTab('checklists')">Checklists</button>
     <button class="tab-btn" onclick="mudarTab('demandas')">Demandas</button>
     <button class="tab-btn" onclick="mudarTab('planos')">Planos de Ação</button>
+    <button class="tab-btn" onclick="mudarTab('campo')">Demandas de Campo</button>
   </div>
 
   <!-- ======== TAB: VISITAS ======== -->
@@ -170,6 +171,55 @@
     <div id="lista-planos"><div class="loader"><div class="spinner"></div></div></div>
   </div>
 
+  <!-- ======== TAB: DEMANDAS DE CAMPO ======== -->
+  <div id="tab-campo" style="display:none">
+    <button class="btn btn-primary btn-full" style="margin-bottom:12px;" onclick="abrirNovaDemandaCampo()">🎤 Nova demanda de campo</button>
+    <div style="display:flex;gap:8px;margin-bottom:8px;flex-wrap:wrap;">
+      <select class="form-control" id="campo-filtro-dest" style="flex:1;" onchange="carregarDemandasCampo()">
+        <option value="">Todos os destinatários</option>
+      </select>
+      <select class="form-control" id="campo-filtro-status" style="flex:1;" onchange="carregarDemandasCampo()">
+        <option value="abertos" selected>Em aberto</option>
+        <option value="todos">Todos</option>
+        <option value="resolvido">Só resolvidos</option>
+      </select>
+    </div>
+    <div id="lista-campo"><div class="loader"><div class="spinner"></div></div></div>
+  </div>
+
+</div>
+
+<!-- MODAL: Nova demanda de campo -->
+<div id="modal-campo" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:220;align-items:flex-end;justify-content:center;">
+  <div style="background:#fff;width:100%;max-width:560px;max-height:92vh;overflow-y:auto;border-radius:16px 16px 0 0;padding:18px;">
+    <div style="font-weight:800;font-size:16px;margin-bottom:2px;">🎤 Nova demanda de campo</div>
+    <div style="font-size:12px;color:var(--text-light);margin-bottom:14px;">Registre o que você identificou na loja. Vira pendência para o responsável resolver.</div>
+
+    <div id="campo-passo1">
+      <label style="font-size:12px;font-weight:700;color:var(--sfera-dark);">1. Para quem?</label>
+      <select class="form-control" id="campo-dest" style="margin:6px 0 12px;" onchange="campoDestMudou()"><option value="">Selecione...</option></select>
+      <label style="font-size:12px;font-weight:700;color:var(--sfera-dark);">2. Loja</label>
+      <select class="form-control" id="campo-loja" style="margin:6px 0 12px;"><option value="">Selecione a supervisora primeiro</option></select>
+      <label style="font-size:12px;font-weight:700;color:var(--sfera-dark);">3. O que precisa ser resolvido?</label>
+      <textarea class="form-control" id="campo-texto" style="min-height:110px;margin-top:6px;" placeholder="Fale ou escreva. Ex: consertar o ar-condicionado. Pintar a parede do fundo. Treinar a consultora Ana no atendimento..."></textarea>
+      <button type="button" class="btn btn-secondary btn-sm btn-mic" style="margin-top:6px;" data-label="🎤 Falar" onclick="ditarPara('campo-texto',this)">🎤 Falar</button>
+      <div style="margin-top:10px;">
+        <input type="file" id="campo-media" accept="image/*,video/*,.pdf" capture="environment" style="display:none" onchange="campoPreviewMedia()">
+        <button type="button" class="btn btn-secondary btn-sm" onclick="document.getElementById('campo-media').click()">📎 Anexar foto</button>
+        <div id="campo-media-preview" style="margin-top:6px;"></div>
+      </div>
+      <button class="btn btn-primary btn-full" style="margin-top:12px;" onclick="campoOrganizar()">Continuar → organizar pautas</button>
+      <button class="btn btn-secondary btn-full" style="margin-top:8px;" onclick="fecharCampo()">Cancelar</button>
+    </div>
+
+    <div id="campo-passo2" style="display:none;">
+      <div style="font-size:12px;color:var(--text-light);margin-bottom:10px;">Confira cada pauta e defina prazo e prioridade.</div>
+      <div id="campo-pautas-lista"></div>
+      <button type="button" class="btn btn-secondary btn-sm btn-full" style="margin-bottom:10px;" onclick="campoAddPauta()">➕ Adicionar pauta</button>
+      <button class="btn btn-primary btn-full" onclick="campoSalvar()" id="btn-campo-salvar">Enviar demandas</button>
+      <button class="btn btn-secondary btn-full" style="margin-top:8px;" onclick="document.getElementById('campo-passo2').style.display='none';document.getElementById('campo-passo1').style.display='';">← Voltar</button>
+    </div>
+  </div>
 </div>
 
 <!-- MODAL: Detalhes Visita -->
@@ -275,10 +325,17 @@ const LOJA_COORDS = {
 
 let statusFiltro='';
 let supervisoras=[];
+let usuarioCoord=null;
+// Coordenadores/diretoria (podem receber demandas um do outro)
+const COORDS=[
+  {email:'douglas.cairo@franquiasboticario.com', nome:'Douglas Cairo'},
+  {email:'leonardo.sobral@sferamultifranquias.com', nome:'Leonardo Sobral'}
+];
 
 window.addEventListener('DOMContentLoaded', async()=>{
   const u=sessionStorage.getItem('usuario');
   if(!u||JSON.parse(u).tipo!=='coordenador'){window.location.href='index.html';return;}
+  usuarioCoord=JSON.parse(u);
   const hoje=new Date().toISOString().split('T')[0];
   document.getElementById('rota-data-de').value=hoje;
   document.getElementById('rota-data-ate').value=hoje;
@@ -306,7 +363,7 @@ function garantirMesAtual(ids){
 }
 
 function mudarTab(tab) {
-  ['visitas','rota','metricas','checklists','demandas','planos'].forEach((t,i)=>{
+  ['visitas','rota','metricas','checklists','demandas','planos','campo'].forEach((t,i)=>{
     document.getElementById('tab-'+t).style.display=t===tab?'':'none';
     document.querySelectorAll('.tab-btn')[i].classList.toggle('active',t===tab);
   });
@@ -315,6 +372,24 @@ function mudarTab(tab) {
   if(tab==='rota') carregarRotas();
   if(tab==='demandas') carregarDemandas();
   if(tab==='planos') carregarPlanos();
+  if(tab==='campo') carregarDemandasCampo();
+}
+
+// ===== Ditado por voz (Web Speech API, pt-BR) =====
+let _recAtivo=null;
+function ditarPara(id, btn){
+  const SR=window.SpeechRecognition||window.webkitSpeechRecognition;
+  if(!SR){ alert('Ditado por voz não suportado. Use o Chrome.'); return; }
+  if(_recAtivo){ _recAtivo.stop(); return; }
+  const campo=document.getElementById(id); if(!campo) return;
+  const rec=new SR(); rec.lang='pt-BR'; rec.continuous=true; rec.interimResults=true;
+  const base=campo.value?campo.value.replace(/\s+$/,'')+' ':''; let finalT='';
+  const label=btn.dataset.label||btn.innerHTML; btn.dataset.label=label;
+  btn.classList.add('rec-on'); btn.innerHTML='⏹️ Parar'; btn.style.background='#dc3545'; btn.style.color='#fff';
+  rec.onresult=e=>{ let interim=''; for(let i=e.resultIndex;i<e.results.length;i++){ const t=e.results[i][0].transcript; if(e.results[i].isFinal) finalT+=t+' '; else interim+=t; } campo.value=base+finalT+interim; };
+  rec.onerror=e=>{ if(e.error!=='no-speech'&&e.error!=='aborted') console.log('ditado:',e.error); };
+  rec.onend=()=>{ btn.classList.remove('rec-on'); btn.innerHTML=label; btn.style.background=''; btn.style.color=''; _recAtivo=null; };
+  _recAtivo=rec; try{ rec.start(); }catch(err){ rec.onend(); }
 }
 
 // ==============================
@@ -327,6 +402,170 @@ async function carregarSupervisoras() {
     const sel=document.getElementById(selId);
     data.forEach(s=>{const opt=document.createElement('option');opt.value=s.id;opt.textContent=s.nome;sel.appendChild(opt);});
   });
+  // Destinatários da demanda de campo: supervisoras + o OUTRO coordenador
+  const outroCoord=COORDS.filter(c=>c.email!==usuarioCoord?.email);
+  const destModal=document.getElementById('campo-dest');
+  const destFiltro=document.getElementById('campo-filtro-dest');
+  data.forEach(s=>{
+    destModal.appendChild(new Option(s.nome, 'sup:'+s.id));
+    destFiltro.appendChild(new Option(s.nome, s.email));
+  });
+  outroCoord.forEach(c=>{
+    destModal.appendChild(new Option('👤 '+c.nome+' (diretoria)', 'coord:'+c.email));
+    destFiltro.appendChild(new Option('👤 '+c.nome, c.email));
+  });
+}
+
+// ==============================
+// DEMANDAS DE CAMPO (diretoria → supervisora/coordenador)
+// ==============================
+const CAMPO_ST={pendente:{i:'❌',l:'Pendente',bg:'#f8d7da',c:'#842029'},andamento:{i:'🔄',l:'Andamento',bg:'#fff3cd',c:'#856404'},resolvido:{i:'✅',l:'Resolvido',bg:'#d1e7dd',c:'#0f5132'}};
+const PRIO_CAMPO={baixa:'🟢',media:'🟡',alta:'🔴'};
+let campoMediaFile=null, campoPautas=[], campoDestInfo=null;
+
+function abrirNovaDemandaCampo(){
+  campoMediaFile=null; campoPautas=[]; campoDestInfo=null;
+  document.getElementById('campo-dest').value='';
+  document.getElementById('campo-loja').innerHTML='<option value="">Selecione a supervisora primeiro</option>';
+  document.getElementById('campo-texto').value='';
+  document.getElementById('campo-media-preview').innerHTML='';
+  document.getElementById('campo-media').value='';
+  document.getElementById('campo-passo1').style.display='';
+  document.getElementById('campo-passo2').style.display='none';
+  document.getElementById('modal-campo').style.display='flex';
+}
+function fecharCampo(){ document.getElementById('modal-campo').style.display='none'; }
+
+async function campoDestMudou(){
+  const v=document.getElementById('campo-dest').value;
+  const lojaSel=document.getElementById('campo-loja');
+  if(!v){ lojaSel.innerHTML='<option value="">—</option>'; campoDestInfo=null; return; }
+  lojaSel.innerHTML='<option value="">Carregando lojas...</option>';
+  let q=db.from('lojas').select('id,nome').eq('ativo',true).order('nome');
+  if(v.startsWith('sup:')){
+    const supId=v.slice(4); const s=supervisoras.find(x=>x.id===supId);
+    campoDestInfo={tipo:'sup', supId, email:s?.email, nome:s?.nome};
+    q=q.eq('supervisora_id',supId);
+  } else {
+    const email=v.slice(6); const c=COORDS.find(x=>x.email===email);
+    campoDestInfo={tipo:'coord', supId:null, email, nome:c?.nome};
+  }
+  const {data}=await q;
+  lojaSel.innerHTML='<option value="">Selecione a loja</option>'+(data||[]).map(l=>`<option value="${l.id}">${l.nome}</option>`).join('');
+}
+
+function campoPreviewMedia(){
+  const inp=document.getElementById('campo-media');
+  if(!inp.files||!inp.files[0]) return;
+  campoMediaFile=inp.files[0];
+  const wrap=document.getElementById('campo-media-preview');
+  if(campoMediaFile.type.startsWith('image/')){ const r=new FileReader(); r.onload=e=>wrap.innerHTML=`<img src="${e.target.result}" style="width:70px;height:70px;object-fit:cover;border-radius:8px;">`; r.readAsDataURL(campoMediaFile); }
+  else wrap.innerHTML=`<span style="font-size:12px;">📄 ${campoMediaFile.name}</span>`;
+}
+
+function campoOrganizar(){
+  if(!campoDestInfo){ alert('Selecione o destinatário'); return; }
+  const texto=document.getElementById('campo-texto').value.trim();
+  if(!texto){ alert('Fale ou escreva a demanda'); return; }
+  let frag=texto.split(/\n+|(?<=[.!?])\s+|(?<=[.!?])(?=[A-ZÀ-Ü])/).map(s=>s.replace(/^[\s•\-–—*]+/,'').trim()).filter(s=>s.length>2);
+  if(frag.length===0) frag=[texto];
+  const d7=new Date(); d7.setDate(d7.getDate()+7); const def=d7.toISOString().split('T')[0];
+  campoPautas=frag.map(f=>({desc:f,prazo:def,prioridade:'media'}));
+  campoRenderPautas();
+  document.getElementById('campo-passo1').style.display='none';
+  document.getElementById('campo-passo2').style.display='';
+}
+function campoRenderPautas(){
+  document.getElementById('campo-pautas-lista').innerHTML=campoPautas.map((p,i)=>`
+    <div style="border:1px solid var(--border);border-radius:10px;padding:10px;margin-bottom:8px;">
+      <div style="display:flex;justify-content:space-between;"><span style="font-size:11px;font-weight:700;color:var(--text-light);">PAUTA ${i+1}</span><button onclick="campoDelPauta(${i})" style="background:none;border:none;color:#dc3545;cursor:pointer;font-size:15px;">✕</button></div>
+      <textarea class="form-control" style="min-height:44px;font-size:13px;" oninput="campoPautas[${i}].desc=this.value">${p.desc}</textarea>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:8px;">
+        <div><label style="font-size:10px;font-weight:700;color:var(--text-light);">PRAZO</label><input type="date" class="form-control" style="font-size:12px;padding:6px;" value="${p.prazo}" onchange="campoPautas[${i}].prazo=this.value"></div>
+        <div><label style="font-size:10px;font-weight:700;color:var(--text-light);">PRIORIDADE</label><select class="form-control" style="font-size:12px;padding:6px;" onchange="campoPautas[${i}].prioridade=this.value"><option value="baixa" ${p.prioridade==='baixa'?'selected':''}>🟢 Baixa</option><option value="media" ${p.prioridade==='media'?'selected':''}>🟡 Média</option><option value="alta" ${p.prioridade==='alta'?'selected':''}>🔴 Alta</option></select></div>
+      </div>
+    </div>`).join('');
+}
+function campoDelPauta(i){ campoPautas.splice(i,1); campoRenderPautas(); }
+function campoAddPauta(){ const d7=new Date();d7.setDate(d7.getDate()+7); campoPautas.push({desc:'',prazo:d7.toISOString().split('T')[0],prioridade:'media'}); campoRenderPautas(); }
+
+async function campoUploadMedia(){
+  if(!campoMediaFile) return null;
+  let f=campoMediaFile;
+  if(f.type.startsWith('image/')){ f=await new Promise(res=>{ const img=new Image(); const url=URL.createObjectURL(f); img.onload=()=>{ URL.revokeObjectURL(url); let w=img.width,h=img.height,M=1280; if(w>M||h>M){ if(w>=h){h=Math.round(h*M/w);w=M;}else{w=Math.round(w*M/h);h=M;} } const c=document.createElement('canvas'); c.width=w;c.height=h; c.getContext('2d').drawImage(img,0,0,w,h); c.toBlob(b=>res(b&&b.size<f.size?new File([b],'foto.jpg',{type:'image/jpeg'}):f),'image/jpeg',0.7); }; img.onerror=()=>{URL.revokeObjectURL(url);res(f);}; img.src=url; }); }
+  const path=`campo/${Date.now()}.${(f.name||'x').split('.').pop()}`;
+  const {error}=await db.storage.from('visitas-midias').upload(path,f,{upsert:true});
+  if(error){ console.log('upload campo:',error); return null; }
+  const {data}=db.storage.from('visitas-midias').getPublicUrl(path);
+  return data?.publicUrl||null;
+}
+
+async function campoSalvar(){
+  const validas=campoPautas.filter(p=>p.desc.trim().length>0);
+  if(validas.length===0){ alert('Adicione ao menos uma pauta'); return; }
+  const btn=document.getElementById('btn-campo-salvar'); btn.disabled=true; btn.textContent='Enviando...';
+  let mediaUrl=null;
+  if(campoMediaFile){ btn.textContent='Enviando foto...'; mediaUrl=await campoUploadMedia(); }
+  const lojaId=document.getElementById('campo-loja').value||null;
+  const rows=validas.map((p,i)=>({
+    autor_nome:usuarioCoord.nome, autor_email:usuarioCoord.email,
+    supervisora_id:campoDestInfo.supId, loja_id:lojaId,
+    destinatario_email:campoDestInfo.email, destinatario_nome:campoDestInfo.nome,
+    descricao:p.desc.trim(), prazo:p.prazo||null, prioridade:p.prioridade||null,
+    status:'pendente', media_url:(i===0?mediaUrl:null)||null
+  }));
+  const {error}=await db.from('demandas_diretoria').insert(rows);
+  btn.disabled=false; btn.textContent='Enviar demandas';
+  if(error){ alert('Erro ao enviar: '+error.message); return; }
+  fecharCampo();
+  carregarDemandasCampo();
+  alert(`✅ ${rows.length} demanda(s) enviada(s) para ${campoDestInfo.nome}!`);
+}
+
+async function carregarDemandasCampo(){
+  const el=document.getElementById('lista-campo'); el.innerHTML='<div class="loader"><div class="spinner"></div></div>';
+  const me=usuarioCoord.email;
+  const fDest=document.getElementById('campo-filtro-dest').value;
+  const fStatus=document.getElementById('campo-filtro-status').value;
+  const {data,error}=await db.from('demandas_diretoria').select('*,lojas(nome)').or(`autor_email.eq.${me},destinatario_email.eq.${me}`).order('created_at',{ascending:false});
+  if(error){ el.innerHTML='<p style="color:#dc3545;">Erro ao carregar.</p>'; return; }
+  let dem=data||[];
+  if(fDest) dem=dem.filter(d=>d.destinatario_email===fDest);
+  if(fStatus==='abertos') dem=dem.filter(d=>d.status!=='resolvido');
+  else if(fStatus==='resolvido') dem=dem.filter(d=>d.status==='resolvido');
+  if(dem.length===0){ el.innerHTML='<div class="empty"><div class="empty-icon">📭</div><p>Nenhuma demanda de campo neste filtro.</p></div>'; return; }
+  const enviadas=dem.filter(d=>d.autor_email===me);
+  const recebidas=dem.filter(d=>d.destinatario_email===me && d.autor_email!==me);
+  let html='';
+  if(enviadas.length) html+=`<div class="card"><div class="card-title">📤 Enviadas por você (${enviadas.length})</div>${renderCampoGrupo(enviadas,true)}</div>`;
+  if(recebidas.length) html+=`<div class="card"><div class="card-title">📥 Recebidas (${recebidas.length})</div>${renderCampoGrupo(recebidas,false)}</div>`;
+  el.innerHTML=html||'<div class="empty"><p>Nenhuma demanda.</p></div>';
+}
+function renderCampoGrupo(list, enviada){
+  const hoje=new Date().toISOString().split('T')[0];
+  const grupos={};
+  list.forEach(d=>{ const k=enviada?(d.destinatario_nome||'—'):(d.autor_nome||'—'); (grupos[k]=grupos[k]||[]).push(d); });
+  return Object.entries(grupos).map(([nome,items])=>{
+    const linhas=items.sort((a,b)=>(a.prazo||'').localeCompare(b.prazo||'')).map(d=>{
+      const s=CAMPO_ST[d.status]||CAMPO_ST.pendente;
+      const atras=d.status!=='resolvido'&&d.prazo&&d.prazo<hoje;
+      const acoes=d.status!=='resolvido'
+        ? `<button onclick="campoStatus('${d.id}','resolvido')" class="btn btn-sm" style="flex:1;background:#d1e7dd;color:#0f5132;border:none;font-size:11px;">✅ Resolvido</button><button onclick="campoStatus('${d.id}','andamento')" class="btn btn-sm" style="flex:1;background:#fff3cd;color:#856404;border:none;font-size:11px;">🔄 Andamento</button>`
+        : `<button onclick="campoStatus('${d.id}','pendente')" class="btn btn-secondary btn-sm" style="flex:1;font-size:11px;">↩ Reabrir</button>`;
+      return `<div style="border:1px solid var(--border);border-radius:8px;padding:8px;margin-bottom:6px;">
+        <div style="display:flex;justify-content:space-between;gap:6px;">
+          <span style="font-size:12px;flex:1;">${PRIO_CAMPO[d.prioridade]||''} ${d.descricao}</span>
+          <span style="background:${s.bg};color:${s.c};border-radius:10px;padding:1px 7px;font-size:10px;font-weight:700;white-space:nowrap;height:fit-content;">${s.i} ${s.l}</span>
+        </div>
+        <div style="font-size:10px;color:var(--text-light);margin-top:2px;">🏪 ${d.lojas?.nome||'—'}${d.prazo?' · 📅 '+d.prazo.split('-').reverse().join('/'):''}${atras?' <span style="color:#dc3545;font-weight:700;">(atrasado)</span>':''}${d.media_url?` · <a href="${d.media_url}" target="_blank">📎 anexo</a>`:''}</div>
+        <div style="display:flex;gap:6px;margin-top:6px;">${acoes}</div>
+      </div>`;
+    }).join('');
+    return `<div style="margin-bottom:10px;"><div style="font-weight:800;font-size:13px;margin-bottom:4px;">${enviada?'➡️ Para':'⬅️ De'} ${nome}</div>${linhas}</div>`;
+  }).join('');
+}
+async function campoStatus(id,st){
+  try{ await db.from('demandas_diretoria').update({status:st}).eq('id',id); carregarDemandasCampo(); }catch(e){ alert('Erro'); }
 }
 
 // ==============================
