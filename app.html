@@ -1095,19 +1095,22 @@ async function irAgenda(){
     const {data:dias}=await db.from('dias_supervisora').select('data,tipo').eq('supervisora_id',usuario.id).gte('data',iniMes);
 
     const visIds=(visitas||[]).map(v=>v.id);
-    let pautas=[];
+    let pautas=[]; let revs=[];
     if(visIds.length){
-      const {data:pl}=await db.from('registros_visita').select('id,descricao,visita_id,data_revisita,prioridade').eq('categoria','plano_acao').not('data_revisita','is',null).in('visita_id',visIds);
+      const {data:pl}=await db.from('registros_visita').select('id,descricao,visita_id,data_revisita,prioridade,custo_estimado,created_at').eq('categoria','plano_acao').in('visita_id',visIds);
       pautas=pl||[];
     }
     let statusMap={};
     if(pautas.length){
       const ids=pautas.map(p=>p.id);
-      const {data:revs}=await db.from('plano_acao_revisao').select('registro_original_id,status,created_at').in('registro_original_id',ids).order('created_at',{ascending:true});
-      (revs||[]).forEach(r=>statusMap[r.registro_original_id]=r.status);
+      const {data:rv}=await db.from('plano_acao_revisao').select('registro_original_id,status,created_at').in('registro_original_id',ids).order('created_at',{ascending:true});
+      revs=rv||[];
+      revs.forEach(r=>statusMap[r.registro_original_id]=r.status);
     }
 
     el.innerHTML = renderAgendaSemana(pautas,statusMap,visMap,hojeStr)
+                 + renderResumoSemana(pautas,revs,visitas||[],hojeStr)
+                 + renderFechamentoMes(pautas,revs,visitas||[],dias||[],ano,mes)
                  + renderCalendario(ano,mes,visitas||[],dias||[])
                  + renderLojasEsquecidas(lojas,visitas||[],hojeStr);
   }catch(e){ console.error(e); el.innerHTML='<div class="empty"><p>Erro ao carregar a agenda.</p></div>'; }
@@ -1137,6 +1140,53 @@ function renderAgendaSemana(pautas,statusMap,visMap,hojeStr){
   if(!atrasadas.length&&!semana.length) h+='<p style="color:var(--text-light);font-size:13px;">Nada com prazo nos próximos dias. 🎉</p>';
   h+='</div>';
   return h;
+}
+
+function _statCard(num,label,cor){ return `<div style="background:var(--bg);border-radius:8px;padding:8px;"><div style="font-size:20px;font-weight:900;color:${cor};">${num}</div><div style="font-size:10px;color:var(--text-light);">${label}</div></div>`; }
+
+function renderResumoSemana(pautas,revs,visitas,hojeStr){
+  const ini=new Date(); ini.setDate(ini.getDate()-6); const iniStr=ini.toISOString().split('T')[0]; // últimos 7 dias
+  const visSem=visitas.filter(v=>v.status==='encerrada'&&v.data_visita>=iniStr&&v.data_visita<=hojeStr);
+  const lojasSem=new Set(visSem.map(v=>v.loja_id)).size;
+  const criadas=pautas.filter(p=>p.created_at&&p.created_at.split('T')[0]>=iniStr).length;
+  const conclSet=new Set(); revs.filter(r=>r.status==='concluido'&&r.created_at.split('T')[0]>=iniStr).forEach(r=>conclSet.add(r.registro_original_id));
+  return `<div class="card" style="border-left:4px solid var(--sfera);"><div class="card-title">📊 Resumo da semana</div>
+    <div style="font-size:11px;color:var(--text-light);margin-bottom:8px;">Últimos 7 dias</div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;text-align:center;">
+      ${_statCard(visSem.length,'visitas','var(--sfera)')}
+      ${_statCard(lojasSem,'lojas diferentes','var(--sfera)')}
+      ${_statCard(criadas,'pautas criadas','#856404')}
+      ${_statCard(conclSet.size,'pautas concluídas','#0f5132')}
+    </div></div>`;
+}
+
+function renderFechamentoMes(pautas,revs,visitas,dias,ano,mes){
+  const iniMes=`${ano}-${String(mes).padStart(2,'0')}-01`;
+  const ultimo=new Date(ano,mes,0).getDate();
+  const fimMes=`${ano}-${String(mes).padStart(2,'0')}-${String(ultimo).padStart(2,'0')}`;
+  const visM=visitas.filter(v=>v.status==='encerrada'&&v.data_visita>=iniMes&&v.data_visita<=fimMes);
+  const lojasM=new Set(visM.map(v=>v.loja_id)).size;
+  const criadasArr=pautas.filter(p=>p.created_at&&p.created_at.split('T')[0]>=iniMes&&p.created_at.split('T')[0]<=fimMes);
+  const conclSet=new Set(); revs.filter(r=>r.status==='concluido'&&r.created_at.split('T')[0]>=iniMes&&r.created_at.split('T')[0]<=fimMes).forEach(r=>conclSet.add(r.registro_original_id));
+  const custo=criadasArr.reduce((s,p)=>s+(Number(p.custo_estimado)||0),0);
+  const taxa=criadasArr.length>0?Math.round(conclSet.size/criadasArr.length*100):0;
+  const porTipo={}; dias.forEach(d=>porTipo[d.tipo]=(porTipo[d.tipo]||0)+1);
+  const TIPO={visitas:'🏪 Visita',escritorio:'🏢 Escritório',inventario:'📦 Inventário',demanda:'📋 Outra'};
+  const tipoLinhas=Object.entries(porTipo).sort((a,b)=>b[1]-a[1]).map(([t,n])=>`<span style="display:inline-block;background:var(--sfera-light);color:var(--sfera-dark);border-radius:12px;padding:2px 8px;font-size:11px;font-weight:600;margin:2px;">${TIPO[t]||t}: <strong>${n}</strong></span>`).join('');
+  return `<div class="card" style="border-left:4px solid #8e44ad;"><div class="card-title">📆 Fechamento de ${MESES_PT[mes-1]}</div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;text-align:center;margin-bottom:10px;">
+      ${_statCard(visM.length,'visitas no mês','#8e44ad')}
+      ${_statCard(lojasM,'lojas visitadas','#8e44ad')}
+      ${_statCard(criadasArr.length,'pautas criadas','#856404')}
+      ${_statCard(conclSet.size,'pautas concluídas','#0f5132')}
+    </div>
+    <div style="margin-bottom:8px;">
+      <div style="display:flex;justify-content:space-between;font-size:12px;margin-bottom:4px;"><span>Taxa de conclusão</span><span style="font-weight:800;color:var(--sfera);">${taxa}%</span></div>
+      <div style="background:var(--border);border-radius:8px;height:8px;overflow:hidden;"><div style="width:${taxa}%;background:${taxa>=70?'#198754':taxa>=40?'#fd7e14':'#dc3545'};height:100%;"></div></div>
+    </div>
+    ${custo>0?`<div style="font-size:12px;font-weight:700;color:var(--sfera-dark);margin-bottom:8px;">💰 Custo estimado das pautas: R$${custo.toFixed(2).replace('.',',')}</div>`:''}
+    ${tipoLinhas?`<div style="font-size:11px;color:var(--text-light);margin-bottom:4px;">Rotina do mês:</div><div style="display:flex;flex-wrap:wrap;">${tipoLinhas}</div>`:''}
+  </div>`;
 }
 
 function renderCalendario(ano,mes,visitas,dias){
