@@ -536,11 +536,34 @@ async function carregarDemandasCampo(){
   if(dem.length===0){ el.innerHTML='<div class="empty"><div class="empty-icon">📭</div><p>Nenhuma demanda de campo neste filtro.</p></div>'; return; }
   const enviadas=dem.filter(d=>d.autor_email===me);
   const recebidas=dem.filter(d=>d.destinatario_email===me && d.autor_email!==me);
-  let html='';
+  let html=renderCampoIndicadores(enviadas);
   if(enviadas.length) html+=`<div class="card"><div class="card-title">📤 Enviadas por você (${enviadas.length})</div>${renderCampoGrupo(enviadas,true)}</div>`;
   if(recebidas.length) html+=`<div class="card"><div class="card-title">📥 Recebidas (${recebidas.length})</div>${renderCampoGrupo(recebidas,false)}</div>`;
   el.innerHTML=html||'<div class="empty"><p>Nenhuma demanda.</p></div>';
 }
+function _haQuanto(iso){ if(!iso) return ''; const dias=Math.floor((Date.now()-new Date(iso))/86400000); return dias<=0?'hoje':(dias===1?'ontem':'há '+dias+' dias'); }
+
+function renderCampoIndicadores(enviadas){
+  if(enviadas.length===0) return '';
+  const hoje=new Date().toISOString().split('T')[0];
+  const total=enviadas.length;
+  const resolv=enviadas.filter(d=>d.status==='resolvido');
+  const noPrazo=resolv.filter(d=>d.resolvido_em&&(!d.prazo||d.resolvido_em.split('T')[0]<=d.prazo)).length;
+  const pctPrazo=resolv.length>0?Math.round(noPrazo/resolv.length*100):0;
+  const pendentes=enviadas.filter(d=>d.status!=='resolvido').length;
+  const atrasadas=enviadas.filter(d=>d.status!=='resolvido'&&d.prazo&&d.prazo<hoje).length;
+  const pctResolv=Math.round(resolv.length/total*100);
+  return `<div class="card"><div class="card-title">📊 Indicadores das suas demandas</div>
+    <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;text-align:center;">
+      <div style="background:var(--bg);border-radius:8px;padding:8px;"><div style="font-size:20px;font-weight:900;color:var(--sfera);">${total}</div><div style="font-size:10px;color:var(--text-light);">criadas</div></div>
+      <div style="background:#d1e7dd;border-radius:8px;padding:8px;"><div style="font-size:20px;font-weight:900;color:#0f5132;">${resolv.length}</div><div style="font-size:10px;color:#0f5132;">resolvidas (${pctResolv}%)</div></div>
+      <div style="background:${atrasadas>0?'#f8d7da':'var(--bg)'};border-radius:8px;padding:8px;"><div style="font-size:20px;font-weight:900;color:${atrasadas>0?'#842029':'var(--text)'};">${atrasadas}</div><div style="font-size:10px;color:${atrasadas>0?'#842029':'var(--text-light)'};">atrasadas</div></div>
+    </div>
+    <div style="margin-top:10px;"><div style="display:flex;justify-content:space-between;font-size:12px;margin-bottom:4px;"><span>Resolvidas no prazo</span><span style="font-weight:800;color:var(--sfera);">${pctPrazo}%</span></div>
+      <div style="background:var(--border);border-radius:8px;height:8px;overflow:hidden;"><div style="width:${pctPrazo}%;background:${pctPrazo>=70?'#198754':pctPrazo>=40?'#fd7e14':'#dc3545'};height:100%;"></div></div></div>
+  </div>`;
+}
+
 function renderCampoGrupo(list, enviada){
   const hoje=new Date().toISOString().split('T')[0];
   const grupos={};
@@ -552,12 +575,16 @@ function renderCampoGrupo(list, enviada){
       const acoes=d.status!=='resolvido'
         ? `<button onclick="campoStatus('${d.id}','resolvido')" class="btn btn-sm" style="flex:1;background:#d1e7dd;color:#0f5132;border:none;font-size:11px;">✅ Resolvido</button><button onclick="campoStatus('${d.id}','andamento')" class="btn btn-sm" style="flex:1;background:#fff3cd;color:#856404;border:none;font-size:11px;">🔄 Andamento</button>`
         : `<button onclick="campoStatus('${d.id}','pendente')" class="btn btn-secondary btn-sm" style="flex:1;font-size:11px;">↩ Reabrir</button>`;
+      const coments=Array.isArray(d.comentarios)?d.comentarios:[];
+      const comentHtml=coments.length?`<div style="margin-top:6px;border-top:1px dashed var(--border);padding-top:6px;">${coments.map(c=>`<div style="font-size:11px;color:var(--text);margin-bottom:3px;">💬 <strong>${c.autor}:</strong> ${c.texto} <span style="color:var(--text-light);">· ${_haQuanto(c.em)}</span></div>`).join('')}</div>`:'';
       return `<div style="border:1px solid var(--border);border-radius:8px;padding:8px;margin-bottom:6px;">
         <div style="display:flex;justify-content:space-between;gap:6px;">
           <span style="font-size:12px;flex:1;">${PRIO_CAMPO[d.prioridade]||''} ${d.descricao}</span>
           <span style="background:${s.bg};color:${s.c};border-radius:10px;padding:1px 7px;font-size:10px;font-weight:700;white-space:nowrap;height:fit-content;">${s.i} ${s.l}</span>
         </div>
-        <div style="font-size:10px;color:var(--text-light);margin-top:2px;">🏪 ${d.lojas?.nome||'—'}${d.prazo?' · 📅 '+d.prazo.split('-').reverse().join('/'):''}${atras?' <span style="color:#dc3545;font-weight:700;">(atrasado)</span>':''}${d.media_url?` · <a href="${d.media_url}" target="_blank">📎 anexo</a>`:''}</div>
+        <div style="font-size:10px;color:var(--text-light);margin-top:2px;">🏪 ${d.lojas?.nome||'—'}${d.prazo?' · 📅 '+d.prazo.split('-').reverse().join('/'):''}${atras?' <span style="color:#dc3545;font-weight:700;">(atrasado)</span>':''}${d.media_url?` · <a href="${d.media_url}" target="_blank">📎 anexo</a>`:''}${d.status==='resolvido'&&d.resolvido_em?` · <span style="color:#0f5132;font-weight:700;">✅ resolvido ${_haQuanto(d.resolvido_em)}</span>`:''}${d.media_resolucao?` · <a href="${d.media_resolucao}" target="_blank" style="color:#0f5132;">📷 comprovante</a>`:''}</div>
+        ${comentHtml}
+        <div style="display:flex;gap:6px;margin-top:6px;"><input id="coment-${d.id}" placeholder="Comentar..." class="form-control" style="flex:1;font-size:11px;padding:5px 8px;"><button onclick="campoComentar('${d.id}')" class="btn btn-secondary btn-sm" style="font-size:11px;">Enviar</button></div>
         <div style="display:flex;gap:6px;margin-top:6px;">${acoes}</div>
       </div>`;
     }).join('');
@@ -565,7 +592,20 @@ function renderCampoGrupo(list, enviada){
   }).join('');
 }
 async function campoStatus(id,st){
-  try{ await db.from('demandas_diretoria').update({status:st}).eq('id',id); carregarDemandasCampo(); }catch(e){ alert('Erro'); }
+  try{
+    const patch={status:st, resolvido_em: st==='resolvido'?new Date().toISOString():null};
+    await db.from('demandas_diretoria').update(patch).eq('id',id); carregarDemandasCampo();
+  }catch(e){ alert('Erro'); }
+}
+async function campoComentar(id){
+  const inp=document.getElementById('coment-'+id); const txt=(inp?.value||'').trim(); if(!txt) return;
+  try{
+    const {data}=await db.from('demandas_diretoria').select('comentarios').eq('id',id).single();
+    const arr=Array.isArray(data?.comentarios)?data.comentarios:[];
+    arr.push({autor:usuarioCoord.nome, texto:txt, em:new Date().toISOString()});
+    await db.from('demandas_diretoria').update({comentarios:arr}).eq('id',id);
+    carregarDemandasCampo();
+  }catch(e){ alert('Erro ao comentar'); }
 }
 
 // ==============================

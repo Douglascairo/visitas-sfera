@@ -1843,12 +1843,18 @@ async function carregarDemandasDiretoriaLoja(lojaId){
       ${data.map(d=>{
         const atras=d.prazo&&d.prazo<hoje;
         const emAnd=d.status==='andamento';
+        const coments=Array.isArray(d.comentarios)?d.comentarios:[];
+        const comentHtml=coments.length?`<div style="margin-top:6px;border-top:1px dashed #e0d0f0;padding-top:6px;">${coments.map(c=>`<div style="font-size:11px;margin-bottom:3px;">💬 <strong>${c.autor}:</strong> ${c.texto}</div>`).join('')}</div>`:'';
         return `<div style="border:1px solid #e0d0f0;border-radius:8px;padding:8px 10px;margin-bottom:6px;background:#fff;">
           <div style="font-size:13px;">${PRIO[d.prioridade]||''} ${d.descricao}</div>
-          <div style="font-size:10px;color:var(--text-light);margin-top:2px;">de ${d.autor_nome||'diretoria'}${d.prazo?' · 📅 '+d.prazo.split('-').reverse().join('/'):''}${atras?' <span style="color:#dc3545;font-weight:700;">(atrasado)</span>':''}${emAnd?' · 🔄 em andamento':''}${d.media_url?` · <a href="${d.media_url}" target="_blank" style="color:var(--sfera);">📎 anexo</a>`:''}</div>
+          <div style="font-size:10px;color:var(--text-light);margin-top:2px;">de ${d.autor_nome||'diretoria'}${d.prazo?' · 📅 '+d.prazo.split('-').reverse().join('/'):''}${atras?' <span style="color:#dc3545;font-weight:700;">(atrasado)</span>':''}${emAnd?' · 🔄 em andamento':''}${d.media_url?` · <a href="${d.media_url}" target="_blank" style="color:var(--sfera);">📎 anexo</a>`:''}${d.media_resolucao?` · <a href="${d.media_resolucao}" target="_blank" style="color:#0f5132;">📷 comprovante</a>`:''}</div>
+          ${comentHtml}
+          <div style="display:flex;gap:6px;margin-top:6px;"><input id="cmd-${d.id}" placeholder="Responder à diretoria..." class="form-control" style="flex:1;font-size:11px;padding:5px 8px;"><button class="btn btn-secondary btn-sm" style="font-size:11px;" onclick="comentarDemDir('${d.id}')">Enviar</button></div>
+          <input type="file" id="compr-${d.id}" accept="image/*" capture="environment" style="display:none" onchange="anexarComprovante('${d.id}',this)">
           <div style="display:flex;gap:6px;margin-top:6px;">
             <button class="btn btn-sm" style="flex:1;background:#d1e7dd;color:#0f5132;border:none;font-size:11px;" onclick="resolverDemDir('${d.id}','resolvido',this)">✅ Resolvido</button>
             <button class="btn btn-sm" style="flex:1;background:#fff3cd;color:#856404;border:none;font-size:11px;" onclick="resolverDemDir('${d.id}','andamento',this)">🔄 Andamento</button>
+            <button class="btn btn-secondary btn-sm" style="font-size:11px;" onclick="document.getElementById('compr-${d.id}').click()">📷</button>
           </div>
         </div>`;
       }).join('')}
@@ -1858,10 +1864,35 @@ async function carregarDemandasDiretoriaLoja(lojaId){
 }
 async function resolverDemDir(id,st,btn){
   try{
-    await db.from('demandas_diretoria').update({status:st}).eq('id',id);
-    if(st==='resolvido'){ const card=btn.closest('div[style*="border:1px solid #e0d0f0"]'); if(card) card.style.opacity='.4'; btn.parentElement.innerHTML='<span style="font-size:11px;color:#0f5132;font-weight:700;">✅ Marcado como resolvido</span>'; }
+    const patch={status:st, resolvido_em: st==='resolvido'?new Date().toISOString():null};
+    await db.from('demandas_diretoria').update(patch).eq('id',id);
+    if(st==='resolvido'){ const card=btn.closest('div[style*="border:1px solid #e0d0f0"]'); if(card) card.style.opacity='.4'; showToast('✅ Resolvido! Obrigado.'); }
     else { showToast('🔄 Em andamento'); }
   }catch(e){ showToast('Erro','error'); }
+}
+async function comentarDemDir(id){
+  const inp=document.getElementById('cmd-'+id); const txt=(inp?.value||'').trim(); if(!txt) return;
+  try{
+    const {data}=await db.from('demandas_diretoria').select('comentarios').eq('id',id).single();
+    const arr=Array.isArray(data?.comentarios)?data.comentarios:[];
+    arr.push({autor:usuario.nome_curto||usuario.nome, texto:txt, em:new Date().toISOString()});
+    await db.from('demandas_diretoria').update({comentarios:arr}).eq('id',id);
+    if(inp){ inp.value=''; }
+    showToast('💬 Comentário enviado');
+    if(lojaSelecionada) carregarDemandasDiretoriaLoja(lojaSelecionada.id);
+  }catch(e){ showToast('Erro ao comentar','error'); }
+}
+async function anexarComprovante(id, inp){
+  if(!inp.files||!inp.files[0]) return;
+  showToast('Enviando foto...');
+  const f=await comprimirImagem(inp.files[0]);
+  const path=`campo-comprovante/${id}_${Date.now()}.jpg`;
+  const {error}=await db.storage.from('visitas-midias').upload(path,f,{upsert:true});
+  if(error){ showToast('Erro ao enviar foto','error'); return; }
+  const {data:pub}=db.storage.from('visitas-midias').getPublicUrl(path);
+  await db.from('demandas_diretoria').update({media_resolucao:pub?.publicUrl||null}).eq('id',id);
+  showToast('📷 Comprovante anexado!');
+  if(lojaSelecionada) carregarDemandasDiretoriaLoja(lojaSelecionada.id);
 }
 
 function marcarPlano(registroId, status) {
