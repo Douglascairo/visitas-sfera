@@ -114,9 +114,9 @@ SELECT '21481', 'MARECHAL', s.id, 'loja.marechal@franquiasboticario.com', 'R. Ma
 INSERT INTO lojas (codigo, nome, supervisora_id, email, endereco, cidade, estado, cep)
 SELECT '21482', 'JARDIM NORTE', s.id, 'loja.jn@franquiasboticario.com', 'Av. Brasil, 6345 - LJ 1104', 'Juiz de Fora', 'MG', '36080-060' FROM supervisoras s WHERE s.nome_curto = 'CANTIERI' ON CONFLICT (codigo) DO NOTHING;
 INSERT INTO lojas (codigo, nome, supervisora_id, email, endereco, cidade, estado, cep)
-SELECT '21484', 'GALERIA', s.id, 'loja.3r.galeria@franquiasboticario.com', 'R. Dr. Walmir Peçanha, 20 - LJ 112', 'Três Rios', 'RJ', '25802-180' FROM supervisoras s WHERE s.nome_curto = 'CANTIERI' ON CONFLICT (codigo) DO NOTHING;
+SELECT '21484', 'GALERIA', s.id, 'loja.3r.galeria@franquiasboticario.com', 'R. Dr. Walmir Peçanha, 20 - LJ 112', 'Três Rios', 'RJ', '25802-180' FROM supervisoras s WHERE s.nome_curto = 'MAFORTES' ON CONFLICT (codigo) DO NOTHING;
 INSERT INTO lojas (codigo, nome, supervisora_id, email, endereco, cidade, estado, cep)
-SELECT '21486', 'QUIOSQUE 3 RIOS', s.id, 'loja.3r.shopping@franquiasboticario.com', 'Av. Barão do Rio Branco, 303 - QSQ 05', 'Três Rios', 'RJ', '25804-010' FROM supervisoras s WHERE s.nome_curto = 'CANTIERI' ON CONFLICT (codigo) DO NOTHING;
+SELECT '21486', 'QUIOSQUE 3 RIOS', s.id, 'loja.3r.shopping@franquiasboticario.com', 'Av. Barão do Rio Branco, 303 - QSQ 05', 'Três Rios', 'RJ', '25804-010' FROM supervisoras s WHERE s.nome_curto = 'MAFORTES' ON CONFLICT (codigo) DO NOTHING;
 INSERT INTO lojas (codigo, nome, supervisora_id, email, endereco, cidade, estado, cep)
 SELECT '23316', 'CARANDAÍ', s.id, 'loja.carandai.mg@franquiasboticario.com', 'Av. Maria de Melo Baeta, 95 - Centro', 'Carandaí', 'MG', '36280-001' FROM supervisoras s WHERE s.nome_curto = 'CANTIERI' ON CONFLICT (codigo) DO NOTHING;
 INSERT INTO lojas (codigo, nome, supervisora_id, email, endereco, cidade, estado, cep)
