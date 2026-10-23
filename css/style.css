@@ -269,14 +269,14 @@ textarea.form-control { resize: none; min-height: 80px; font-size: 15px; }
 
 /* Desktop: lado a lado como no Portal do Fera */
 @media (min-width: 860px) {
-  .login-shell { grid-template-columns: 1.04fr .96fr; }
+  .login-shell { grid-template-columns: 1.04fr .96fr; min-height: 640px; }
   .login-brand {
-    padding: 48px 38px 0;
+    padding: 44px 38px 0;
     text-align: left;
     display: flex; flex-direction: column;
   }
-  .brand-tag { font-size: 23px; font-weight: 800; letter-spacing: -0.01em; max-width: none; margin: 26px 0 0; }
-  .login-mascote { width: 320px; max-width: 92%; margin: auto auto 0; }
+  .brand-tag { font-size: 23px; font-weight: 800; letter-spacing: -0.01em; max-width: none; margin: 24px 0 0; }
+  .login-mascote { width: auto; height: auto; max-width: 96%; max-height: 448px; margin: auto auto 0; display: block; }
   .login-box { padding: 56px 48px; align-self: center; }
   .login-logo { text-align: left; }
   .login-title { text-align: left; }
