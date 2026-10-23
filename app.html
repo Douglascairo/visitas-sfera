@@ -7,11 +7,11 @@
   <meta http-equiv="Pragma" content="no-cache">
   <meta http-equiv="Expires" content="0">
   <title>Sfera · Super em Ação</title>
-  <link rel="icon" type="image/png" href="img/sfera-logo.png">
-  <link rel="apple-touch-icon" href="img/sfera-logo.png">
+  <link rel="icon" type="image/png" href="img/sfera-logo.png?v=1023">
+  <link rel="apple-touch-icon" href="img/sfera-logo.png?v=1023">
   <meta name="theme-color" content="#0E2A86">
   <link rel="preconnect" href="https://fonts.googleapis.com">
-  <link rel="stylesheet" href="css/style.css?v=20261023">
+  <link rel="stylesheet" href="css/style.css?v=20261023b">
   <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
   <style>
     .btn-mic.rec-on { background:#dc3545 !important; color:#fff !important; border-color:#dc3545 !important; animation:micpulse 1s infinite; }
@@ -106,7 +106,7 @@
 
 <div class="header">
   <div class="header-brand">
-    <div class="header-logo-img"><img src="img/sfera-logo.png" alt="Sfera"></div>
+    <div class="header-logo-img"><img src="img/sfera-logo.png?v=1023" alt="Sfera"></div>
     <div class="header-title"><strong>Super em Ação</strong><span>Supervisão</span></div>
   </div>
   <div class="header-user">
@@ -509,7 +509,7 @@
     <!-- Cabeçalho visível apenas no PDF/impressão -->
     <div class="pdf-only">
       <div class="pdf-logo">
-        <img src="img/sfera-logo.png" alt="Sfera Multifranquias">
+        <img src="img/sfera-logo.png?v=1023" alt="Sfera Multifranquias">
         <p>Super em Ação · Supervisão O Boticário</p>
       </div>
       <div class="pdf-header-info">
@@ -2562,7 +2562,7 @@ function mostrarRelatorioChecklist(inserts){
   document.getElementById('rel-titulo').textContent=`${checklistAtual?.titulo||'Checklist'} · ${loja}`;
   const dataHoje=new Date().toLocaleDateString('pt-BR');
   document.getElementById('rel-pdf-header').innerHTML=`
-    <img src="img/sfera-logo.png" alt="Sfera Multifranquias">
+    <img src="img/sfera-logo.png?v=1023" alt="Sfera Multifranquias">
     <div class="rel-pdf-sub">Super em Ação · Supervisão O Boticário</div>
     <div class="rel-pdf-info">${checklistAtual?.titulo||'Checklist'} — ${loja}<br>
     Supervisora: ${usuario?.nome||''} · Data: ${dataHoje}</div>`;
