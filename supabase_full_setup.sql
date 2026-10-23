@@ -135,7 +135,7 @@ INSERT INTO supervisoras (nome, nome_curto, email, endereco_residencial, cidade_
   ('Leidinalva Soares', 'LEIDI', 'leidinalva.soares@franquiasboticario.com', 'Vila Wladimir da Silva Araújo, 90, ap 302, Esplanada', 'Caratinga'),
   ('Patricia Baleixo', 'PATRICIA', 'patricia.baleixo@sferamultifranquias.com', 'Rua Cambaúba, 520/201, Jardim Guanabara, Ilha do Governador', 'Rio de Janeiro'),
   ('Mirele Botelho', 'MIRELE', 'mirelle.cutrim@franquiasboticario.com', 'Estrada do Coelho, 997, casa 1', 'São Gonçalo'),
-  ('Aline Campos', 'ALINE', 'aline.campos@franquiasboticario.com', NULL, NULL)
+  ('Aline Campos', 'ALINE', 'aline.campos@franquiasboticario.com', 'Rua Francisco Barreto, 30, Bangu', 'Rio de Janeiro')
 ON CONFLICT (email) DO NOTHING;
 
 -- Patricia Baleixo saiu em 22/10/2026 (foi para a Hering); Aline Campos assumiu a regional dela.

@@ -18,6 +18,12 @@ WHERE supervisora_id = (SELECT id FROM supervisoras WHERE nome_curto = 'PATRICIA
 -- 3) Desativa a Patricia (sai dos filtros e relatórios; histórico dela é preservado)
 UPDATE supervisoras SET ativo = false WHERE nome_curto = 'PATRICIA';
 
+-- 4) Endereço residencial da Aline (para cálculo de rota/km)
+UPDATE supervisoras SET
+  endereco_residencial = 'Rua Francisco Barreto, 30, Bangu',
+  cidade_residencial = 'Rio de Janeiro'
+WHERE nome_curto = 'ALINE';
+
 -- ============================================
 -- Conferência (opcional): Aline ativa com as lojas; Patricia inativa com 0 lojas
 -- ============================================
