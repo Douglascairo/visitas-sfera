@@ -366,6 +366,8 @@ textarea.form-control { resize: none; min-height: 80px; font-size: 15px; }
 .badge-rh { background: #d1ecf1; color: #0c5460; }
 .badge-manutencao { background: #ffe5b4; color: #7d4a00; }
 .badge-ti { background: #d6d8f5; color: #2d2f7d; }
+.badge-estoque { background: #e7e0d4; color: #6b4e16; }
+.badge-financeiro { background: #d1e7dd; color: #0f5132; }
 .badge-outro { background: #e2e3e5; color: #383d41; }
 
 /* ===== VISITA CARD ===== */

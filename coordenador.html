@@ -59,7 +59,7 @@
     <button class="tab-btn" onclick="mudarTab('metricas')">Métricas</button>
     <button class="tab-btn" onclick="mudarTab('checklists')">Checklists</button>
     <button class="tab-btn" onclick="mudarTab('demandas')">Demandas</button>
-    <button class="tab-btn" onclick="mudarTab('planos')">Planos de Ação</button>
+    <button class="tab-btn" onclick="mudarTab('planos')">TO DO</button>
     <button class="tab-btn" onclick="mudarTab('campo')">Demandas de Campo</button>
   </div>
 
@@ -119,7 +119,7 @@
     </div>
     <div class="card"><div class="card-title">🌟 Energia média por supervisora</div><div id="chart-energia"></div></div>
     <div class="card"><div class="card-title">📅 Visitas por supervisora</div><div id="chart-visitas-sup"></div></div>
-    <div class="card"><div class="card-title">📋 Registros por categoria</div><div id="chart-categorias"></div></div>
+    <div class="card"><div class="card-title">📋 TO DO por etiqueta</div><div id="chart-categorias"></div></div>
     <div class="card"><div class="card-title">🏪 Energia média por loja</div><div id="chart-energia-loja"></div></div>
     <div class="card"><div class="card-title">📅 Dias por tipo (supervisoras)</div><div id="chart-tipo-dia"></div></div>
   </div>
@@ -282,9 +282,9 @@ const ENERGIA_INFO = {
   5:{emoji:'🤩',label:'Super energizada!',cor:'#28a745'}
 };
 const CAT_INFO = {
-  atendimento:'Atend./Trein.',exposicao:'Exposição',elogio:'Elogio',
+  atendimento:'Atend./Trein.',exposicao:'Exposição/VM',estoque:'Estoque',financeiro:'Financeiro',elogio:'Elogio',
   demanda:'Demanda',plano_acao:'Plano de Ação',campanha:'Campanha',
-  rh:'RH',manutencao:'Manutenção',ti:'TI',outro:'Outro'
+  rh:'RH/Equipe',manutencao:'Manutenção',ti:'TI/Sistema',outro:'Geral'
 };
 const TIPO_DIA = {
   visitas:{label:'🏪 Visita a lojas',badge:'td-badge-visitas'},
@@ -639,7 +639,7 @@ async function carregarPlanos(){
 
   // Itens de plano de ação
   const {data:planos}=await db.from('registros_visita').select('*').in('visita_id',visIds).eq('categoria','plano_acao');
-  if(!planos||planos.length===0){ el.innerHTML='<div class="empty"><div class="empty-icon">🎯</div><p>Nenhum plano de ação criado ainda.</p></div>'; return; }
+  if(!planos||planos.length===0){ el.innerHTML='<div class="empty"><div class="empty-icon">🎯</div><p>Nenhum TO DO criado ainda.</p></div>'; return; }
 
   // Status mais recente de cada item
   const ids=planos.map(p=>p.id);
@@ -665,7 +665,7 @@ async function carregarPlanos(){
   const PRIO_C={baixa:{i:'🟢',l:'Baixa'},media:{i:'🟡',l:'Média'},alta:{i:'🔴',l:'Alta'}};
 
   // Resumo
-  let html=`<div class="card"><div class="card-title">🎯 Resumo dos planos de ação</div>
+  let html=`<div class="card"><div class="card-title">🎯 Resumo dos TO DO</div>
     <div style="display:flex;gap:8px;text-align:center;">
       <div style="flex:1;background:#f8d7da;border-radius:10px;padding:10px;"><div style="font-size:22px;font-weight:900;color:#842029;">${cP}</div><div style="font-size:11px;color:#842029;">Pendentes</div></div>
       <div style="flex:1;background:#fff3cd;border-radius:10px;padding:10px;"><div style="font-size:22px;font-weight:900;color:#856404;">${cA}</div><div style="font-size:11px;color:#856404;">Em andamento</div></div>
@@ -919,7 +919,7 @@ async function verDetalhesPorLoja(lojaId, idsEncoded) {
     // Revisão do plano
     if(revisoes.length>0){
       html+=`<div style="background:#fff3cd;border-radius:8px;padding:8px 10px;margin-bottom:10px;font-size:12px;">
-        <strong style="color:#856404;">🎯 Revisão do plano anterior</strong><br>
+        <strong style="color:#856404;">🎯 Revisão dos TO DO anteriores</strong><br>
         ${revisoes.map(r=>{const ic=r.status==='concluido'?'✅':r.status==='andamento'?'🔄':'❌';return `${ic} ${r.registros_visita?.descricao||'—'}`;}).join('<br>')}
       </div>`;
     }
@@ -1099,7 +1099,7 @@ async function carregarMetricas() {
   const ids=(visitas||[]).map(v=>v.id);
   let regs=[];
   if(ids.length>0){
-    const {data:regsData}=await db.from('registros_visita').select('categoria,visita_id').in('visita_id',ids);
+    const {data:regsData}=await db.from('registros_visita').select('categoria,categorias,visita_id').in('visita_id',ids);
     regs=regsData||[];
   }
 
@@ -1160,7 +1160,10 @@ async function carregarMetricas() {
   }).join('')||'<p style="color:var(--text-light);">Sem dados</p>';
 
   const porCat={};
-  (regs||[]).forEach(r=>{porCat[r.categoria]=(porCat[r.categoria]||0)+1;});
+  (regs||[]).forEach(r=>{
+    const areas=(r.categorias&&r.categorias.length)?r.categorias:[r.categoria];
+    areas.forEach(c=>{ if(!c||c==='plano_acao') return; porCat[c]=(porCat[c]||0)+1; });
+  });
   const maxC=Math.max(...Object.values(porCat),1);
   document.getElementById('chart-categorias').innerHTML=Object.entries(porCat).sort((a,b)=>b[1]-a[1]).map(([cat,n])=>`
     <div style="margin-bottom:10px;">

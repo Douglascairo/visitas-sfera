@@ -205,13 +205,13 @@
       </div>
     </div>
 
-    <!-- Demandas & Planos de Ação -->
+    <!-- Meus TO DO -->
     <div class="card" style="background:linear-gradient(135deg,#5a2d82 0%,#9b59b6 100%);color:white;cursor:pointer;border:none;" onclick="irPainelDemandas()">
       <div style="display:flex;align-items:center;gap:14px;">
-        <div style="font-size:34px;">📋</div>
+        <div style="font-size:34px;">✅</div>
         <div style="flex:1;">
-          <div style="font-size:15px;font-weight:800;">Demandas & Planos de Ação</div>
-          <div style="font-size:12px;opacity:0.9;margin-top:2px;">Acompanhe prazos, pendências e o que já foi concluído em cada loja</div>
+          <div style="font-size:15px;font-weight:800;">Meus TO DO</div>
+          <div style="font-size:12px;opacity:0.9;margin-top:2px;">Tarefas, prazos, pendências e concluídos em cada loja</div>
         </div>
         <div style="font-size:22px;">→</div>
       </div>
@@ -256,7 +256,7 @@
     </div>
     <div class="steps">
       <div class="step active">1. Loja</div>
-      <div class="step">2. Plano</div>
+      <div class="step">2. TO DO</div>
       <div class="step">3. Energia</div>
       <div class="step">4. Visita</div>
     </div>
@@ -349,7 +349,7 @@
   <div id="tela-painel-demandas" style="display:none">
     <div style="display:flex;align-items:center;gap:10px;margin-bottom:16px;">
       <button onclick="irHome()" style="background:none;border:none;font-size:22px;cursor:pointer;padding:4px;">←</button>
-      <div style="font-size:18px;font-weight:800;">📋 Demandas & Planos de Ação</div>
+      <div style="font-size:18px;font-weight:800;">✅ Meus TO DO</div>
     </div>
     <div id="painel-dem-corpo"><div class="loader"><div class="spinner"></div><p>Carregando...</p></div></div>
   </div>
@@ -390,12 +390,12 @@
       <button onclick="voltarLoja()" style="background:none;border:none;font-size:22px;cursor:pointer;">←</button>
       <div>
         <div style="font-size:13px;color:var(--text-light);" id="plano-loja-nome"></div>
-        <div style="font-size:18px;font-weight:800;">Revisão do Plano de Ação</div>
+        <div style="font-size:18px;font-weight:800;">TO DO pendentes</div>
       </div>
     </div>
     <div class="steps">
       <div class="step done">1. Loja</div>
-      <div class="step active">2. Plano</div>
+      <div class="step active">2. TO DO</div>
       <div class="step">3. Energia</div>
       <div class="step">4. Visita</div>
     </div>
@@ -408,8 +408,8 @@
     <div id="demandas-diretoria-loja"></div>
 
     <div class="card" id="card-plano-anterior">
-      <div class="card-title">🎯 O que ficou no plano de ação?</div>
-      <p style="font-size:13px;color:var(--text-light);margin-bottom:14px;">Marque o status de cada item para registrar a evolução:</p>
+      <div class="card-title">🎯 TO DO pendentes da última visita</div>
+      <p style="font-size:13px;color:var(--text-light);margin-bottom:14px;">Marque o status de cada TO DO para registrar a evolução:</p>
       <div id="lista-plano-itens"></div>
     </div>
 
@@ -427,7 +427,7 @@
     </div>
     <div class="steps">
       <div class="step done">1. Loja</div>
-      <div class="step done">2. Plano</div>
+      <div class="step done">2. TO DO</div>
       <div class="step active">3. Energia</div>
       <div class="step">4. Visita</div>
     </div>
@@ -456,7 +456,7 @@
     </div>
     <div class="steps" style="margin-bottom:16px;">
       <div class="step done">1. Loja</div>
-      <div class="step done">2. Plano</div>
+      <div class="step done">2. TO DO</div>
       <div class="step done">3. Energia</div>
       <div class="step active">4. Visita</div>
     </div>
@@ -474,7 +474,7 @@
 
     <!-- Registrar -->
     <div class="card">
-      <div class="card-title">🎙️ O que você combinou com seu líder?</div>
+      <div class="card-title">🎙️ TO DO da visita — o que você combinou?</div>
       <textarea class="form-control" id="registro-texto" style="min-height:120px;" placeholder="Fale ou escreva aqui o que você está combinando com seu líder..."></textarea>
       <button type="button" class="btn btn-secondary btn-sm btn-mic" style="margin-top:6px;" data-label="🎤 Falar" onclick="ditarPara('registro-texto',this)">🎤 Falar</button>
 
@@ -486,7 +486,7 @@
         <div id="media-preview-wrap" class="media-preview"></div>
       </div>
 
-      <div style="font-size:11px;color:var(--text-light);margin-top:12px;">💡 Escreva ou fale cada assunto em uma linha. No próximo passo você confere as pautas e marca assunto, prazo, prioridade e custo de cada uma.</div>
+      <div style="font-size:11px;color:var(--text-light);margin-top:12px;">💡 Escreva ou fale cada TO DO em uma linha. No próximo passo você confere cada tarefa e define o prazo — a etiqueta é automática.</div>
       <button class="btn btn-primary btn-full" style="margin-top:10px;" onclick="organizarPautas()">Continuar → organizar e salvar</button>
     </div>
 
@@ -546,8 +546,9 @@
     </div>
 
     <div class="card">
-      <div class="card-title">💬 Observação geral (opcional)</div>
-      <textarea class="form-control" id="obs-geral" placeholder="Alguma observação final... (ou toque no 🎤 e fale)"></textarea>
+      <div class="card-title">💬 Observações gerais (opcional)</div>
+      <div style="font-size:12px;color:var(--text-light);margin-bottom:8px;">O que <strong>não é tarefa</strong>: percepções da visita, elogios, astral do time, recados.</div>
+      <textarea class="form-control" id="obs-geral" placeholder="Ex: Time muito engajado hoje, gerente empolgada com a campanha... (ou toque no 🎤 e fale)"></textarea>
       <button type="button" class="btn btn-secondary btn-sm btn-mic" style="margin-top:6px;" data-label="🎤 Falar" onclick="ditarPara('obs-geral',this)">🎤 Falar</button>
     </div>
 
@@ -566,7 +567,7 @@
     </div>
     <div class="card" style="border-left:4px solid #25D366;">
       <div style="font-weight:800;font-size:14px;margin-bottom:4px;">📤 Resumo para a gerente</div>
-      <div style="font-size:12px;color:var(--text-light);margin-bottom:12px;">Envie o resumo da visita com o plano de ação para a gerente acompanhar.</div>
+      <div style="font-size:12px;color:var(--text-light);margin-bottom:12px;">Envie o resumo da visita com os TO DO para a gerente acompanhar.</div>
       <button class="btn btn-full" style="background:#25D366;color:#fff;border:none;" onclick="compartilharResumoWhats()">📲 Enviar no WhatsApp</button>
       <button class="btn btn-secondary btn-full" style="margin-top:8px;" onclick="copiarResumoGerente()">📋 Copiar resumo</button>
     </div>
@@ -636,10 +637,10 @@
 <!-- MODAL: Datas de revisita do plano de ação -->
 <div id="modal-pautas" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:220;align-items:flex-end;justify-content:center;">
   <div style="background:#fff;width:100%;max-width:560px;max-height:90vh;overflow-y:auto;border-radius:16px 16px 0 0;padding:18px;">
-    <div style="font-weight:800;font-size:16px;margin-bottom:4px;">🗂️ Organize suas pautas</div>
-    <div style="font-size:12px;color:var(--text-light);margin-bottom:14px;">Para cada pauta: confira a descrição, marque o assunto. Se for Plano de Ação, defina prazo, prioridade e custo.</div>
+    <div style="font-weight:800;font-size:16px;margin-bottom:4px;">✅ Organize seus TO DO</div>
+    <div style="font-size:12px;color:var(--text-light);margin-bottom:14px;">Para cada TO DO: confira a tarefa e defina o prazo. A etiqueta é detectada automaticamente pelo texto.</div>
     <div id="pautas-lista"></div>
-    <button type="button" class="btn btn-secondary btn-sm btn-full" style="margin-bottom:10px;" onclick="adicionarPautaVazia()">➕ Adicionar outra pauta</button>
+    <button type="button" class="btn btn-secondary btn-sm btn-full" style="margin-bottom:10px;" onclick="adicionarPautaVazia()">➕ Adicionar outro TO DO</button>
     <button class="btn btn-primary btn-full" onclick="salvarPautas()">Salvar tudo</button>
     <button class="btn btn-secondary btn-full" style="margin-top:8px;" onclick="fecharModalPautas()">Cancelar</button>
   </div>
@@ -697,15 +698,17 @@ const ENERGIA_INFO = {
 };
 const CAT_INFO = {
   atendimento:{label:'Atend./Trein.',badge:'badge-atendimento'},
-  exposicao:{label:'Exposição',badge:'badge-exposicao'},
+  exposicao:{label:'Exposição/VM',badge:'badge-exposicao'},
+  estoque:{label:'Estoque',badge:'badge-estoque'},
+  financeiro:{label:'Financeiro',badge:'badge-financeiro'},
   elogio:{label:'Elogio',badge:'badge-elogio'},
   demanda:{label:'Demanda',badge:'badge-demanda'},
   plano_acao:{label:'Plano de Ação',badge:'badge-plano_acao'},
   campanha:{label:'Campanha',badge:'badge-campanha'},
-  rh:{label:'RH',badge:'badge-rh'},
+  rh:{label:'RH/Equipe',badge:'badge-rh'},
   manutencao:{label:'Manutenção',badge:'badge-manutencao'},
-  ti:{label:'TI',badge:'badge-ti'},
-  outro:{label:'Outro',badge:'badge-outro'}
+  ti:{label:'TI/Sistema',badge:'badge-ti'},
+  outro:{label:'Geral',badge:'badge-outro'}
 };
 
 // ==============================
@@ -2008,15 +2011,42 @@ async function abrirVisitaExistente(visitaId) {
 // ===== Assuntos (tags/áreas) disponíveis por pauta =====
 const TAG_LIST=[
   {id:'atendimento',icon:'🎯',label:'Atendimento / Treinamento'},
-  {id:'exposicao',icon:'🪟',label:'Exposição'},
+  {id:'exposicao',icon:'🪟',label:'Exposição / VM'},
+  {id:'estoque',icon:'📦',label:'Estoque'},
+  {id:'campanha',icon:'📣',label:'Campanha'},
+  {id:'financeiro',icon:'💰',label:'Financeiro'},
+  {id:'rh',icon:'👥',label:'RH / Equipe'},
+  {id:'manutencao',icon:'🔧',label:'Manutenção'},
+  {id:'ti',icon:'💻',label:'TI / Sistema'},
   {id:'elogio',icon:'⭐',label:'Elogio'},
   {id:'demanda',icon:'📋',label:'Demanda'},
-  {id:'campanha',icon:'📣',label:'Campanha'},
-  {id:'rh',icon:'🗓️',label:'RH'},
-  {id:'manutencao',icon:'🔧',label:'Manutenção'},
-  {id:'ti',icon:'💻',label:'TI'},
-  {id:'outro',icon:'💬',label:'Outro'},
+  {id:'outro',icon:'💬',label:'Geral'},
 ];
+const TAG_MAP=Object.fromEntries(TAG_LIST.map(t=>[t.id,t]));
+
+// ===== Classificação AUTOMÁTICA da etiqueta pelo texto do TO DO (regras por palavra-chave) =====
+function _norm(s){ return (s||'').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g,''); }
+const CLASSIFY_RULES=[
+  {tag:'manutencao', kws:['manuten','ar condicionado','ar-condicionado','ar cond','climatiz','lampada','conserto','reparo','infiltr','pintura','limpeza','dedetiz','vidro quebr','piso','eletric','hidraul','vazamento','fechadura','obra','reforma','prateleira quebr','porta quebr','pintar','trocar lampada','goteira']},
+  {tag:'ti', kws:['sistema','pdv','impressora','computador','maquininha','pinpad','pin pad','internet','wi-fi','wifi','rede caiu','senha','login','bug','travand','travou','lentid','tablet','totem','nota fiscal','cupom fiscal','software','aplicativo','emiss','sat ','sat.']},
+  {tag:'estoque', kws:['estoque','inventario','ruptura','reposic','repor','abastec','deposito','recebimento','conferencia de merc','produto em falta','falta de produto','sortimento','curva abc','validade','avaria','mercadoria']},
+  {tag:'financeiro', kws:['caixa','cofre','sangria','fechamento de caixa','troco','sangrar','conferencia de caixa','fundo de caixa','deposito bancario','inadimpl','conta a pagar','quebra de caixa','diferenca de caixa']},
+  {tag:'campanha', kws:['campanha','promoc','promo','oferta','desconto','encarte','lancament','kit','data comemorativa','dia das maes','dia dos pais','natal','black','cupom de desconto','acao de venda','combo','ativac']},
+  {tag:'rh', kws:['escala','ponto','falta ','atestado','ferias','folga','contrat','recrut','entrevista','admiss','desligament','uniforme','banco de horas','atraso','absente','feedback individual','advertenc','clima da equipe','turnover','horario de trabalho','colaboradora faltou']},
+  {tag:'exposicao', kws:['exposic','vitrine',' vm','vm ','merchand','gondola','provador','visual','layout','fachada','cartaz','montagem','display','ilha','ponto extra','etiqueta de preco','precific','preco','ambientac','planograma','arrumac']},
+  {tag:'atendimento', kws:['atendiment','consultora','abordagem','venda','vender','salao','coaching','treinar','treinament','treino','script','pos-venda','posvenda','cliente','encant','conversao','ticket medio','itens por venda','fila','experiencia do cliente','acompanhar venda','coach']},
+  {tag:'elogio', kws:['elogi','parabens','parabenizar','excelente trabalho','otimo trabalho','destaque positiv','reconhec','comemorar','mandou bem','ficou otim']},
+];
+function classificarEtiqueta(texto){
+  const t=_norm(texto);
+  if(!t.trim()) return ['outro'];
+  let best=null, bestN=0;
+  for(const r of CLASSIFY_RULES){
+    let n=0; for(const k of r.kws){ if(t.includes(_norm(k))) n++; }
+    if(n>bestN){ bestN=n; best=r.tag; }
+  }
+  return [best||'outro'];
+}
 
 function previewMedia() {
   const input=document.getElementById('media-input');
@@ -2094,7 +2124,7 @@ async function organizarPautas(){
 
   const d7=new Date(); d7.setDate(d7.getDate()+7);
   const defData=d7.toISOString().split('T')[0];
-  pautasPendentesSalvar=fragmentos.map(f=>({desc:f, tags:[], prazo:defData, prioridade:'media', custo:'', resultado:'', meta:''}));
+  pautasPendentesSalvar=fragmentos.map(f=>({desc:f, tags:classificarEtiqueta(f), prazo:defData, prioridade:'media', custo:'', resultado:'', meta:''}));
   renderPautasLista();
   document.getElementById('modal-pautas').style.display='flex';
   document.getElementById('modal-pautas').scrollTop=0;
@@ -2109,10 +2139,12 @@ function togglePautaTag(i, tag){
 
 function renderPautasLista(){
   document.getElementById('pautas-lista').innerHTML=pautasPendentesSalvar.map((p,i)=>{
-    const chips=TAG_LIST.map(t=>{
-      const on=p.tags.includes(t.id);
-      return `<button type="button" onclick="togglePautaTag(${i},'${t.id}')" style="background:${on?'var(--sfera)':'#fff'};color:${on?'#fff':'var(--text)'};border:1.5px solid ${on?'var(--sfera)':'var(--border)'};border-radius:16px;padding:4px 10px;font-size:11px;font-weight:600;cursor:pointer;margin:2px;">${t.icon} ${t.label}</button>`;
-    }).join('');
+    const _det=classificarEtiqueta(p.desc||'');
+    const _dt=TAG_MAP[_det[0]]||TAG_MAP['outro'];
+    const etiquetaAuto=`<div style="margin:8px 0 2px;display:flex;align-items:center;gap:8px;flex-wrap:wrap;">
+        <span style="font-size:10px;font-weight:700;color:var(--text-light);">ETIQUETA (automática):</span>
+        <span style="display:inline-flex;align-items:center;gap:5px;background:var(--sfera-light);color:var(--sfera-dark);border:1px solid var(--sfera);border-radius:16px;padding:3px 10px;font-size:11px;font-weight:700;">${_dt.icon} ${_dt.label}</span>
+      </div>`;
     const camposPlano=`
       <div style="background:var(--sfera-light);border-radius:8px;padding:10px;margin-top:8px;">
         <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;">
@@ -2138,12 +2170,11 @@ function renderPautasLista(){
       </div>`;
     return `<div style="border:1px solid var(--border);border-radius:10px;padding:12px;margin-bottom:10px;">
       <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;">
-        <span style="font-size:11px;font-weight:700;color:var(--text-light);">PAUTA ${i+1}</span>
+        <span style="font-size:11px;font-weight:700;color:var(--text-light);">TO DO ${i+1}</span>
         <button type="button" onclick="removerPauta(${i})" style="background:none;border:none;color:#dc3545;font-size:16px;cursor:pointer;">✕</button>
       </div>
-      <textarea class="form-control" style="min-height:50px;font-size:13px;" oninput="pautasPendentesSalvar[${i}].desc=this.value" placeholder="Descreva o assunto da pauta...">${p.desc}</textarea>
-      <div style="font-size:10px;font-weight:700;color:var(--sfera-dark);margin:8px 0 4px;">DO QUE SE TRATA?</div>
-      <div style="display:flex;flex-wrap:wrap;">${chips}</div>
+      <textarea class="form-control" style="min-height:50px;font-size:13px;" oninput="pautasPendentesSalvar[${i}].desc=this.value" onchange="renderPautasLista()" placeholder="Descreva a tarefa (TO DO)...">${p.desc}</textarea>
+      ${etiquetaAuto}
       ${camposPlano}
     </div>`;
   }).join('');
@@ -2151,17 +2182,16 @@ function renderPautasLista(){
 function removerPauta(i){ pautasPendentesSalvar.splice(i,1); renderPautasLista(); }
 function adicionarPautaVazia(){
   const d7=new Date(); d7.setDate(d7.getDate()+7);
-  pautasPendentesSalvar.push({desc:'', tags:[], prazo:d7.toISOString().split('T')[0], prioridade:'media', custo:'', resultado:'', meta:''});
+  pautasPendentesSalvar.push({desc:'', tags:['outro'], prazo:d7.toISOString().split('T')[0], prioridade:'media', custo:'', resultado:'', meta:''});
   renderPautasLista();
 }
 async function salvarPautas(){
   const validas=pautasPendentesSalvar.filter(p=>p.desc.trim().length>0);
-  if(validas.length===0){ showToast('Adicione ao menos uma pauta','error'); return; }
-  if(validas.some(p=>p.tags.length===0)){ showToast('Marque o assunto de cada pauta','error'); return; }
+  if(validas.length===0){ showToast('Adicione ao menos um TO DO','error'); return; }
   const rows=validas.map((p,i)=>({
     visita_id:visitaAtual.id,
     categoria:'plano_acao',           // toda pauta é um item do plano de ação
-    categorias:p.tags,                // as tags marcadas são a área/assunto
+    categorias:classificarEtiqueta(p.desc),  // etiqueta detectada automaticamente pelo texto
     descricao:p.desc.trim(),
     data_revisita: p.prazo||null,
     prioridade: p.prioridade||null,
@@ -2177,7 +2207,7 @@ async function salvarPautas(){
   fecharModalPautas();
   limparRegistroForm();
   renderRegistros();
-  showToast(`✅ ${data.length} pauta(s) salva(s)!`,'success');
+  showToast(`✅ ${data.length} TO DO salvo(s)!`,'success');
 }
 function fecharModalPautas(){
   document.getElementById('modal-pautas').style.display='none';
@@ -3717,8 +3747,12 @@ async function encerrarVisita() {
 
 async function enviarEmailResumo(emailGerente,obs) {
   const info=ENERGIA_INFO[energiaSelecionada];
-  const listaRegs=registros.map(r=>`• [${CAT_INFO[r.categoria]?.label}] ${r.descricao}`).join('\n');
-  const corpo=`Olá!\n\nA supervisora ${usuario.nome} realizou uma visita na sua loja em ${new Date().toLocaleDateString('pt-BR')}.\n\n📍 LOJA: ${lojaSelecionada.nome} - ${lojaSelecionada.cidade}/${lojaSelecionada.estado}\n\n🌟 ENERGIA DO TIME AO CHEGAR: ${info.emoji} ${info.label}\n\n📋 O QUE FOI TRATADO:\n${listaRegs||'(nenhum registro)'}\n\n${obs?`💬 OBSERVAÇÃO:\n${obs}\n\n`:''}Atenciosamente,\n${usuario.nome} - Sfera Multifranquias`;
+  const listaRegs=registros.map(r=>{
+    const areas=_tagsDeRegistro(r).map(t=>CAT_INFO[t]?.label||t).join(', ');
+    const prazo=r.data_revisita?' — prazo '+r.data_revisita.split('-').reverse().join('/'):'';
+    return `☐ ${r.descricao}${areas?' ['+areas+']':''}${prazo}`;
+  }).join('\n');
+  const corpo=`Olá!\n\nA supervisora ${usuario.nome} realizou uma visita na sua loja em ${new Date().toLocaleDateString('pt-BR')}.\n\n📍 LOJA: ${lojaSelecionada.nome} - ${lojaSelecionada.cidade}/${lojaSelecionada.estado}\n\n🌟 ENERGIA DO TIME AO CHEGAR: ${info.emoji} ${info.label}\n\n✅ TO DO (a fazer):\n${listaRegs||'(nenhum TO DO)'}\n\n${obs?`💬 OBSERVAÇÕES GERAIS:\n${obs}\n\n`:''}Atenciosamente,\n${usuario.nome} - Sfera Multifranquias`;
   try {
     await db.functions.invoke('send-email',{body:{to:emailGerente,subject:`Resumo de Visita - ${lojaSelecionada.nome} - ${new Date().toLocaleDateString('pt-BR')}`,body:corpo}});
     await db.from('visitas').update({resumo_enviado:true}).eq('id',visitaAtual.id);
@@ -3736,7 +3770,7 @@ function gerarResumoGerente(){
 
   // Pautas desta visita (todas são plano de ação, com prazo/prioridade/custo)
   if(registros.length){
-    t+=`\n*🎯 PLANO DE AÇÃO (a executar):*\n`;
+    t+=`\n*✅ TO DO (a fazer):*\n`;
     registros.forEach(r=>{
       const pr=PRIORIDADE_INFO[r.prioridade];
       const areas=_tagsDeRegistro(r).map(tg=>CAT_INFO[tg]?.label||tg).join(', ');
@@ -3765,7 +3799,7 @@ function gerarResumoGerente(){
   }
 
   const obs=document.getElementById('obs-geral')?.value?.trim();
-  if(obs) t+=`\n*💬 Observação geral:* ${obs}\n`;
+  if(obs) t+=`\n*💬 Observações gerais:* ${obs}\n`;
   t+=`\n_Enviado via Sfera · Super em Ação_`;
   return t;
 }
