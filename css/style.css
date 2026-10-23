@@ -1,26 +1,35 @@
 @import url('https://fonts.googleapis.com/css2?family=DM+Sans:opsz,wght@9..40,400;9..40,500;9..40,600;9..40,700;9..40,800&family=DM+Mono:wght@400;500&display=swap');
 
 :root {
-  /* Identidade Sfera · Super em Ação */
-  --navy: #042C53;
-  --navy-2: #063a6e;
-  --sfera: #1BA8D9;       /* azul de ação */
-  --sfera-dark: #042C53;  /* navy — títulos/acentos */
-  --sfera-light: #E6F6FC; /* sky */
-  --text: #0D1B2A;
-  --text-light: #4A5568;
-  --text-3: #8A96A3;
-  --bg: #F0F4F8;
+  /* Identidade Sfera · Super em Ação — tema azul "Portal do Fera" */
+  --navy: #0E2A86;          /* azul profundo — header, títulos, CTA base */
+  --navy-2: #13329c;
+  --indigo: #152A7A;        /* índigo do botão "Entrar" do portal */
+  --royal: #1557D6;         /* cobalto — gradientes de marca */
+  --sfera: #1C7DF0;         /* azul de ação vivo — acentos/seleção */
+  --sfera-2: #19A7F5;       /* céu — brilho dos gradientes */
+  --sfera-dark: #0E2A86;    /* acentos escuros */
+  --sfera-light: #EAF2FF;   /* tint claro de seleção/realce */
+  --text: #0C1A33;
+  --text-light: #51607A;
+  --text-3: #8A96A8;
+  --bg: #EEF3FA;
   --white: #ffffff;
-  --surface-2: #F7FAFC;
-  --border: #DDE3EC;
-  --border-2: #C8D3E0;
-  --success: #2F9E68;
-  --warning: #D97706;
-  --danger: #DC3545;
-  --shadow: 0 1px 3px rgba(4,44,83,.08), 0 4px 12px rgba(4,44,83,.05);
-  --shadow-lg: 0 4px 6px rgba(4,44,83,.07), 0 10px 30px rgba(4,44,83,.1);
-  --radius: 12px;
+  --surface-2: #F6F9FD;
+  --border: #DCE4F0;
+  --border-2: #C6D2E4;
+  --success: #1FA463;
+  --warning: #E08600;
+  --danger: #E23744;
+  /* gradientes & sombras sofisticadas */
+  --grad-brand: linear-gradient(145deg, #19A7F5 0%, #1557D6 50%, #0E2A86 100%);
+  --grad-primary: linear-gradient(135deg, #1C7DF0 0%, #1452D6 100%);
+  --grad-header: linear-gradient(120deg, #0E2A86 0%, #163FB0 100%);
+  --shadow: 0 1px 3px rgba(14,42,134,.07), 0 6px 16px rgba(14,42,134,.06);
+  --shadow-lg: 0 10px 24px rgba(14,42,134,.10), 0 20px 48px rgba(14,42,134,.12);
+  --shadow-blue: 0 6px 18px rgba(21,87,214,.32);
+  --ring: 0 0 0 4px rgba(28,125,240,.18);
+  --radius: 14px;
 }
 
 * { box-sizing: border-box; margin: 0; padding: 0; }
@@ -44,7 +53,7 @@ button, a, [onclick], input, select, textarea {
 
 /* ===== HEADER ===== */
 .header {
-  background: var(--navy);
+  background: var(--grad-header);
   color: white;
   padding: 10px 16px;
   display: flex;
@@ -53,7 +62,7 @@ button, a, [onclick], input, select, textarea {
   position: sticky;
   top: 0;
   z-index: 100;
-  box-shadow: 0 2px 12px rgba(4,44,83,0.25);
+  box-shadow: 0 2px 16px rgba(14,42,134,0.28);
   /* safe area para iPhones com notch */
   padding-top: max(10px, env(safe-area-inset-top));
 }
@@ -120,28 +129,54 @@ button, a, [onclick], input, select, textarea {
   align-items: center;
   justify-content: center;
   gap: 8px;
-  padding: 14px 20px;
+  padding: 14px 22px;
   min-height: 48px;
   border-radius: 12px;
   border: none;
   font-size: 15px;
-  font-weight: 600;
+  font-weight: 700;
+  letter-spacing: -0.01em;
   cursor: pointer;
-  transition: background 0.15s, transform 0.15s;
+  transition: transform .18s cubic-bezier(.2,.8,.2,1), box-shadow .2s, filter .2s, background .2s, border-color .2s;
   text-decoration: none;
   -webkit-tap-highlight-color: transparent;
   user-select: none;
+  position: relative;
 }
 .btn:active { transform: scale(0.97); }
-.btn-primary { background: var(--sfera); color: white; }
-.btn-primary:active { background: var(--sfera-dark); }
-.btn-secondary { background: var(--bg); color: var(--text); border: 1.5px solid var(--border); }
-.btn-secondary:active { background: #e0e0e0; }
-.btn-success { background: var(--success); color: white; }
-.btn-danger { background: var(--danger); color: white; }
+.btn:focus-visible { outline: none; box-shadow: var(--ring); }
+
+.btn-primary {
+  background: var(--grad-primary);
+  color: #fff;
+  box-shadow: 0 4px 14px rgba(21,87,214,.32), inset 0 1px 0 rgba(255,255,255,.22);
+}
+.btn-primary:hover { transform: translateY(-1px); filter: brightness(1.04); box-shadow: 0 10px 24px rgba(21,87,214,.40), inset 0 1px 0 rgba(255,255,255,.22); }
+.btn-primary:active { transform: translateY(0) scale(.98); filter: brightness(.95); }
+
+.btn-secondary {
+  background: var(--white); color: var(--navy);
+  border: 1.5px solid var(--border-2);
+  box-shadow: 0 1px 2px rgba(14,42,134,.05);
+}
+.btn-secondary:hover { border-color: var(--sfera); background: var(--sfera-light); }
+.btn-secondary:active { background: #dfe9fb; }
+
+.btn-success {
+  background: linear-gradient(135deg, #22B06B 0%, #178A51 100%); color: #fff;
+  box-shadow: 0 4px 14px rgba(31,164,99,.30), inset 0 1px 0 rgba(255,255,255,.22);
+}
+.btn-success:hover { transform: translateY(-1px); filter: brightness(1.04); box-shadow: 0 10px 24px rgba(31,164,99,.38), inset 0 1px 0 rgba(255,255,255,.22); }
+
+.btn-danger {
+  background: linear-gradient(135deg, #EF4B57 0%, #CF2733 100%); color: #fff;
+  box-shadow: 0 4px 14px rgba(226,55,68,.28), inset 0 1px 0 rgba(255,255,255,.20);
+}
+.btn-danger:hover { transform: translateY(-1px); filter: brightness(1.04); box-shadow: 0 10px 24px rgba(226,55,68,.36), inset 0 1px 0 rgba(255,255,255,.20); }
+
 .btn-full { width: 100%; }
-.btn-sm { padding: 10px 16px; font-size: 13px; border-radius: 8px; min-height: 44px; }
-.btn:disabled { opacity: 0.5; cursor: not-allowed; transform: none; }
+.btn-sm { padding: 10px 16px; font-size: 13px; border-radius: 10px; min-height: 44px; }
+.btn:disabled { opacity: 0.5; cursor: not-allowed; transform: none; box-shadow: none; filter: none; }
 
 /* ===== INPUTS ===== */
 .form-group { margin-bottom: 14px; }
@@ -162,32 +197,90 @@ button, a, [onclick], input, select, textarea {
   color: var(--text);
   -webkit-appearance: none;
 }
-.form-control:focus { outline: none; border-color: var(--sfera); }
+.form-control:focus { outline: none; border-color: var(--sfera); box-shadow: var(--ring); }
 textarea.form-control { resize: none; min-height: 80px; font-size: 15px; }
 
-/* ===== LOGIN ===== */
+/* ===== LOGIN (estilo Portal do Fera: painel azul + card branco) ===== */
 .login-wrap {
   min-height: 100vh;
   display: flex;
   align-items: center;
   justify-content: center;
-  background: linear-gradient(150deg, #042C53 0%, #063a6e 55%, #1BA8D9 100%);
+  background:
+    radial-gradient(1100px 560px at 12% -8%, rgba(25,167,245,.45), transparent 60%),
+    var(--grad-brand);
   padding: 24px 16px;
+  padding-top: max(24px, env(safe-area-inset-top));
+  padding-bottom: max(24px, env(safe-area-inset-bottom));
 }
-.login-box {
-  background: white;
-  border-radius: 18px;
-  padding: 36px 26px;
+.login-shell {
   width: 100%;
-  max-width: 380px;
-  box-shadow: 0 24px 70px rgba(4,44,83,0.35);
+  max-width: 940px;
+  display: grid;
+  grid-template-columns: 1fr;
+  background: var(--white);
+  border-radius: 26px;
+  overflow: hidden;
+  box-shadow: 0 30px 90px rgba(8,24,80,.45);
 }
-.login-logo { text-align: center; margin-bottom: 28px; }
-.login-logo img { width: 150px; max-width: 70%; height: auto; margin: 0 auto 10px; display: block; }
-.login-logo h1 { font-size: 36px; font-weight: 800; color: var(--navy); letter-spacing: -0.02em; }
-.login-logo .app-name { font-size: 20px; font-weight: 800; color: var(--navy); letter-spacing: -0.02em; margin-top: 2px; }
-.login-logo p { color: var(--text-light); font-size: 12.5px; margin-top: 6px; line-height: 1.45; }
-.login-title { font-size: 18px; font-weight: 700; margin-bottom: 20px; color: var(--text); }
+/* painel de marca (azul) com mascote */
+.login-brand {
+  position: relative;
+  background: var(--grad-brand);
+  color: #fff;
+  padding: 32px 26px 22px;
+  text-align: center;
+  overflow: hidden;
+}
+.login-brand::after {
+  content: ''; position: absolute; inset: 0;
+  background: radial-gradient(520px 260px at 82% 0%, rgba(255,255,255,.18), transparent 60%);
+  pointer-events: none;
+}
+.brand-logo-wrap {
+  display: inline-flex; align-items: center; justify-content: center;
+  background: #fff; border-radius: 16px; padding: 12px 18px;
+  box-shadow: 0 10px 24px rgba(0,0,0,.20);
+  position: relative; z-index: 1;
+}
+.brand-logo-wrap img { width: 118px; max-width: 54vw; height: auto; display: block; }
+.brand-tag {
+  font-size: 14.5px; font-weight: 600; line-height: 1.5;
+  opacity: .95; max-width: 340px; margin: 16px auto 4px;
+  position: relative; z-index: 1;
+}
+.login-mascote {
+  display: block; margin: 8px auto 0;
+  width: 220px; max-width: 72%; height: auto;
+  filter: drop-shadow(0 16px 26px rgba(0,0,0,.30));
+  position: relative; z-index: 1;
+}
+/* card de login (branco) */
+.login-box {
+  background: var(--white);
+  padding: 34px 26px;
+  padding-bottom: max(34px, env(safe-area-inset-bottom));
+  width: 100%;
+}
+.login-logo { text-align: center; margin-bottom: 22px; }
+.login-logo .app-name { font-size: 24px; font-weight: 800; color: var(--navy); letter-spacing: -0.02em; }
+.login-logo p { color: var(--text-light); font-size: 13px; margin-top: 6px; line-height: 1.45; }
+.login-title { font-size: 17px; font-weight: 700; margin-bottom: 18px; color: var(--text); text-align: center; }
+
+/* Desktop: lado a lado como no Portal do Fera */
+@media (min-width: 860px) {
+  .login-shell { grid-template-columns: 1.04fr .96fr; }
+  .login-brand {
+    padding: 48px 38px 0;
+    text-align: left;
+    display: flex; flex-direction: column;
+  }
+  .brand-tag { font-size: 23px; font-weight: 800; letter-spacing: -0.01em; max-width: none; margin: 26px 0 0; }
+  .login-mascote { width: 320px; max-width: 92%; margin: auto auto 0; }
+  .login-box { padding: 56px 48px; align-self: center; }
+  .login-logo { text-align: left; }
+  .login-title { text-align: left; }
+}
 
 /* ===== ENERGIA EMOJIS ===== */
 .energia-wrap { display: flex; gap: 8px; justify-content: center; margin: 12px 0; }

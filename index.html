@@ -9,35 +9,43 @@
   <title>Sfera · Super em Ação</title>
   <link rel="icon" type="image/png" href="img/sfera-logo.png">
   <link rel="apple-touch-icon" href="img/sfera-logo.png">
-  <meta name="theme-color" content="#042C53">
+  <meta name="theme-color" content="#0E2A86">
   <link rel="preconnect" href="https://fonts.googleapis.com">
-  <link rel="stylesheet" href="css/style.css?v=20260921">
+  <link rel="stylesheet" href="css/style.css?v=20261023">
 </head>
 <body>
 <div class="login-wrap">
-  <div class="login-box">
-    <div class="login-logo">
-      <img src="img/sfera-logo.png" alt="Sfera Multifranquias">
-      <div class="app-name">Super em Ação</div>
-      <p>Supervisão orientada por inteligência de dados</p>
-    </div>
+  <div class="login-shell">
+    <aside class="login-brand">
+      <span class="brand-logo-wrap"><img src="img/sfera-logo.png" alt="Sfera Multifranquias"></span>
+      <p class="brand-tag">Um só portal para a supervisão Sfera.</p>
+      <img class="login-mascote" src="img/mascote-sfera.png" alt="Mascote Sfera" onerror="this.style.display='none'">
+    </aside>
 
-    <div id="step-email">
-      <p class="login-title">Qual é o seu e-mail?</p>
-      <div class="form-group">
-        <input type="email" id="email-input" class="form-control" placeholder="seu@email.com" autocomplete="email">
+    <div class="login-box">
+      <div class="login-logo">
+        <div class="app-name">Super em Ação</div>
+        <p>Supervisão orientada por inteligência de dados</p>
       </div>
-      <button class="btn btn-primary btn-full" onclick="checkEmail()">Entrar</button>
-    </div>
 
-    <div id="step-loading" style="display:none" class="loader">
-      <div class="spinner"></div>
-      <p>Verificando...</p>
-    </div>
+      <div id="step-email">
+        <p class="login-title">Bem-vinda! Faça seu login</p>
+        <div class="form-group">
+          <label class="form-label" for="email-input">E-mail de acesso</label>
+          <input type="email" id="email-input" class="form-control" placeholder="seu@email.com" autocomplete="email">
+        </div>
+        <button class="btn btn-primary btn-full" onclick="checkEmail()">Entrar</button>
+      </div>
 
-    <div id="step-erro" style="display:none">
-      <p style="color:#dc3545;margin-bottom:16px;text-align:center;">❌ E-mail não encontrado no sistema.</p>
-      <button class="btn btn-secondary btn-full" onclick="voltarLogin()">Tentar novamente</button>
+      <div id="step-loading" style="display:none" class="loader">
+        <div class="spinner"></div>
+        <p>Verificando...</p>
+      </div>
+
+      <div id="step-erro" style="display:none">
+        <p style="color:var(--danger);margin-bottom:16px;text-align:center;font-weight:600;">E-mail não encontrado no sistema.</p>
+        <button class="btn btn-secondary btn-full" onclick="voltarLogin()">Tentar novamente</button>
+      </div>
     </div>
   </div>
 </div>
