@@ -612,8 +612,8 @@
           <input type="date" class="form-control" id="comb-data">
         </div>
         <div>
-          <label class="form-label">Loja (opcional)</label>
-          <select class="form-control" id="comb-loja"><option value="">—</option></select>
+          <label class="form-label">Loja da gerente</label>
+          <select class="form-control" id="comb-loja"><option value="">Selecione a loja...</option></select>
         </div>
       </div>
       <button class="btn btn-primary btn-full" style="margin-top:12px;" onclick="salvarCombinado()" id="btn-salvar-comb">Salvar combinado</button>
@@ -1863,7 +1863,7 @@ async function irCombinados(){
   mostrarTela('tela-combinados');
   if(!lojas.length) await carregarLojas();
   const sel=document.getElementById('comb-loja');
-  sel.innerHTML='<option value="">—</option>'+lojas.map(l=>`<option value="${l.id}">${l.nome}</option>`).join('');
+  sel.innerHTML='<option value="">Selecione a loja...</option>'+lojas.map(l=>`<option value="${l.id}">${l.nome}</option>`).join('');
   document.getElementById('comb-titulo').value='';
   document.getElementById('comb-data').value='';
   await carregarCombinados();
@@ -1907,6 +1907,7 @@ async function salvarCombinado(){
   const data=document.getElementById('comb-data').value;
   const lojaId=document.getElementById('comb-loja').value||null;
   if(!titulo){ showToast('Escreva ou fale o combinado','error'); return; }
+  if(!lojaId){ showToast('Selecione a loja da gerente','error'); return; }
   if(!data){ showToast('Escolha a data do combinado','error'); return; }
   const btn=document.getElementById('btn-salvar-comb'); btn.disabled=true; btn.textContent='Salvando...';
   const tipo=detectarTipoCombinado(titulo).tag;
