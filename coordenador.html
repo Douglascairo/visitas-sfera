@@ -59,6 +59,7 @@
     <button class="tab-btn" onclick="mudarTab('metricas')">Métricas</button>
     <button class="tab-btn" onclick="mudarTab('checklists')">Checklists</button>
     <button class="tab-btn" onclick="mudarTab('planos')">TO DO</button>
+    <button class="tab-btn" onclick="mudarTab('combinados')">Combinados</button>
     <button class="tab-btn" onclick="mudarTab('campo')">Demandas de Campo</button>
   </div>
 
@@ -157,6 +158,27 @@
       </select>
     </div>
     <div id="lista-planos"><div class="loader"><div class="spinner"></div></div></div>
+  </div>
+
+  <!-- ======== TAB: COMBINADOS (consolidado) ======== -->
+  <div id="tab-combinados" style="display:none">
+    <div style="margin-bottom:8px;">
+      <select class="form-control" id="comb-sup" onchange="renderCombCoordCal()">
+        <option value="">Todas as supervisoras</option>
+      </select>
+    </div>
+    <div class="card">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;">
+        <button class="btn btn-secondary btn-sm" onclick="combCoordMudarMes(-1)">←</button>
+        <div style="font-size:16px;font-weight:800;" id="comb-coord-titulo"></div>
+        <button class="btn btn-secondary btn-sm" onclick="combCoordMudarMes(1)">→</button>
+      </div>
+      <div id="comb-coord-grid"></div>
+    </div>
+    <div class="card">
+      <div class="card-title">📋 Combinados do mês</div>
+      <div id="comb-coord-lista"></div>
+    </div>
   </div>
 
   <!-- ======== TAB: DEMANDAS DE CAMPO ======== -->
@@ -352,7 +374,7 @@ function garantirMesAtual(ids){
 }
 
 function mudarTab(tab) {
-  ['visitas','rota','metricas','checklists','planos','campo'].forEach((t,i)=>{
+  ['visitas','rota','metricas','checklists','planos','combinados','campo'].forEach((t,i)=>{
     document.getElementById('tab-'+t).style.display=t===tab?'':'none';
     document.querySelectorAll('.tab-btn')[i].classList.toggle('active',t===tab);
   });
@@ -360,7 +382,63 @@ function mudarTab(tab) {
   if(tab==='checklists') carregarChecklists();
   if(tab==='rota') carregarRotas();
   if(tab==='planos') carregarPlanos();
+  if(tab==='combinados') carregarCombinadosCoord();
   if(tab==='campo') carregarDemandasCampo();
+}
+
+// ===== COMBINADOS (consolidado) =====
+let combinadosCoord=[];
+let combCoordRef=new Date();
+function _normC(s){ return (s||'').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g,''); }
+const COMB_TIPOS_C=[
+  {tag:'ferias',icon:'🏖️',kws:['ferias']},
+  {tag:'folga',icon:'🌴',kws:['folga','day off','dayoff','abono','compensar']},
+  {tag:'saude',icon:'🩺',kws:['atestado','medico','consulta','cirurgia','licenca','exame','saude']},
+  {tag:'evento',icon:'🎉',kws:['casamento','aniversario','formatura','viagem','festa','evento','luto','velorio']},
+  {tag:'treinamento',icon:'📚',kws:['treinamento','treino','curso','convencao','workshop','capacitac']},
+  {tag:'campanha',icon:'📣',kws:['campanha','lancamento','black','natal','dia das maes','dia dos pais','promoc']},
+  {tag:'reuniao',icon:'🤝',kws:['reuniao','alinhamento','feedback','conversa']},
+];
+function detectarTipoCombC(txt){ const t=_normC(txt); for(const c of COMB_TIPOS_C){ if(c.kws.some(k=>t.includes(_normC(k)))) return c; } return {tag:'outro',icon:'📌'}; }
+const COMB_MESES_C=['Janeiro','Fevereiro','Março','Abril','Maio','Junho','Julho','Agosto','Setembro','Outubro','Novembro','Dezembro'];
+
+async function carregarCombinadosCoord(){
+  document.getElementById('comb-coord-grid').innerHTML='<div class="loader"><div class="spinner"></div></div>';
+  const {data,error}=await db.from('combinados').select('*,supervisoras(nome,nome_curto),lojas(nome)').order('data',{ascending:true});
+  if(error){ document.getElementById('comb-coord-grid').innerHTML='<p style="color:#dc3545;">Erro ao carregar.</p>'; return; }
+  combinadosCoord=data||[];
+  combCoordRef=new Date();
+  renderCombCoordCal();
+}
+function combCoordMudarMes(d){ combCoordRef.setMonth(combCoordRef.getMonth()+d); renderCombCoordCal(); }
+function renderCombCoordCal(){
+  const supId=document.getElementById('comb-sup').value;
+  const lista=supId?combinadosCoord.filter(c=>c.supervisora_id===supId):combinadosCoord;
+  const ano=combCoordRef.getFullYear(), mes=combCoordRef.getMonth();
+  document.getElementById('comb-coord-titulo').textContent=`${COMB_MESES_C[mes]} ${ano}`;
+  const diaSemInicio=new Date(ano,mes,1).getDay();
+  const totalDias=new Date(ano,mes+1,0).getDate();
+  const hojeStr=new Date().toISOString().split('T')[0];
+  const porDia={};
+  lista.forEach(c=>{ const d=new Date(c.data+'T00:00:00'); if(d.getFullYear()===ano&&d.getMonth()===mes)(porDia[d.getDate()]=porDia[d.getDate()]||[]).push(c); });
+  const DOW=['D','S','T','Q','Q','S','S'];
+  let html='<div style="display:grid;grid-template-columns:repeat(7,1fr);gap:4px;">';
+  html+=DOW.map(d=>`<div style="text-align:center;font-size:11px;font-weight:700;color:var(--text-3);padding:4px 0;">${d}</div>`).join('');
+  for(let i=0;i<diaSemInicio;i++) html+='<div></div>';
+  for(let dia=1;dia<=totalDias;dia++){
+    const dataStr=`${ano}-${String(mes+1).padStart(2,'0')}-${String(dia).padStart(2,'0')}`;
+    const tem=porDia[dia]; const hoje=dataStr===hojeStr;
+    html+=`<div style="min-height:52px;border-radius:8px;border:1px solid ${hoje?'var(--sfera)':'var(--border)'};background:${tem?'var(--sfera-light)':'#fff'};padding:4px;">
+      <div style="font-size:11px;font-weight:${hoje?'800':'600'};color:${hoje?'var(--sfera-dark)':'var(--text)'};">${dia}</div>
+      ${tem?`<div style="font-size:13px;line-height:1.15;margin-top:2px;">${tem.slice(0,4).map(c=>detectarTipoCombC(c.titulo).icon).join('')}</div>`:''}
+    </div>`;
+  }
+  html+='</div>';
+  document.getElementById('comb-coord-grid').innerHTML=html;
+  const doMes=lista.filter(c=>{ const d=new Date(c.data+'T00:00:00'); return d.getFullYear()===ano&&d.getMonth()===mes; }).sort((a,b)=>a.data.localeCompare(b.data));
+  const el=document.getElementById('comb-coord-lista');
+  if(doMes.length===0){ el.innerHTML='<div class="empty" style="padding:20px;"><p style="color:var(--text-light);">Nenhum combinado neste mês.</p></div>'; return; }
+  el.innerHTML=doMes.map(c=>{ const tipo=detectarTipoCombC(c.titulo); const d=new Date(c.data+'T00:00:00'); const sup=c.supervisoras?.nome_curto||c.supervisoras?.nome||'?'; return `<div style="display:flex;gap:8px;align-items:center;padding:8px 10px;background:var(--bg);border-radius:8px;margin-bottom:6px;"><div style="font-size:20px;">${tipo.icon}</div><div style="flex:1;"><div style="font-weight:700;font-size:13px;">${c.titulo}</div><div style="font-size:11px;color:var(--text-light);">📅 ${d.toLocaleDateString('pt-BR')} · 👤 ${sup}${c.lojas?.nome?' · 🏪 '+c.lojas.nome:''}</div></div></div>`; }).join('');
 }
 
 // ===== Ditado por voz (Web Speech API, pt-BR) =====
@@ -386,7 +464,7 @@ function ditarPara(id, btn){
 async function carregarSupervisoras() {
   const {data}=await db.from('supervisoras').select('*').eq('ativo',true).order('nome');
   supervisoras=data||[];
-  ['filtro-sup','rota-sup','met-sup','cl-filtro-sup','planos-sup'].forEach(selId=>{
+  ['filtro-sup','rota-sup','met-sup','cl-filtro-sup','planos-sup','comb-sup'].forEach(selId=>{
     const sel=document.getElementById(selId);
     data.forEach(s=>{const opt=document.createElement('option');opt.value=s.id;opt.textContent=s.nome;sel.appendChild(opt);});
   });
