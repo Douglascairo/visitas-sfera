@@ -169,6 +169,9 @@
     <!-- Alerta de revisitas -->
     <div id="alerta-revisitas" style="display:none;"></div>
 
+    <!-- Alerta de combinados chegando (≤7 dias) -->
+    <div id="alerta-combinados" style="display:none;"></div>
+
     <!-- Tipo de dia / para onde vai hoje -->
     <div class="card" id="card-tipo-dia">
       <div class="card-title">📍 Para onde você vai hoje?</div>
@@ -212,6 +215,18 @@
         <div style="flex:1;">
           <div style="font-size:15px;font-weight:800;">Meus TO DO</div>
           <div style="font-size:12px;opacity:0.9;margin-top:2px;">Tarefas, prazos, pendências e concluídos em cada loja</div>
+        </div>
+        <div style="font-size:22px;">→</div>
+      </div>
+    </div>
+
+    <!-- Meus Combinados -->
+    <div class="card" style="background:linear-gradient(135deg,#0E2A86 0%,#1557D6 100%);color:white;cursor:pointer;border:none;" onclick="irCombinados()">
+      <div style="display:flex;align-items:center;gap:14px;">
+        <div style="font-size:34px;">🤝</div>
+        <div style="flex:1;">
+          <div style="font-size:15px;font-weight:800;">Meus Combinados</div>
+          <div style="font-size:12px;opacity:0.9;margin-top:2px;">Férias, folgas e acordos com as gerentes — com aviso 1 semana antes</div>
         </div>
         <div style="font-size:22px;">→</div>
       </div>
@@ -575,6 +590,62 @@
     <button class="btn btn-secondary btn-full" style="margin-top:10px;" onclick="abrirNovaVisita()">+ Nova visita</button>
   </div>
 
+  <!-- TELA: MEUS COMBINADOS -->
+  <div id="tela-combinados" style="display:none">
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px;">
+      <div style="display:flex;align-items:center;gap:10px;">
+        <button onclick="irHome()" style="background:none;border:none;font-size:22px;cursor:pointer;padding:4px;">←</button>
+        <div style="font-size:18px;font-weight:800;">🤝 Meus Combinados</div>
+      </div>
+      <button class="btn btn-secondary btn-sm" onclick="irCalendarioCombinados()">📅 Calendário</button>
+    </div>
+
+    <div class="card">
+      <div class="card-title">➕ Novo combinado</div>
+      <label class="form-label">O que foi combinado?</label>
+      <textarea class="form-control" id="comb-titulo" placeholder="Ex: Férias da gerente em março · Folga dia 20 pro casamento... (ou toque no 🎤 e fale)"></textarea>
+      <button type="button" class="btn btn-secondary btn-sm btn-mic" style="margin-top:6px;" data-label="🎤 Falar" onclick="ditarPara('comb-titulo',this)">🎤 Falar</button>
+
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:12px;">
+        <div>
+          <label class="form-label">Data do combinado</label>
+          <input type="date" class="form-control" id="comb-data">
+        </div>
+        <div>
+          <label class="form-label">Loja (opcional)</label>
+          <select class="form-control" id="comb-loja"><option value="">—</option></select>
+        </div>
+      </div>
+      <button class="btn btn-primary btn-full" style="margin-top:12px;" onclick="salvarCombinado()" id="btn-salvar-comb">Salvar combinado</button>
+      <div style="font-size:11px;color:var(--text-light);margin-top:8px;">💡 O app te avisa aqui na tela inicial <strong>1 semana antes</strong> de cada combinado.</div>
+    </div>
+
+    <div class="card">
+      <div class="card-title">📋 Próximos combinados</div>
+      <div id="lista-combinados"><div class="loader"><div class="spinner"></div></div></div>
+    </div>
+  </div>
+
+  <!-- TELA: CALENDÁRIO DE COMBINADOS -->
+  <div id="tela-combinados-cal" style="display:none">
+    <div style="display:flex;align-items:center;gap:10px;margin-bottom:16px;">
+      <button onclick="irCombinados()" style="background:none;border:none;font-size:22px;cursor:pointer;padding:4px;">←</button>
+      <div style="font-size:18px;font-weight:800;">📅 Calendário de Combinados</div>
+    </div>
+    <div class="card">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;">
+        <button class="btn btn-secondary btn-sm" onclick="combMudarMes(-1)">←</button>
+        <div style="font-size:16px;font-weight:800;" id="comb-cal-titulo"></div>
+        <button class="btn btn-secondary btn-sm" onclick="combMudarMes(1)">→</button>
+      </div>
+      <div id="comb-cal-grid"></div>
+    </div>
+    <div class="card">
+      <div class="card-title">📋 Combinados do mês</div>
+      <div id="comb-cal-lista"></div>
+    </div>
+  </div>
+
 </div><!-- /container -->
 
 <!-- MODAL: Checklist -->
@@ -729,6 +800,7 @@ window.addEventListener('DOMContentLoaded', async () => {
   await carregarVisitasHoje();
   await carregarHistorico('semana');
   carregarAlertasRevisita();
+  carregarAlertasCombinados();
   carregarContadores();
   mostrarPopupRevisitas();
 });
@@ -737,7 +809,7 @@ window.addEventListener('DOMContentLoaded', async () => {
 // NAVEGAÇÃO
 // ==============================
 function mostrarTela(id) {
-  ['tela-home','tela-selecionar-loja','tela-prioridade','tela-historico-cl','tela-demanda','tela-painel-demandas','tela-agenda','tela-plano-revisao','tela-energia','tela-visita','tela-encerrar','tela-encerrada']
+  ['tela-home','tela-selecionar-loja','tela-prioridade','tela-historico-cl','tela-demanda','tela-painel-demandas','tela-agenda','tela-plano-revisao','tela-energia','tela-visita','tela-encerrar','tela-encerrada','tela-combinados','tela-combinados-cal']
     .forEach(t => document.getElementById(t).style.display = t===id ? '':'none');
   window.scrollTo(0,0);
 }
@@ -1765,6 +1837,156 @@ async function verDetalhesHist(visitaId) {
   document.getElementById('modal-hist').style.display='';
 }
 function fecharModalHist(){document.getElementById('modal-hist').style.display='none';}
+
+// ==============================
+// MEUS COMBINADOS
+// ==============================
+let combinados=[];
+let combCalRef=new Date();
+
+const COMB_TIPOS=[
+  {tag:'ferias',      icon:'🏖️', kws:['ferias']},
+  {tag:'folga',       icon:'🌴', kws:['folga','day off','dayoff','abono','compensar']},
+  {tag:'saude',       icon:'🩺', kws:['atestado','medico','consulta','cirurgia','licenca','exame','saude']},
+  {tag:'evento',      icon:'🎉', kws:['casamento','aniversario','formatura','viagem','festa','evento','luto','velorio']},
+  {tag:'treinamento', icon:'📚', kws:['treinamento','treino','curso','convencao','workshop','capacitac']},
+  {tag:'campanha',    icon:'📣', kws:['campanha','lancamento','black','natal','dia das maes','dia dos pais','promoc']},
+  {tag:'reuniao',     icon:'🤝', kws:['reuniao','alinhamento','feedback','conversa']},
+];
+function detectarTipoCombinado(txt){
+  const t=_norm(txt);
+  for(const c of COMB_TIPOS){ if(c.kws.some(k=>t.includes(_norm(k)))) return c; }
+  return {tag:'outro', icon:'📌'};
+}
+
+async function irCombinados(){
+  mostrarTela('tela-combinados');
+  if(!lojas.length) await carregarLojas();
+  const sel=document.getElementById('comb-loja');
+  sel.innerHTML='<option value="">—</option>'+lojas.map(l=>`<option value="${l.id}">${l.nome}</option>`).join('');
+  document.getElementById('comb-titulo').value='';
+  document.getElementById('comb-data').value='';
+  await carregarCombinados();
+}
+
+async function carregarCombinados(){
+  const el=document.getElementById('lista-combinados');
+  const {data,error}=await db.from('combinados').select('*,lojas(nome)').eq('supervisora_id',usuario.id).order('data',{ascending:true});
+  if(error){ el.innerHTML='<p style="color:var(--danger);font-size:13px;">Erro ao carregar.</p>'; return; }
+  combinados=data||[];
+  if(combinados.length===0){ el.innerHTML='<div class="empty"><div class="empty-icon">🤝</div><p>Nenhum combinado cadastrado ainda.</p></div>'; return; }
+  const hoje=new Date(); hoje.setHours(0,0,0,0);
+  const futuros=combinados.filter(c=>new Date(c.data+'T00:00:00')>=hoje);
+  const passados=combinados.filter(c=>new Date(c.data+'T00:00:00')<hoje).reverse();
+  const render=(c)=>{
+    const d=new Date(c.data+'T00:00:00');
+    const dias=Math.round((d-hoje)/86400000);
+    const tipo=detectarTipoCombinado(c.titulo);
+    const prox=dias>=0&&dias<=7;
+    const dataFmt=d.toLocaleDateString('pt-BR',{day:'2-digit',month:'2-digit',year:'numeric'});
+    let quando;
+    if(dias<0) quando=`<span style="color:var(--text-3);">há ${Math.abs(dias)} dia(s)</span>`;
+    else if(dias===0) quando=`<span style="color:var(--danger);font-weight:700;">é hoje!</span>`;
+    else quando=`<span style="color:${prox?'var(--danger)':'var(--text-light)'};font-weight:${prox?'700':'400'};">em ${dias} dia(s)</span>`;
+    return `<div style="display:flex;gap:10px;align-items:flex-start;padding:12px;border-radius:10px;border:1px solid ${prox?'var(--sfera)':'var(--border)'};background:${prox?'var(--sfera-light)':'#fff'};margin-bottom:8px;">
+      <div style="font-size:24px;flex-shrink:0;">${tipo.icon}</div>
+      <div style="flex:1;">
+        <div style="font-weight:700;font-size:14px;">${c.titulo}</div>
+        <div style="font-size:12px;color:var(--text-light);margin-top:3px;">📅 ${dataFmt} · ${quando}${c.lojas?.nome?' · 🏪 '+c.lojas.nome:''}</div>
+      </div>
+      <button class="btn-del" onclick="deletarCombinado('${c.id}')">✕</button>
+    </div>`;
+  };
+  let html=futuros.map(render).join('');
+  if(passados.length) html+=`<div style="font-size:11px;font-weight:700;color:var(--text-3);margin:12px 0 6px;text-transform:uppercase;">Já aconteceram</div>`+passados.map(render).join('');
+  el.innerHTML=html;
+}
+
+async function salvarCombinado(){
+  const titulo=document.getElementById('comb-titulo').value.trim();
+  const data=document.getElementById('comb-data').value;
+  const lojaId=document.getElementById('comb-loja').value||null;
+  if(!titulo){ showToast('Escreva ou fale o combinado','error'); return; }
+  if(!data){ showToast('Escolha a data do combinado','error'); return; }
+  const btn=document.getElementById('btn-salvar-comb'); btn.disabled=true; btn.textContent='Salvando...';
+  const tipo=detectarTipoCombinado(titulo).tag;
+  const {error}=await db.from('combinados').insert({supervisora_id:usuario.id, loja_id:lojaId, titulo, data, tipo});
+  btn.disabled=false; btn.textContent='Salvar combinado';
+  if(error){ showToast('Erro ao salvar: '+error.message,'error'); return; }
+  document.getElementById('comb-titulo').value='';
+  document.getElementById('comb-data').value='';
+  document.getElementById('comb-loja').value='';
+  showToast('✅ Combinado salvo!','success');
+  await carregarCombinados();
+}
+
+async function deletarCombinado(id){
+  if(!confirm('Excluir este combinado?')) return;
+  await db.from('combinados').delete().eq('id',id);
+  combinados=combinados.filter(c=>c.id!==id);
+  await carregarCombinados();
+  if(document.getElementById('tela-combinados-cal').style.display!=='none') renderCalendarioCombinados();
+}
+
+// Aviso na home: combinados nos próximos 7 dias
+async function carregarAlertasCombinados(){
+  try{
+    const hoje=new Date(); hoje.setHours(0,0,0,0);
+    const em7=new Date(hoje); em7.setDate(em7.getDate()+7);
+    const iso=d=>`${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+    const {data}=await db.from('combinados').select('*,lojas(nome)').eq('supervisora_id',usuario.id).gte('data',iso(hoje)).lte('data',iso(em7)).order('data',{ascending:true});
+    const el=document.getElementById('alerta-combinados');
+    if(!el) return;
+    if(!data||data.length===0){ el.style.display='none'; return; }
+    const itens=data.map(c=>{
+      const d=new Date(c.data+'T00:00:00');
+      const dias=Math.round((d-hoje)/86400000);
+      const tipo=detectarTipoCombinado(c.titulo);
+      const quando=dias===0?'hoje':`em ${dias} dia(s)`;
+      return `<div style="font-size:13px;margin-top:6px;">${tipo.icon} <strong>${c.titulo}</strong> — ${d.toLocaleDateString('pt-BR',{day:'2-digit',month:'2-digit'})} (${quando})</div>`;
+    }).join('');
+    el.innerHTML=`<div class="card" onclick="irCombinados()" style="cursor:pointer;background:#fff4e5;border:1.5px solid #f0a33c;">
+      <div style="font-weight:800;color:#8a5200;display:flex;align-items:center;gap:8px;">⏰ Combinados chegando (próx. 7 dias)</div>
+      ${itens}
+      <div style="font-size:11px;color:#8a5200;margin-top:8px;">Toque para ver todos →</div>
+    </div>`;
+    el.style.display='';
+  }catch(e){ console.log('alerta combinados',e); }
+}
+
+// ===== Calendário de combinados =====
+const COMB_MESES=['Janeiro','Fevereiro','Março','Abril','Maio','Junho','Julho','Agosto','Setembro','Outubro','Novembro','Dezembro'];
+function irCalendarioCombinados(){ mostrarTela('tela-combinados-cal'); combCalRef=new Date(); renderCalendarioCombinados(); }
+function combMudarMes(delta){ combCalRef.setMonth(combCalRef.getMonth()+delta); renderCalendarioCombinados(); }
+async function renderCalendarioCombinados(){
+  if(!combinados.length){ const {data}=await db.from('combinados').select('*,lojas(nome)').eq('supervisora_id',usuario.id); combinados=data||[]; }
+  const ano=combCalRef.getFullYear(), mes=combCalRef.getMonth();
+  document.getElementById('comb-cal-titulo').textContent=`${COMB_MESES[mes]} ${ano}`;
+  const diaSemInicio=new Date(ano,mes,1).getDay();
+  const totalDias=new Date(ano,mes+1,0).getDate();
+  const hojeStr=new Date().toISOString().split('T')[0];
+  const porDia={};
+  combinados.forEach(c=>{ const d=new Date(c.data+'T00:00:00'); if(d.getFullYear()===ano&&d.getMonth()===mes) (porDia[d.getDate()]=porDia[d.getDate()]||[]).push(c); });
+  const DOW=['D','S','T','Q','Q','S','S'];
+  let html='<div style="display:grid;grid-template-columns:repeat(7,1fr);gap:4px;">';
+  html+=DOW.map(d=>`<div style="text-align:center;font-size:11px;font-weight:700;color:var(--text-3);padding:4px 0;">${d}</div>`).join('');
+  for(let i=0;i<diaSemInicio;i++) html+='<div></div>';
+  for(let dia=1;dia<=totalDias;dia++){
+    const dataStr=`${ano}-${String(mes+1).padStart(2,'0')}-${String(dia).padStart(2,'0')}`;
+    const temComb=porDia[dia];
+    const hoje=dataStr===hojeStr;
+    html+=`<div style="min-height:46px;border-radius:8px;border:1px solid ${hoje?'var(--sfera)':'var(--border)'};background:${temComb?'var(--sfera-light)':'#fff'};padding:4px;">
+      <div style="font-size:11px;font-weight:${hoje?'800':'600'};color:${hoje?'var(--sfera-dark)':'var(--text)'};">${dia}</div>
+      ${temComb?`<div style="font-size:13px;line-height:1.1;margin-top:2px;">${temComb.slice(0,3).map(c=>detectarTipoCombinado(c.titulo).icon).join('')}</div>`:''}
+    </div>`;
+  }
+  html+='</div>';
+  document.getElementById('comb-cal-grid').innerHTML=html;
+  const doMes=combinados.filter(c=>{ const d=new Date(c.data+'T00:00:00'); return d.getFullYear()===ano&&d.getMonth()===mes; }).sort((a,b)=>a.data.localeCompare(b.data));
+  const elLista=document.getElementById('comb-cal-lista');
+  if(doMes.length===0){ elLista.innerHTML='<div class="empty" style="padding:20px;"><p style="color:var(--text-light);">Nenhum combinado neste mês.</p></div>'; return; }
+  elLista.innerHTML=doMes.map(c=>{ const tipo=detectarTipoCombinado(c.titulo); const d=new Date(c.data+'T00:00:00'); return `<div style="display:flex;gap:8px;align-items:center;padding:8px 10px;background:var(--bg);border-radius:8px;margin-bottom:6px;"><div style="font-size:20px;">${tipo.icon}</div><div style="flex:1;"><div style="font-weight:700;font-size:13px;">${c.titulo}</div><div style="font-size:11px;color:var(--text-light);">📅 ${d.toLocaleDateString('pt-BR')}${c.lojas?.nome?' · 🏪 '+c.lojas.nome:''}</div></div></div>`; }).join('');
+}
 
 // ==============================
 // NOVA VISITA

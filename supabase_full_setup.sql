@@ -128,6 +128,20 @@ CREATE POLICY "allow_all" ON checklist_respostas FOR ALL USING (true) WITH CHECK
 CREATE POLICY "allow_all" ON dias_supervisora    FOR ALL USING (true) WITH CHECK (true);
 CREATE POLICY "allow_all" ON plano_acao_revisao  FOR ALL USING (true) WITH CHECK (true);
 
+-- Meus Combinados (férias, folgas e acordos da supervisora com as gerentes)
+CREATE TABLE IF NOT EXISTS combinados (
+  id uuid DEFAULT gen_random_uuid() PRIMARY KEY,
+  supervisora_id uuid REFERENCES supervisoras(id),
+  loja_id uuid REFERENCES lojas(id),
+  titulo text NOT NULL,
+  data date NOT NULL,
+  tipo text,
+  created_at timestamptz DEFAULT now()
+);
+CREATE INDEX IF NOT EXISTS idx_combinados_sup_data ON combinados (supervisora_id, data);
+ALTER TABLE combinados ENABLE ROW LEVEL SECURITY;
+CREATE POLICY "allow_all" ON combinados FOR ALL USING (true) WITH CHECK (true);
+
 -- ============ SUPERVISORAS ============
 INSERT INTO supervisoras (nome, nome_curto, email, endereco_residencial, cidade_residencial) VALUES
   ('Juliana Cantieri', 'CANTIERI', 'juliana.cantieri@franquiasboticario.com', 'Rua Morais e Castro, 165, ap 201, Alto dos Passos', 'Juiz de Fora'),
