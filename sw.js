@@ -11,7 +11,7 @@
  * (ex.: v3) para limpar a reserva offline antiga. Como é network-first,
  * quem está online já pega o novo mesmo sem bumpar.
  */
-const CACHE = 'super-em-acao-v2';
+const CACHE = 'super-em-acao-v3';
 
 // Arquivos essenciais para o app abrir offline (best-effort).
 const CORE = [
@@ -53,9 +53,13 @@ self.addEventListener('fetch', (event) => {
   const url = new URL(req.url);
   if (url.origin !== self.location.origin) return;
 
+  // Páginas (HTML): busca SEMPRE fresco da rede (sem cache HTTP), p/ garantir a versão nova.
+  const isDoc = req.mode === 'navigate' || (req.headers.get('accept') || '').includes('text/html');
+  const netReq = isDoc ? new Request(req.url, { cache: 'no-store' }) : req;
+
   // NETWORK-FIRST: tenta a rede; atualiza o cache; se falhar, usa o cache.
   event.respondWith(
-    fetch(req)
+    fetch(netReq)
       .then((res) => {
         if (res && res.ok) {
           const copy = res.clone();
