@@ -25,6 +25,7 @@
     }
   </script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
   <style>
     .btn-mic.rec-on { background:#dc3545 !important; color:#fff !important; border-color:#dc3545 !important; animation:micpulse 1s infinite; }
     @keyframes micpulse { 0%,100%{ box-shadow:0 0 0 0 rgba(220,53,69,.5);} 50%{ box-shadow:0 0 0 6px rgba(220,53,69,0);} }
@@ -560,7 +561,7 @@
         <label class="form-label">E-mail da gerente (opcional)</label>
         <input type="email" id="email-gerente" class="form-control" placeholder="gerente@email.com">
       </div>
-      <button class="btn btn-secondary btn-full btn-sm" onclick="exportarPDF()">📄 Exportar / Imprimir resumo</button>
+      <button class="btn btn-secondary btn-full btn-sm" onclick="baixarPdfResumo(this)">📄 Baixar PDF do resumo</button>
     </div>
 
     <div class="card">
@@ -586,8 +587,10 @@
     <div class="card" style="border-left:4px solid #25D366;">
       <div style="font-weight:800;font-size:14px;margin-bottom:4px;">📤 Resumo para a gerente</div>
       <div style="font-size:12px;color:var(--text-light);margin-bottom:12px;">Envie o resumo da visita com os TO DO para a gerente acompanhar.</div>
-      <button class="btn btn-full" style="background:#25D366;color:#fff;border:none;" onclick="compartilharResumoWhats()">📲 Enviar no WhatsApp</button>
-      <button class="btn btn-secondary btn-full" style="margin-top:8px;" onclick="copiarResumoGerente()">📋 Copiar resumo</button>
+      <button class="btn btn-full" style="background:var(--grad-primary);color:#fff;border:none;" onclick="compartilharResumoPdf(this)">📄 Enviar resumo em PDF</button>
+      <div style="font-size:10px;color:var(--text-light);margin-top:6px;text-align:center;">Abre o compartilhamento do celular — escolha WhatsApp ou e-mail (o PDF vai anexado).</div>
+      <button class="btn btn-full" style="margin-top:10px;background:#25D366;color:#fff;border:none;" onclick="compartilharResumoWhats()">📲 WhatsApp (texto rápido)</button>
+      <button class="btn btn-secondary btn-full" style="margin-top:8px;" onclick="copiarResumoGerente()">📋 Copiar texto</button>
     </div>
     <button class="btn btn-primary btn-full" onclick="irHome()">Voltar ao início</button>
     <button class="btn btn-secondary btn-full" style="margin-top:10px;" onclick="abrirNovaVisita()">+ Nova visita</button>
@@ -4060,6 +4063,89 @@ function gerarResumoGerente(){
   t+=`\n_Enviado via Sfera · Super em Ação_`;
   return t;
 }
+// ===== PDF do resumo (html2pdf) =====
+function _escPdf(s){ return (s==null?'':String(s)).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+function montarResumoPdfHTML(){
+  const info=ENERGIA_INFO[energiaSelecionada]||{};
+  const dataStr=new Date().toLocaleDateString('pt-BR');
+  const loja=lojaSelecionada||{};
+  const esc=_escPdf;
+  const todosHtml=registros.map(r=>{
+    const areas=_tagsDeRegistro(r).map(t=>`<span style="background:#EAF2FF;color:#0E2A86;border:1px solid #cfe0fb;border-radius:20px;padding:1px 8px;font-weight:700;">${TAG_MAP[t]?.icon||''} ${CAT_INFO[t]?.label||t}</span>`).join(' ');
+    const pr=r.prioridade?PRIORIDADE_INFO[r.prioridade]:null;
+    const prazo=r.data_revisita?` · 📅 prazo ${r.data_revisita.split('-').reverse().join('/')}`:'';
+    const custo=r.custo_estimado?` · 💰 R$ ${Number(r.custo_estimado).toFixed(2).replace('.',',')}`:'';
+    const kpi=(r.resultado_atual||r.meta)?` · <span style="background:#e9f8ef;color:#0f5132;border-radius:6px;padding:1px 7px;font-weight:700;">📊 Hoje ${esc(r.resultado_atual||'—')} → 🎯 Meta ${esc(r.meta||'—')}</span>`:'';
+    return `<div style="display:flex;gap:10px;padding:10px 12px;border:1px solid #DCE4F0;border-radius:10px;margin-bottom:8px;">
+      <div style="width:16px;height:16px;border:2px solid #1C7DF0;border-radius:4px;flex-shrink:0;margin-top:1px;"></div>
+      <div style="flex:1;"><div style="font-size:12.5px;font-weight:700;">${esc(r.descricao)}</div>
+      <div style="font-size:10.5px;color:#51607A;margin-top:4px;">${areas} ${pr?`<span style="font-weight:700;">${pr.i} ${pr.l}</span>`:''}${prazo}${custo}${kpi}</div></div>
+    </div>`;
+  }).join('') || '<div style="font-size:12px;color:#51607A;">Nenhum TO DO registrado.</div>';
+  const aindaPend=(planosAnteriores||[]).filter(p=>revisaoPlano[p.id]!=='concluido');
+  const concl=(planosAnteriores||[]).filter(p=>revisaoPlano[p.id]==='concluido');
+  const secTitle=(t)=>`<div style="font-size:13px;font-weight:800;color:#0E2A86;padding-bottom:7px;border-bottom:2px solid #DCE4F0;margin:18px 0 10px;">${t}</div>`;
+  const pendHtml=aindaPend.length?(secTitle('⏳ Pendências anteriores')+aindaPend.map(p=>`<div style="padding:8px 12px;border-radius:8px;background:#fff8ec;border:1px solid #f3dcae;margin-bottom:6px;font-size:12px;">☐ ${esc(p.descricao)}${revisaoPlano[p.id]==='andamento'?' <strong>(em andamento)</strong>':''}</div>`).join('')):'';
+  const conclHtml=concl.length?(secTitle('✔️ Concluído nesta visita')+concl.map(p=>`<div style="padding:8px 12px;border-radius:8px;background:#e9f8ef;border:1px solid #bfe6cf;margin-bottom:6px;font-size:12px;">✔ ${esc(p.descricao)}</div>`).join('')):'';
+  const obs=(document.getElementById('obs-geral')?.value||'').trim();
+  const obsHtml=obs?(secTitle('💬 Observações gerais')+`<div style="background:#f6f9fd;border:1px solid #DCE4F0;border-radius:10px;padding:12px 14px;font-size:12.5px;line-height:1.5;">${esc(obs)}</div>`):'';
+  return `<div style="width:794px;background:#fff;font-family:'DM Sans',Arial,sans-serif;color:#0C1A33;">
+    <div style="background:linear-gradient(120deg,#0E2A86,#1557D6);color:#fff;padding:22px 34px;display:flex;align-items:center;justify-content:space-between;">
+      <div style="display:flex;align-items:center;gap:12px;"><span style="background:#fff;border-radius:10px;padding:7px 10px;display:flex;"><img src="img/sfera-logo.png?v=1023" style="height:30px;display:block;"></span>
+        <div><div style="font-size:18px;font-weight:800;line-height:1.1;">Super em Ação</div><div style="font-size:11px;opacity:.85;">Supervisão orientada por inteligência de dados</div></div></div>
+      <div style="text-align:right;"><div style="font-size:13px;font-weight:700;">Resumo de Visita</div><div style="font-size:11px;opacity:.85;">Sfera Multifranquias</div></div>
+    </div>
+    <div style="display:flex;border-bottom:2px solid #DCE4F0;">
+      <div style="flex:1;padding:12px 34px;border-right:1px solid #DCE4F0;"><div style="font-size:9px;font-weight:700;color:#51607A;text-transform:uppercase;">Loja</div><div style="font-size:13px;font-weight:700;">${esc(loja.nome||'—')}</div></div>
+      <div style="flex:1;padding:12px 20px;border-right:1px solid #DCE4F0;"><div style="font-size:9px;font-weight:700;color:#51607A;text-transform:uppercase;">Cidade</div><div style="font-size:13px;font-weight:700;">${esc(loja.cidade||'')}${loja.estado?' / '+esc(loja.estado):''}</div></div>
+      <div style="flex:1;padding:12px 20px;border-right:1px solid #DCE4F0;"><div style="font-size:9px;font-weight:700;color:#51607A;text-transform:uppercase;">Supervisora</div><div style="font-size:13px;font-weight:700;">${esc(usuario.nome)}</div></div>
+      <div style="flex:1;padding:12px 20px;"><div style="font-size:9px;font-weight:700;color:#51607A;text-transform:uppercase;">Data</div><div style="font-size:13px;font-weight:700;">${dataStr}</div></div>
+    </div>
+    <div style="padding:20px 34px;">
+      <div style="display:flex;align-items:center;gap:12px;background:#EAF2FF;border:1px solid #cfe0fb;border-radius:12px;padding:12px 16px;margin-bottom:18px;">
+        <div style="font-size:30px;">${info.emoji||''}</div>
+        <div><div style="font-size:9px;font-weight:700;color:#51607A;text-transform:uppercase;">Energia do time ao chegar</div><div style="font-size:15px;font-weight:800;color:#0E2A86;">${esc(info.label||'—')}</div></div>
+      </div>
+      <div style="font-size:13px;font-weight:800;color:#0E2A86;display:flex;align-items:center;gap:7px;padding-bottom:7px;border-bottom:2px solid #DCE4F0;margin-bottom:10px;">✅ TO DO (a fazer) <span style="font-size:10px;font-weight:700;color:#fff;background:#1C7DF0;border-radius:20px;padding:1px 8px;">${registros.length}</span></div>
+      ${todosHtml}${pendHtml}${conclHtml}${obsHtml}
+      <div style="margin-top:24px;padding-top:12px;border-top:1px solid #DCE4F0;display:flex;justify-content:space-between;font-size:10px;color:#51607A;"><span>Gerado por Super em Ação · Sfera Multifranquias</span><span>${dataStr}</span></div>
+    </div>
+  </div>`;
+}
+async function gerarPdfBlobResumo(){
+  const holder=document.createElement('div');
+  holder.style.cssText='position:fixed;left:-10000px;top:0;width:794px;background:#fff;z-index:-1;';
+  holder.innerHTML=montarResumoPdfHTML();
+  document.body.appendChild(holder);
+  const opt={ margin:0, image:{type:'jpeg',quality:0.98}, html2canvas:{scale:2,useCORS:true,backgroundColor:'#ffffff'}, jsPDF:{unit:'pt',format:'a4',orientation:'portrait'} };
+  try{ return await html2pdf().set(opt).from(holder.firstElementChild).outputPdf('blob'); }
+  finally{ holder.remove(); }
+}
+function _nomeArquivoPdf(){
+  const nome=(lojaSelecionada?.nome||'visita').replace(/[^\w\s-]/g,'').trim().replace(/\s+/g,'-');
+  return `Resumo-${nome}-${new Date().toISOString().split('T')[0]}.pdf`;
+}
+function _baixarBlob(blob,nome){ const url=URL.createObjectURL(blob); const a=document.createElement('a'); a.href=url; a.download=nome; document.body.appendChild(a); a.click(); a.remove(); setTimeout(()=>URL.revokeObjectURL(url),2000); }
+async function compartilharResumoPdf(btn){
+  if(typeof html2pdf==='undefined'){ showToast('PDF carregando, tente de novo','error'); return; }
+  const label=btn?btn.innerHTML:''; if(btn){ btn.disabled=true; btn.innerHTML='Gerando PDF...'; }
+  try{
+    const blob=await gerarPdfBlobResumo();
+    const file=new File([blob], _nomeArquivoPdf(), {type:'application/pdf'});
+    if(navigator.canShare && navigator.canShare({files:[file]})){
+      await navigator.share({files:[file], title:'Resumo de Visita', text:`Resumo da visita — ${lojaSelecionada?.nome||''}`});
+    } else { _baixarBlob(blob,file.name); showToast('📄 PDF baixado — anexe no WhatsApp ou e-mail'); }
+  }catch(e){ if(e?.name!=='AbortError'){ console.log('pdf share',e); showToast('Não foi possível gerar o PDF','error'); } }
+  finally{ if(btn){ btn.disabled=false; btn.innerHTML=label; } }
+}
+async function baixarPdfResumo(btn){
+  if(typeof html2pdf==='undefined'){ showToast('PDF carregando, tente de novo','error'); return; }
+  const label=btn?btn.innerHTML:''; if(btn){ btn.disabled=true; btn.innerHTML='Gerando PDF...'; }
+  try{ const blob=await gerarPdfBlobResumo(); _baixarBlob(blob,_nomeArquivoPdf()); showToast('📄 PDF baixado!'); }
+  catch(e){ console.log('pdf',e); showToast('Não foi possível gerar o PDF','error'); }
+  finally{ if(btn){ btn.disabled=false; btn.innerHTML=label; } }
+}
+
 function compartilharResumoWhats(){
   window.open('https://wa.me/?text='+encodeURIComponent(gerarResumoGerente()),'_blank');
 }
