@@ -166,6 +166,9 @@
       </div>
     </div>
 
+    <!-- Alerta: demandas da coordenação (aparecem todo login até concluir) -->
+    <div id="alerta-coordenacao" style="display:none;"></div>
+
     <!-- Alerta de revisitas -->
     <div id="alerta-revisitas" style="display:none;"></div>
 
@@ -501,7 +504,7 @@
         <div id="media-preview-wrap" class="media-preview"></div>
       </div>
 
-      <div style="font-size:11px;color:var(--text-light);margin-top:12px;">💡 Escreva ou fale cada TO DO em uma linha. No próximo passo você confere cada tarefa e define o prazo — a etiqueta é automática.</div>
+      <div style="font-size:11px;color:var(--text-light);margin-top:12px;">💡 Escreva ou fale <strong>um TO DO</strong> neste campo. No próximo passo você define o prazo (a etiqueta é automática) e pode adicionar outros TO DO.</div>
       <button class="btn btn-primary btn-full" style="margin-top:10px;" onclick="organizarPautas()">Continuar → organizar e salvar</button>
     </div>
 
@@ -799,6 +802,7 @@ window.addEventListener('DOMContentLoaded', async () => {
   await carregarTipoDiaHoje();
   await carregarVisitasHoje();
   await carregarHistorico('semana');
+  carregarDemandasCoordenacao();
   carregarAlertasRevisita();
   carregarAlertasCombinados();
   carregarContadores();
@@ -1347,15 +1351,8 @@ async function buscarRevisitas(){
       return {kind:'demanda', id:d.id, descricao:t.label+(d.observacao?(' — '+d.observacao):''), loja:d.lojas?.nome||'', lojaId:d.loja_id, date:d.prazo};
     });
   }
-  // Demandas da diretoria com prazo (não resolvidas)
-  let dirItems=[];
-  const {data:dir}=await db.from('demandas_diretoria')
-    .select('id,descricao,prazo,loja_id,autor_nome,lojas(nome)')
-    .eq('destinatario_email',usuario.email).neq('status','resolvido').not('prazo','is',null);
-  if(dir&&dir.length){
-    dirItems=dir.map(d=>({kind:'diretoria', id:d.id, descricao:'🎯 '+d.descricao, loja:d.lojas?.nome||'', lojaId:d.loja_id, date:d.prazo, autor:d.autor_nome||'diretoria'}));
-  }
-  const all=[...planoItems,...demItems,...dirItems];
+  // (As demandas da coordenação agora têm banner próprio no topo da home — ver carregarDemandasCoordenacao)
+  const all=[...planoItems,...demItems];
   if(all.length===0) return null;
   const hoje=new Date().toISOString().split('T')[0];
   const d2=new Date(); d2.setDate(d2.getDate()+2); const limite=d2.toISOString().split('T')[0];
@@ -1377,6 +1374,46 @@ function _rodapeItem(it){
   if(it.kind==='plano') return 'toque para iniciar a visita →';
   if(it.kind==='diretoria') return 'demanda da diretoria · toque para abrir a loja →';
   return 'toque para marcar como concluída ✓';
+}
+
+// ===== Banner: Demandas da Coordenação (aparecem todo login até concluir) =====
+async function carregarDemandasCoordenacao(){
+  const el=document.getElementById('alerta-coordenacao');
+  if(!el) return;
+  try{
+    const {data}=await db.from('demandas_diretoria')
+      .select('id,descricao,prazo,prioridade,autor_nome,loja_id,lojas(nome),media_url')
+      .eq('destinatario_email',usuario.email).neq('status','resolvido')
+      .order('created_at',{ascending:true});
+    if(!data||data.length===0){ el.style.display='none'; el.innerHTML=''; return; }
+    const hoje=new Date().toISOString().split('T')[0];
+    const itens=data.map(d=>{
+      const atras=d.prazo&&d.prazo<hoje;
+      const pr=d.prioridade?PRIORIDADE_INFO[d.prioridade]:null;
+      const meta=[`📨 ${d.autor_nome||'Coordenação'}`];
+      if(d.lojas?.nome) meta.push('🏪 '+d.lojas.nome);
+      if(d.prazo) meta.push('📅 '+d.prazo.split('-').reverse().join('/')+(atras?' <span style="color:#dc3545;font-weight:700;">(atrasada)</span>':''));
+      if(pr) meta.push(pr.i+' '+pr.l);
+      if(d.media_url) meta.push(`<a href="${d.media_url}" target="_blank">📎 anexo</a>`);
+      return `<div style="padding:10px 12px;border-radius:10px;background:#fff;border:1px solid #f1c0c0;margin-top:8px;">
+        <div style="font-size:13px;font-weight:700;">🎯 ${d.descricao}</div>
+        <div style="font-size:11px;color:var(--text-light);margin-top:3px;">${meta.join(' · ')}</div>
+        <button class="btn btn-success btn-sm" style="margin-top:8px;" onclick="concluirDemandaCoord('${d.id}',this)">✅ Concluir</button>
+      </div>`;
+    }).join('');
+    el.innerHTML=`<div class="card" style="border-left:4px solid #dc3545;background:#fff5f5;">
+      <div style="font-weight:800;font-size:14px;color:#842029;">📣 Demandas da Coordenação (${data.length})</div>
+      <div style="font-size:11px;color:#842029;opacity:.85;margin-top:2px;">Enviadas pela coordenação — ficam aqui até você concluir.</div>
+      ${itens}
+    </div>`;
+    el.style.display='';
+  }catch(e){ console.log('demandas coord',e); }
+}
+async function concluirDemandaCoord(id,btn){
+  if(btn){ btn.disabled=true; btn.textContent='Concluindo...'; }
+  await db.from('demandas_diretoria').update({status:'resolvido', resolvido_em:new Date().toISOString()}).eq('id',id);
+  showToast('✅ Demanda concluída! Obrigado.','success');
+  carregarDemandasCoordenacao();
 }
 
 // ===== Banner de pendências na home =====
@@ -2339,11 +2376,8 @@ async function organizarPautas(){
     if(pautasMediaUrl) pautasMediaTipo=mediaFile.type.startsWith('image/')?'foto':mediaFile.type.startsWith('video/')?'video':'arquivo';
   }
 
-  // Separa em pautas (1 por linha/frase)
-  let fragmentos=texto.split(/\n+|(?<=[.!?])\s+|(?<=[.!?])(?=[A-ZÀ-Ü])/)
-    .map(s=>s.replace(/^[\s•\-–—*]+/,'').trim())
-    .filter(s=>s.length>2);
-  if(fragmentos.length===0) fragmentos=[texto];
+  // Cada campo preenchido = 1 TO DO (não quebra por linha). Para mais TO DO, usar "➕ Adicionar outro TO DO".
+  let fragmentos=[texto.trim()];
 
   const d7=new Date(); d7.setDate(d7.getDate()+7);
   const defData=d7.toISOString().split('T')[0];
