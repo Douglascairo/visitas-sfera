@@ -3676,6 +3676,7 @@ function renderPrioResultado(fileLongo, fileCurto){
   const periodos = fileCurto
     ? `Comparando <strong>${fileCurto.dias} dias</strong> (recente) + <strong>${fileLongo.dias} dias</strong>`
     : `Período de <strong>${fileLongo.dias} dias</strong>`;
+  prioPeriodoDias = (fileLongo&&fileLongo.dias)||null;
 
   const criticas=prioAnalise.filter(p=>p.sev.nivel==='critica').length;
   const altas=prioAnalise.filter(p=>p.sev.nivel==='alta').length;
@@ -3828,6 +3829,137 @@ function renderRankingEquipe(c){
   return h;
 }
 
+// ===== Corpo da análise da loja (reutilizado no modal e no PDF) =====
+let prioPeriodoDias=null;
+function construirAnaliseLojaBody(p){
+  let html='';
+  const headerPDV=(prioArquivos[0]?.headerPDV)||[];
+  if(p.pdvRow){
+    const lojaKpis=analiseKpisLoja(p.pdvRow, headerPDV);
+    if(lojaKpis.length>0){
+      const okCount=lojaKpis.filter(k=>k.ok===true).length;
+      const total=lojaKpis.filter(k=>k.ok!==null).length;
+      const barCor=okCount===total?'#198754':okCount>=total/2?'#fd7e14':'#dc3545';
+      html+=`<div class="card" style="border-left:4px solid var(--sfera);">
+        <div style="font-weight:800;font-size:14px;margin-bottom:4px;">🏪 Indicadores da loja</div>
+        <div style="font-size:11px;color:${barCor};font-weight:700;margin-bottom:10px;">${okCount} de ${total} metas atingidas</div>
+        <div style="display:flex;flex-wrap:wrap;gap:4px;">${_renderKpiPills(lojaKpis,'10px')}</div>
+      </div>`;
+    }
+  }
+  if(p.pdvRow){
+    const narrativa=gerarNarrativaLoja(p, headerPDV);
+    if(narrativa){
+      html+=`<details open>
+        <summary style="cursor:pointer;background:#f0f4ff;border-radius:10px;padding:12px 16px;font-weight:800;font-size:14px;color:var(--sfera-dark);list-style:none;display:flex;align-items:center;gap:8px;margin-bottom:4px;">
+          <span>💡 Insights desta visita</span><span style="margin-left:auto;font-size:12px;color:var(--text-light);">▾</span>
+        </summary>
+        <div class="card" style="border-radius:0 0 10px 10px;">${narrativa}</div>
+      </details>`;
+    }
+  }
+  if(p.pdvRow){
+    const kpis=analiseKpisLoja(p.pdvRow, headerPDV);
+    const abaixo=kpis.filter(k=>k.ok===false);
+    const acima =kpis.filter(k=>k.ok===true);
+    if(abaixo.length>0){
+      html+=`<div class="card" style="border-left:4px solid #dc3545;">
+        <div style="font-weight:800;font-size:14px;color:#842029;margin-bottom:8px;">🔴 Pontos de atenção vs meta IAF (${abaixo.length})</div>
+        ${abaixo.map(k=>{
+          const semComentario=k.label.toLowerCase().includes('loja digital');
+          if(semComentario) return `<div style="margin-bottom:6px;font-size:12px;background:#f8d7da;border-radius:6px;padding:6px 10px;">❌ <strong>${k.label}:</strong> ${_fmtKpiVal(k)} <span style="color:#842029;">(meta ${k.metaLabel})</span></div>`;
+          return `<div style="margin-bottom:6px;font-size:12px;background:#f8d7da;border-radius:6px;padding:6px 10px;">
+          ❌ <strong>${k.label}:</strong> ${_fmtKpiVal(k)} <span style="color:#842029;">(meta ${k.metaLabel}${_fmtGap(k)})</span>
+          <br><span style="color:#842029;">→ ${_dicaKpi(k.label)}</span>
+        </div>`;
+        }).join('')}
+      </div>`;
+    }
+    if(acima.length>0){
+      html+=`<div class="card" style="border-left:4px solid #28a745;">
+        <div style="font-weight:800;font-size:14px;color:#0f5132;margin-bottom:8px;">🟢 Para elogiar e comemorar vs meta IAF (${acima.length})</div>
+        ${acima.map(k=>`<div class="alerta-linha" style="color:#0f5132;"><span>✅ <strong>${k.label}:</strong> ${_fmtKpiVal(k)} (meta ${k.metaLabel})</span></div>`).join('')}
+      </div>`;
+    }
+  }
+  const c=p.consult;
+  if(c.total>0){
+    html+=`<div class="card">
+      <div style="font-weight:800;font-size:14px;margin-bottom:4px;">👥 Equipe — ${c.total} consultora${c.total!==1?'s':''}</div>
+      <div style="font-size:11px;color:var(--text-light);margin-bottom:12px;">Excluídos: coordenador e suporte.</div>`;
+    html+=renderRankingEquipe(c);
+    html+=`<div style="font-weight:800;font-size:13px;margin-bottom:8px;">📋 Metas por consultora</div>`;
+    html+=c.arr.map(d=>{
+      const recTag=d.receitaAno!==null
+        ? `<span style="font-size:11px;font-weight:700;color:${d.receitaAno>=0?'#0f5132':'#842029'};">${d.receitaAno>=0?'📈 +':'📉 '}${_pct(d.receitaAno)} vs ano</span>`
+        : '';
+      const kpiPills=_renderKpiPills(d.kpis,'10px');
+      const totalMetas=d.kpis.filter(k=>k.val!==null).length;
+      const barCor=d.metasOk===totalMetas?'#198754':d.metasOk>=totalMetas/2?'#fd7e14':'#dc3545';
+      return `<div style="border:1px solid var(--border);border-radius:10px;padding:10px 12px;margin-bottom:10px;">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;">
+          <div style="font-weight:800;font-size:13px;">${d.nome}</div>
+          <div style="display:flex;gap:6px;align-items:center;">${recTag}</div>
+        </div>
+        <div style="font-size:11px;color:${barCor};font-weight:700;margin-bottom:6px;">${d.metasOk} de ${totalMetas} metas atingidas</div>
+        <div style="display:flex;flex-wrap:wrap;gap:4px;">${kpiPills}</div>
+      </div>`;
+    }).join('');
+    html+=`</div>`;
+  }
+  return html;
+}
+
+// ===== PDF da análise da loja (igual ao app, com consultoras) =====
+function montarAnaliseLojaPdfHTML(p){
+  const loja=p.loja||{};
+  const dataStr=new Date().toLocaleDateString('pt-BR');
+  const periodo=prioPeriodoDias?`Período de ${prioPeriodoDias} dias · `:'';
+  const sev=(p.sev?.label||'');
+  const nivel=p.sev?.nivel||'';
+  const bBg=nivel==='critica'?'#f8d7da':nivel==='alta'?'#ffe0b2':nivel==='media'?'#fff3cd':'#d1e7dd';
+  const bCor=nivel==='critica'?'#842029':nivel==='alta'?'#7d4a00':nivel==='media'?'#8a5200':'#0f5132';
+  return `<div style="width:794px;background:#fff;font-family:'DM Sans',Arial,sans-serif;color:#0C1A33;">
+    <div style="background:linear-gradient(120deg,#0E2A86,#1557D6);color:#fff;padding:20px 32px;display:flex;align-items:center;justify-content:space-between;">
+      <div style="display:flex;align-items:center;gap:12px;"><span style="background:#fff;border-radius:10px;padding:7px 10px;display:flex;"><img src="img/sfera-logo.png?v=1023" style="height:28px;display:block;"></span>
+        <div><div style="font-size:17px;font-weight:800;line-height:1.1;">Super em Ação</div><div style="font-size:10.5px;opacity:.85;">Análise de performance da loja</div></div></div>
+      <div style="text-align:right;"><div style="font-size:13px;font-weight:700;">Análise da Loja</div><div style="font-size:10.5px;opacity:.85;">Sfera Multifranquias</div></div>
+    </div>
+    <div style="display:flex;align-items:center;justify-content:space-between;padding:14px 32px;border-bottom:2px solid #DCE4F0;">
+      <div><div style="font-size:20px;font-weight:800;color:#0E2A86;">${_escPdf(loja.nome||'')}</div>
+      <div style="font-size:11px;color:#51607A;margin-top:1px;">${_escPdf(loja.cidade||'')}${loja.estado?' / '+_escPdf(loja.estado):''} · cód ${_escPdf(p.code||'')} · ${periodo}${dataStr}</div></div>
+      ${sev?`<span style="font-size:11px;font-weight:800;border-radius:20px;padding:4px 12px;background:${bBg};color:${bCor};">PRIORIDADE ${_escPdf(sev.toUpperCase())}</span>`:''}
+    </div>
+    <div style="padding:16px 32px 28px;">
+      ${construirAnaliseLojaBody(p)}
+      <div style="margin-top:20px;padding-top:12px;border-top:1px solid #DCE4F0;display:flex;justify-content:space-between;font-size:10px;color:#51607A;"><span>Gerado por Super em Ação · Sfera Multifranquias</span><span>${periodo}${dataStr}</span></div>
+    </div>
+  </div>`;
+}
+async function gerarPdfBlobLoja(p){
+  const holder=document.createElement('div');
+  holder.style.cssText='position:fixed;left:-10000px;top:0;width:794px;background:#fff;z-index:-1;';
+  holder.innerHTML=montarAnaliseLojaPdfHTML(p);
+  document.body.appendChild(holder);
+  holder.querySelectorAll('details').forEach(d=>{ try{ d.open=true; }catch(e){} });
+  const opt={ margin:0, image:{type:'jpeg',quality:0.98}, html2canvas:{scale:2,useCORS:true,backgroundColor:'#ffffff'}, jsPDF:{unit:'pt',format:'a4',orientation:'portrait'}, pagebreak:{mode:['css','legacy','avoid-all']} };
+  try{ return await html2pdf().set(opt).from(holder.firstElementChild).outputPdf('blob'); }
+  finally{ holder.remove(); }
+}
+function _nomeArquivoLojaPdf(p){ const nome=(p.loja?.nome||'loja').replace(/[^\w\s-]/g,'').trim().replace(/\s+/g,'-'); return `Analise-${nome}-${new Date().toISOString().split('T')[0]}.pdf`; }
+async function compartilharPdfLoja(idx,btn){
+  if(typeof html2pdf==='undefined'){ showToast('PDF carregando, tente de novo','error'); return; }
+  const p=prioAnalise[idx]; if(!p) return;
+  const label=btn?btn.innerHTML:''; if(btn){ btn.disabled=true; btn.innerHTML='Gerando PDF...'; }
+  try{
+    const blob=await gerarPdfBlobLoja(p);
+    const file=new File([blob], _nomeArquivoLojaPdf(p), {type:'application/pdf'});
+    if(navigator.canShare && navigator.canShare({files:[file]})){ await navigator.share({files:[file], title:'Análise da Loja', text:`Análise — ${p.loja?.nome||''}`}); }
+    else { _baixarBlob(blob,file.name); showToast('📄 PDF baixado — anexe no WhatsApp ou e-mail'); }
+  }catch(e){ if(e?.name!=='AbortError'){ console.log('pdf loja',e); showToast('Não foi possível gerar o PDF','error'); } }
+  finally{ if(btn){ btn.disabled=false; btn.innerHTML=label; } }
+}
+
 function abrirPrioLoja(i){
   const p=prioAnalise[i];
   document.getElementById('prio-modal-titulo').textContent=`${i+1}º · ${p.loja.nome}`;
@@ -3835,7 +3967,8 @@ function abrirPrioLoja(i){
     <div style="display:flex;align-items:center;gap:10px;margin-bottom:16px;">
       <span class="sev-badge ${p.sev.cls}">Prioridade ${p.sev.label}</span>
       <span style="font-size:12px;color:var(--text-light);">cód ${p.code}</span>
-    </div>`;
+    </div>
+    <button class="btn btn-secondary btn-full btn-sm" style="margin-bottom:14px;" onclick="compartilharPdfLoja(${i},this)">📄 Compartilhar PDF da loja</button>`;
 
   // KPIs da loja (mesmos indicadores das consultoras)
   if(p.pdvRow){
