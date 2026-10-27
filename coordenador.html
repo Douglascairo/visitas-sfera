@@ -18,11 +18,24 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="stylesheet" href="css/style.css?v=20261026b">
   <script>
+    const APP_VERSION = '2026-10-27.1';
     if ('serviceWorker' in navigator) {
       window.addEventListener('load', function () {
         navigator.serviceWorker.register('sw.js').catch(function () {});
       });
     }
+    async function checkAppVersion(){
+      try{
+        const r = await fetch('version.json?t=' + Date.now(), { cache: 'no-store' });
+        if(!r.ok) return;
+        const j = await r.json();
+        if(j && j.version && j.version !== APP_VERSION){
+          const b = document.getElementById('update-banner');
+          if(b) b.style.display = 'flex';
+        }
+      }catch(e){}
+    }
+    window.addEventListener('load', function(){ checkAppVersion(); setInterval(checkAppVersion, 300000); });
   </script>
   <style>
     .sup-card { background:white; border-radius:12px; padding:14px 16px; margin-bottom:10px; box-shadow:var(--shadow); }
@@ -39,6 +52,11 @@
   </style>
 </head>
 <body>
+<!-- Aviso de nova versão disponível -->
+<div id="update-banner" style="display:none;position:fixed;top:0;left:0;right:0;z-index:9000;background:linear-gradient(120deg,#0E2A86,#163FB0);color:#fff;padding:10px 14px;padding-top:max(10px,env(safe-area-inset-top));align-items:center;gap:10px;box-shadow:0 2px 14px rgba(0,0,0,.28);font-size:13px;font-weight:600;">
+  <span style="flex:1;">🔄 Nova versão disponível</span>
+  <button onclick="location.reload()" style="background:#fff;color:#0E2A86;border:none;border-radius:8px;padding:7px 14px;font-weight:800;font-size:13px;cursor:pointer;">Atualizar agora</button>
+</div>
 
 <div class="header">
   <div class="header-brand">
