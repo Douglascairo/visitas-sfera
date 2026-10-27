@@ -18,7 +18,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="stylesheet" href="css/style.css?v=20261026b">
   <script>
-    const APP_VERSION = '2026-10-27.1';
+    const APP_VERSION = '2026-10-27.2';
     if ('serviceWorker' in navigator) {
       window.addEventListener('load', function () {
         navigator.serviceWorker.register('sw.js').catch(function () {});
@@ -39,6 +39,7 @@
   </script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
   <style>
     .btn-mic.rec-on { background:#dc3545 !important; color:#fff !important; border-color:#dc3545 !important; animation:micpulse 1s infinite; }
     @keyframes micpulse { 0%,100%{ box-shadow:0 0 0 0 rgba(220,53,69,.5);} 50%{ box-shadow:0 0 0 6px rgba(220,53,69,0);} }
@@ -3709,6 +3710,8 @@ function renderPrioResultado(fileLongo, fileCurto){
       </div>
       <div style="font-size:12px;color:var(--text-light);margin-top:8px;">👇 Ordenadas da mais urgente para a menos. Toque numa loja para ver os detalhes.</div>
     </div>
+    <button class="btn btn-primary btn-full btn-sm" style="margin-bottom:4px;" onclick="baixarTodosPdfLojas(this)">📄 Baixar PDF de todas as lojas (${prioAnalise.length})</button>
+    <div style="font-size:11px;color:var(--text-light);text-align:center;margin-bottom:12px;">Gera um PDF por loja e entrega tudo num arquivo .zip. Para uma loja só, abra a loja e toque em "Compartilhar PDF".</div>
     <div style="font-size:13px;font-weight:800;color:var(--text-light);text-transform:uppercase;letter-spacing:0.5px;margin:6px 4px 10px;">🗺️ Rota sugerida</div>
   `;
 
@@ -3975,6 +3978,34 @@ async function compartilharPdfLoja(idx,btn){
     if(navigator.canShare && navigator.canShare({files:[file]})){ await navigator.share({files:[file], title:'Análise da Loja', text:`Análise — ${p.loja?.nome||''}`}); }
     else { _baixarBlob(blob,file.name); showToast('📄 PDF baixado — anexe no WhatsApp ou e-mail'); }
   }catch(e){ if(e?.name!=='AbortError'){ console.log('pdf loja',e); showToast('Não foi possível gerar o PDF','error'); } }
+  finally{ if(btn){ btn.disabled=false; btn.innerHTML=label; } }
+}
+
+async function baixarTodosPdfLojas(btn){
+  if(typeof html2pdf==='undefined'){ showToast('PDF carregando, tente de novo','error'); return; }
+  if(typeof JSZip==='undefined'){ showToast('Compactador carregando, tente de novo','error'); return; }
+  if(!prioAnalise.length){ showToast('Nenhuma loja analisada','error'); return; }
+  const label=btn?btn.innerHTML:''; if(btn){ btn.disabled=true; }
+  const zip=new JSZip();
+  let ok=0;
+  for(let i=0;i<prioAnalise.length;i++){
+    const p=prioAnalise[i];
+    if(btn) btn.innerHTML=`Gerando ${i+1}/${prioAnalise.length}...`;
+    try{ const blob=await gerarPdfBlobLoja(p); zip.file(_nomeArquivoLojaPdf(p), blob); ok++; }
+    catch(e){ console.log('pdf loja falhou:',p.loja?.nome,e); }
+  }
+  if(ok===0){ if(btn){ btn.disabled=false; btn.innerHTML=label; } showToast('Não foi possível gerar os PDFs','error'); return; }
+  if(btn) btn.innerHTML='Compactando...';
+  try{
+    const zipBlob=await zip.generateAsync({type:'blob'});
+    const nome=`Analises-lojas-${new Date().toISOString().split('T')[0]}.zip`;
+    const file=new File([zipBlob], nome, {type:'application/zip'});
+    if(navigator.canShare && navigator.canShare({files:[file]})){
+      try{ await navigator.share({files:[file], title:'Análises das lojas'}); }
+      catch(e){ if(e?.name!=='AbortError') _baixarBlob(zipBlob,nome); }
+    } else { _baixarBlob(zipBlob,nome); }
+    showToast(`📦 ${ok} PDF(s) gerado(s)!`,'success');
+  }catch(e){ console.log('zip',e); showToast('Erro ao compactar','error'); }
   finally{ if(btn){ btn.disabled=false; btn.innerHTML=label; } }
 }
 
