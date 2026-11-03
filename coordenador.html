@@ -18,7 +18,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="stylesheet" href="css/style.css?v=20261026b">
   <script>
-    const APP_VERSION = '2026-11-03.2';
+    const APP_VERSION = '2026-11-03.3';
     if ('serviceWorker' in navigator) {
       window.addEventListener('load', function () {
         navigator.serviceWorker.register('sw.js').catch(function () {});
@@ -230,7 +230,7 @@
       <label style="font-size:12px;font-weight:700;color:var(--sfera-dark);">2. Loja</label>
       <select class="form-control" id="campo-loja" style="margin:6px 0 12px;"><option value="">Selecione a supervisora primeiro</option></select>
       <label style="font-size:12px;font-weight:700;color:var(--sfera-dark);">3. O que precisa ser resolvido?</label>
-      <textarea class="form-control" id="campo-texto" style="min-height:110px;margin-top:6px;" placeholder="Fale ou escreva. Ex: consertar o ar-condicionado. Pintar a parede do fundo. Treinar a consultora Ana no atendimento..."></textarea>
+      <textarea class="form-control" id="campo-texto" style="min-height:110px;margin-top:6px;" placeholder="Escreva UMA demanda neste campo (ou toque no 🎤 e fale). Ex: Consertar o ar-condicionado da loja. Para mais de uma demanda, use '➕ Adicionar pauta' no próximo passo."></textarea>
       <button type="button" class="btn btn-secondary btn-sm btn-mic" style="margin-top:6px;" data-label="🎤 Falar" onclick="ditarPara('campo-texto',this)">🎤 Falar</button>
       <div style="margin-top:10px;">
         <input type="file" id="campo-media" accept="image/*,video/*,.pdf" capture="environment" style="display:none" onchange="campoPreviewMedia()">
@@ -575,8 +575,8 @@ function campoOrganizar(){
   if(!campoDestInfo){ alert('Selecione o destinatário'); return; }
   const texto=document.getElementById('campo-texto').value.trim();
   if(!texto){ alert('Fale ou escreva a demanda'); return; }
-  let frag=texto.split(/\n+|(?<=[.!?])\s+|(?<=[.!?])(?=[A-ZÀ-Ü])/).map(s=>s.replace(/^[\s•\-–—*]+/,'').trim()).filter(s=>s.length>2);
-  if(frag.length===0) frag=[texto];
+  // Cada campo de texto = 1 pauta (não desmembra). Para mais pautas, usar "Adicionar pauta".
+  let frag=[texto];
   const d7=new Date(); d7.setDate(d7.getDate()+7); const def=d7.toISOString().split('T')[0];
   campoPautas=frag.map(f=>({desc:f,prazo:def,prioridade:'media'}));
   campoRenderPautas();
