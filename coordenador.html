@@ -18,7 +18,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="stylesheet" href="css/style.css?v=20261026b">
   <script>
-    const APP_VERSION = '2026-11-03.1';
+    const APP_VERSION = '2026-11-03.2';
     if ('serviceWorker' in navigator) {
       window.addEventListener('load', function () {
         navigator.serviceWorker.register('sw.js').catch(function () {});
@@ -226,6 +226,7 @@
     <div id="campo-passo1">
       <label style="font-size:12px;font-weight:700;color:var(--sfera-dark);">1. Para quem?</label>
       <select class="form-control" id="campo-dest" style="margin:6px 0 12px;" onchange="campoDestMudou()"><option value="">Selecione...</option></select>
+      <div id="campo-sups-pick" style="display:none;border:1px solid var(--border);border-radius:10px;padding:10px 12px;margin:0 0 12px;max-height:220px;overflow-y:auto;"></div>
       <label style="font-size:12px;font-weight:700;color:var(--sfera-dark);">2. Loja</label>
       <select class="form-control" id="campo-loja" style="margin:6px 0 12px;"><option value="">Selecione a supervisora primeiro</option></select>
       <label style="font-size:12px;font-weight:700;color:var(--sfera-dark);">3. O que precisa ser resolvido?</label>
@@ -490,7 +491,12 @@ async function carregarSupervisoras() {
   const outroCoord=COORDS.filter(c=>c.email!==usuarioCoord?.email);
   const destModal=document.getElementById('campo-dest');
   const destFiltro=document.getElementById('campo-filtro-dest');
-  if(data.length){ destModal.appendChild(new Option('👥 Todas as supervisoras', 'all-sup')); }
+  if(data.length){
+    destModal.appendChild(new Option('👥 Todas as supervisoras', 'all-sup'));
+    destModal.appendChild(new Option('✔️ Escolher supervisoras (várias)', 'pick-sup'));
+    const pick=document.getElementById('campo-sups-pick');
+    if(pick) pick.innerHTML='<div style="font-size:11px;font-weight:700;color:var(--text-light);margin-bottom:6px;">Marque as supervisoras:</div>'+data.map(s=>`<label style="display:flex;align-items:center;gap:8px;padding:5px 0;font-size:13px;cursor:pointer;"><input type="checkbox" class="campo-sup-chk" value="${s.id}" style="width:16px;height:16px;"> ${s.nome}</label>`).join('');
+  }
   data.forEach(s=>{
     destModal.appendChild(new Option(s.nome, 'sup:'+s.id));
     destFiltro.appendChild(new Option(s.nome, s.email));
@@ -513,6 +519,7 @@ function abrirNovaDemandaCampo(){
   document.getElementById('campo-dest').value='';
   document.getElementById('campo-loja').innerHTML='<option value="">Selecione a supervisora primeiro</option>';
   document.getElementById('campo-loja').disabled=false;
+  const _pick=document.getElementById('campo-sups-pick'); if(_pick){ _pick.style.display='none'; _pick.querySelectorAll('.campo-sup-chk').forEach(c=>c.checked=false); }
   document.getElementById('campo-texto').value='';
   document.getElementById('campo-media-preview').innerHTML='';
   document.getElementById('campo-media').value='';
@@ -525,9 +532,17 @@ function fecharCampo(){ document.getElementById('modal-campo').style.display='no
 async function campoDestMudou(){
   const v=document.getElementById('campo-dest').value;
   const lojaSel=document.getElementById('campo-loja');
+  const pick=document.getElementById('campo-sups-pick');
+  if(pick) pick.style.display = v==='pick-sup' ? '' : 'none';
   if(!v){ lojaSel.innerHTML='<option value="">—</option>'; lojaSel.disabled=false; campoDestInfo=null; return; }
   if(v==='all-sup'){
     campoDestInfo={tipo:'all', nome:'Todas as supervisoras'};
+    lojaSel.innerHTML='<option value="">Demanda geral — sem loja específica</option>';
+    lojaSel.disabled=true;
+    return;
+  }
+  if(v==='pick-sup'){
+    campoDestInfo={tipo:'pick', nome:'supervisoras selecionadas'};
     lojaSel.innerHTML='<option value="">Demanda geral — sem loja específica</option>';
     lojaSel.disabled=true;
     return;
@@ -600,8 +615,13 @@ async function campoSalvar(){
   let mediaUrl=null;
   if(campoMediaFile){ btn.textContent='Enviando foto...'; mediaUrl=await campoUploadMedia(); }
   let rows=[];
-  if(campoDestInfo.tipo==='all'){
-    const sups=(supervisoras||[]).filter(s=>s&&s.email);
+  if(campoDestInfo.tipo==='all' || campoDestInfo.tipo==='pick'){
+    let sups=(supervisoras||[]).filter(s=>s&&s.email);
+    if(campoDestInfo.tipo==='pick'){
+      const ids=Array.from(document.querySelectorAll('.campo-sup-chk:checked')).map(c=>c.value);
+      if(ids.length===0){ btn.disabled=false; btn.textContent='Enviar demandas'; alert('Marque ao menos uma supervisora'); return; }
+      sups=sups.filter(s=>ids.includes(s.id));
+    }
     sups.forEach(s=>{
       validas.forEach((p,i)=>{
         rows.push({
@@ -629,7 +649,7 @@ async function campoSalvar(){
   if(error){ alert('Erro ao enviar: '+error.message); return; }
   fecharCampo();
   carregarDemandasCampo();
-  const quem = campoDestInfo.tipo==='all' ? 'todas as supervisoras' : campoDestInfo.nome;
+  const quem = campoDestInfo.tipo==='all' ? 'todas as supervisoras' : campoDestInfo.tipo==='pick' ? 'as supervisoras selecionadas' : campoDestInfo.nome;
   alert(`✅ ${rows.length} demanda(s) enviada(s) para ${quem}!`);
 }
 
