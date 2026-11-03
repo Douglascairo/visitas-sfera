@@ -18,7 +18,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="stylesheet" href="css/style.css?v=20261026b">
   <script>
-    const APP_VERSION = '2026-10-27.3';
+    const APP_VERSION = '2026-11-03.1';
     if ('serviceWorker' in navigator) {
       window.addEventListener('load', function () {
         navigator.serviceWorker.register('sw.js').catch(function () {});
@@ -490,6 +490,7 @@ async function carregarSupervisoras() {
   const outroCoord=COORDS.filter(c=>c.email!==usuarioCoord?.email);
   const destModal=document.getElementById('campo-dest');
   const destFiltro=document.getElementById('campo-filtro-dest');
+  if(data.length){ destModal.appendChild(new Option('👥 Todas as supervisoras', 'all-sup')); }
   data.forEach(s=>{
     destModal.appendChild(new Option(s.nome, 'sup:'+s.id));
     destFiltro.appendChild(new Option(s.nome, s.email));
@@ -511,6 +512,7 @@ function abrirNovaDemandaCampo(){
   campoMediaFile=null; campoPautas=[]; campoDestInfo=null;
   document.getElementById('campo-dest').value='';
   document.getElementById('campo-loja').innerHTML='<option value="">Selecione a supervisora primeiro</option>';
+  document.getElementById('campo-loja').disabled=false;
   document.getElementById('campo-texto').value='';
   document.getElementById('campo-media-preview').innerHTML='';
   document.getElementById('campo-media').value='';
@@ -523,7 +525,14 @@ function fecharCampo(){ document.getElementById('modal-campo').style.display='no
 async function campoDestMudou(){
   const v=document.getElementById('campo-dest').value;
   const lojaSel=document.getElementById('campo-loja');
-  if(!v){ lojaSel.innerHTML='<option value="">—</option>'; campoDestInfo=null; return; }
+  if(!v){ lojaSel.innerHTML='<option value="">—</option>'; lojaSel.disabled=false; campoDestInfo=null; return; }
+  if(v==='all-sup'){
+    campoDestInfo={tipo:'all', nome:'Todas as supervisoras'};
+    lojaSel.innerHTML='<option value="">Demanda geral — sem loja específica</option>';
+    lojaSel.disabled=true;
+    return;
+  }
+  lojaSel.disabled=false;
   lojaSel.innerHTML='<option value="">Carregando lojas...</option>';
   let q=db.from('lojas').select('id,nome').eq('ativo',true).order('nome');
   if(v.startsWith('sup:')){
@@ -590,20 +599,38 @@ async function campoSalvar(){
   const btn=document.getElementById('btn-campo-salvar'); btn.disabled=true; btn.textContent='Enviando...';
   let mediaUrl=null;
   if(campoMediaFile){ btn.textContent='Enviando foto...'; mediaUrl=await campoUploadMedia(); }
-  const lojaId=document.getElementById('campo-loja').value||null;
-  const rows=validas.map((p,i)=>({
-    autor_nome:usuarioCoord.nome, autor_email:usuarioCoord.email,
-    supervisora_id:campoDestInfo.supId, loja_id:lojaId,
-    destinatario_email:campoDestInfo.email, destinatario_nome:campoDestInfo.nome,
-    descricao:p.desc.trim(), prazo:p.prazo||null, prioridade:p.prioridade||null,
-    status:'pendente', media_url:(i===0?mediaUrl:null)||null
-  }));
+  let rows=[];
+  if(campoDestInfo.tipo==='all'){
+    const sups=(supervisoras||[]).filter(s=>s&&s.email);
+    sups.forEach(s=>{
+      validas.forEach((p,i)=>{
+        rows.push({
+          autor_nome:usuarioCoord.nome, autor_email:usuarioCoord.email,
+          supervisora_id:s.id, loja_id:null,
+          destinatario_email:s.email, destinatario_nome:s.nome,
+          descricao:p.desc.trim(), prazo:p.prazo||null, prioridade:p.prioridade||null,
+          status:'pendente', media_url:(i===0?mediaUrl:null)||null
+        });
+      });
+    });
+  } else {
+    const lojaId=document.getElementById('campo-loja').value||null;
+    rows=validas.map((p,i)=>({
+      autor_nome:usuarioCoord.nome, autor_email:usuarioCoord.email,
+      supervisora_id:campoDestInfo.supId, loja_id:lojaId,
+      destinatario_email:campoDestInfo.email, destinatario_nome:campoDestInfo.nome,
+      descricao:p.desc.trim(), prazo:p.prazo||null, prioridade:p.prioridade||null,
+      status:'pendente', media_url:(i===0?mediaUrl:null)||null
+    }));
+  }
+  if(rows.length===0){ btn.disabled=false; btn.textContent='Enviar demandas'; alert('Nenhum destinatário encontrado'); return; }
   const {error}=await db.from('demandas_diretoria').insert(rows);
   btn.disabled=false; btn.textContent='Enviar demandas';
   if(error){ alert('Erro ao enviar: '+error.message); return; }
   fecharCampo();
   carregarDemandasCampo();
-  alert(`✅ ${rows.length} demanda(s) enviada(s) para ${campoDestInfo.nome}!`);
+  const quem = campoDestInfo.tipo==='all' ? 'todas as supervisoras' : campoDestInfo.nome;
+  alert(`✅ ${rows.length} demanda(s) enviada(s) para ${quem}!`);
 }
 
 async function carregarDemandasCampo(){
