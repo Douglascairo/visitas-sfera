@@ -18,7 +18,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="stylesheet" href="css/style.css?v=20261026b">
   <script>
-    const APP_VERSION = '2026-11-03.3';
+    const APP_VERSION = '2026-11-03.4';
     if ('serviceWorker' in navigator) {
       window.addEventListener('load', function () {
         navigator.serviceWorker.register('sw.js').catch(function () {});
@@ -730,6 +730,19 @@
   </div>
 </div>
 
+<!-- MODAL: Demandas da Coordenação (abre no login, antes das demandas dela) -->
+<div id="modal-demandas-coord" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:260;align-items:center;justify-content:center;padding:16px;">
+  <div style="background:#fff;width:100%;max-width:520px;max-height:88vh;overflow-y:auto;border-radius:16px;padding:20px;box-shadow:0 10px 40px rgba(0,0,0,.3);">
+    <div style="text-align:center;margin-bottom:12px;">
+      <div style="font-size:42px;line-height:1;">📣</div>
+      <div style="font-weight:800;font-size:19px;color:#842029;margin-top:4px;">Demandas da Coordenação</div>
+      <div style="font-size:12px;color:var(--text-light);margin-top:2px;">Enviadas pela coordenação — veja antes de começar seu dia. Conclua quando resolver.</div>
+    </div>
+    <div id="popup-coord-corpo"></div>
+    <button class="btn btn-primary btn-full" style="margin-top:14px;" onclick="fecharPopupDemandasCoord()">Entendi 👍</button>
+  </div>
+</div>
+
 <!-- MODAL: Datas de revisita do plano de ação -->
 <div id="modal-pautas" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:220;align-items:flex-end;justify-content:center;">
   <div style="background:#fff;width:100%;max-width:560px;max-height:90vh;overflow-y:auto;border-radius:16px 16px 0 0;padding:18px;">
@@ -828,7 +841,7 @@ window.addEventListener('DOMContentLoaded', async () => {
   carregarAlertasRevisita();
   carregarAlertasCombinados();
   carregarContadores();
-  mostrarPopupRevisitas();
+  mostrarPopupDemandasCoord();
 });
 
 // ==============================
@@ -1436,6 +1449,50 @@ async function concluirDemandaCoord(id,btn){
   await db.from('demandas_diretoria').update({status:'resolvido', resolvido_em:new Date().toISOString()}).eq('id',id);
   showToast('✅ Demanda concluída! Obrigado.','success');
   carregarDemandasCoordenacao();
+}
+
+// ===== Popup de Demandas da Coordenação (abre no login, ANTES das demandas dela) =====
+async function mostrarPopupDemandasCoord(){
+  try{
+    const {data}=await db.from('demandas_diretoria')
+      .select('id,descricao,prazo,prioridade,autor_nome,loja_id,lojas(nome),media_url')
+      .eq('destinatario_email',usuario.email).neq('status','resolvido')
+      .order('created_at',{ascending:true});
+    if(!data||data.length===0){ mostrarPopupRevisitas(); return; } // nada da coordenação → segue p/ as dela
+    renderPopupCoordCorpo(data);
+    document.getElementById('modal-demandas-coord').style.display='flex';
+  }catch(e){ console.log('popup coord',e); mostrarPopupRevisitas(); }
+}
+function renderPopupCoordCorpo(data){
+  const hoje=new Date().toISOString().split('T')[0];
+  const el=document.getElementById('popup-coord-corpo');
+  if(!data||data.length===0){ el.innerHTML='<div style="text-align:center;color:#0f5132;font-weight:700;padding:16px;">✅ Tudo concluído! Obrigado.</div>'; return; }
+  el.innerHTML=data.map(d=>{
+    const atras=d.prazo&&d.prazo<hoje;
+    const pr=d.prioridade?PRIORIDADE_INFO[d.prioridade]:null;
+    const meta=[`📨 ${d.autor_nome||'Coordenação'}`];
+    if(d.lojas?.nome) meta.push('🏪 '+d.lojas.nome);
+    if(d.prazo) meta.push('📅 '+d.prazo.split('-').reverse().join('/')+(atras?' <span style="color:#dc3545;font-weight:700;">(atrasada)</span>':''));
+    if(pr) meta.push(pr.i+' '+pr.l);
+    return `<div id="popcoord-${d.id}" style="padding:12px;border-radius:10px;background:#fff5f5;border:1px solid #f1c0c0;margin-bottom:10px;">
+      <div style="font-size:14px;font-weight:700;">🎯 ${d.descricao}</div>
+      <div style="font-size:11px;color:var(--text-light);margin-top:4px;">${meta.join(' · ')}</div>
+      ${d.media_url?`<div style="margin-top:4px;"><a href="${d.media_url}" target="_blank" style="font-size:12px;color:var(--sfera);">📎 ver anexo</a></div>`:''}
+      <button class="btn btn-success btn-sm" style="margin-top:8px;" onclick="concluirDemandaCoordPopup('${d.id}',this)">✅ Concluir</button>
+    </div>`;
+  }).join('');
+}
+async function concluirDemandaCoordPopup(id,btn){
+  if(btn){ btn.disabled=true; btn.textContent='Concluindo...'; }
+  await db.from('demandas_diretoria').update({status:'resolvido', resolvido_em:new Date().toISOString()}).eq('id',id);
+  const card=document.getElementById('popcoord-'+id);
+  if(card){ card.style.opacity='.45'; card.style.pointerEvents='none'; const b=card.querySelector('button'); if(b){ b.textContent='✓ Concluída'; } }
+  showToast('✅ Demanda concluída! Obrigado.','success');
+  carregarDemandasCoordenacao(); // atualiza o banner da home
+}
+function fecharPopupDemandasCoord(){
+  document.getElementById('modal-demandas-coord').style.display='none';
+  mostrarPopupRevisitas(); // agora sim mostra as demandas dela
 }
 
 // ===== Banner de pendências na home =====
